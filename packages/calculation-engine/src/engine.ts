@@ -19,6 +19,7 @@ import {
   type OccurrenceSeries,
   type RolloverContext,
   buildOccurrences,
+  buildSpeculativeOccurrences,
   computeOccurrenceSeries,
   marketRentAt,
   normalizeSpaces,
@@ -105,11 +106,24 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
   };
 
   const occurrences = buildOccurrences(input.leases, rolloverCtx);
-  const occurrenceSeries: OccurrenceSeries[] = occurrences.map((occurrence) =>
+  let occurrenceSeries: OccurrenceSeries[] = occurrences.map((occurrence) =>
     computeOccurrenceSeries(occurrence, rolloverCtx, recordTrace),
   );
 
   detectOverlaps(occurrenceSeries, spaceMap, trace);
+
+  // Space that no lease ever touches is absorbed speculatively on the market
+  // leasing assumptions, then rolls over like any other lease.
+  const contractOccupancy = accumulateSpaceOccupancy(occurrenceSeries, spaces, n);
+  const speculative = buildSpeculativeOccurrences(spaces, contractOccupancy, rolloverCtx);
+  if (speculative.length > 0) {
+    occurrenceSeries = [
+      ...occurrenceSeries,
+      ...speculative.map((occurrence) =>
+        computeOccurrenceSeries(occurrence, rolloverCtx, recordTrace),
+      ),
+    ];
+  }
 
   const revenueSpaces = spaces.filter((space) => !space.isNonRevenue);
   const totalRentableArea = revenueSpaces.reduce((acc, space) => acc.plus(space.area), ZERO);
@@ -134,18 +148,7 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
   /* Occupancy and potential base rent                                     */
   /* --------------------------------------------------------------------- */
 
-  const spaceOccupancy = new Map<string, Decimal[]>(
-    spaces.map((space) => [space.id, zeros(n)]),
-  );
-  for (const series of occurrenceSeries) {
-    for (const spaceId of series.occurrence.spaceIds) {
-      const target = spaceOccupancy.get(spaceId);
-      if (!target) continue;
-      for (let i = 0; i < n; i += 1) {
-        target[i] = (target[i] as Decimal).plus(series.occupancyFraction[i] ?? ZERO);
-      }
-    }
-  }
+  const spaceOccupancy = accumulateSpaceOccupancy(occurrenceSeries, spaces, n);
 
   const occupiedArea = zeros(n);
   const vacantArea = zeros(n);
@@ -819,6 +822,25 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                */
 /* -------------------------------------------------------------------------- */
+
+/** Occupancy fraction per space per period, summed across occurrences. */
+function accumulateSpaceOccupancy(
+  series: OccurrenceSeries[],
+  spaces: NormalizedSpace[],
+  periods: number,
+): Map<string, Decimal[]> {
+  const occupancy = new Map<string, Decimal[]>(spaces.map((space) => [space.id, zeros(periods)]));
+  for (const entry of series) {
+    for (const spaceId of entry.occurrence.spaceIds) {
+      const target = occupancy.get(spaceId);
+      if (!target) continue;
+      for (let i = 0; i < periods; i += 1) {
+        target[i] = (target[i] as Decimal).plus(entry.occupancyFraction[i] ?? ZERO);
+      }
+    }
+  }
+  return occupancy;
+}
 
 function detectOverlaps(
   series: OccurrenceSeries[],

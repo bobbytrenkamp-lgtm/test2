@@ -444,17 +444,13 @@ function rolloverBranches(
   return branches;
 }
 
-/** Expands contract leases into the full set of weighted lease occurrences. */
-export function buildOccurrences(leases: Lease[], ctx: RolloverContext): LeaseOccurrence[] {
-  const all: LeaseOccurrence[] = [];
-  const queue: LeaseOccurrence[] = [];
-
-  for (const lease of leases) {
-    if (lease.status === 'vacant' || lease.status === 'terminated') continue;
-    const occurrence = occurrenceFromContractLease(lease, ctx);
-    all.push(occurrence);
-    if (!lease.excludeFromRollover) queue.push(occurrence);
-  }
+/**
+ * Chains rollover forward from a set of seed occurrences until the forecast
+ * ends, returning the seeds together with every branch they generate.
+ */
+export function expandRollover(seeds: LeaseOccurrence[], ctx: RolloverContext): LeaseOccurrence[] {
+  const all = [...seeds];
+  const queue = [...seeds];
 
   while (queue.length > 0) {
     const parent = queue.shift() as LeaseOccurrence;
@@ -469,6 +465,128 @@ export function buildOccurrences(leases: Lease[], ctx: RolloverContext): LeaseOc
   }
 
   return all;
+}
+
+/** Expands contract leases into the full set of weighted lease occurrences. */
+export function buildOccurrences(leases: Lease[], ctx: RolloverContext): LeaseOccurrence[] {
+  const seeds: LeaseOccurrence[] = [];
+  const excluded: LeaseOccurrence[] = [];
+
+  for (const lease of leases) {
+    if (lease.status === 'vacant' || lease.status === 'terminated') continue;
+    const occurrence = occurrenceFromContractLease(lease, ctx);
+    if (lease.excludeFromRollover) excluded.push(occurrence);
+    else seeds.push(occurrence);
+  }
+
+  return [...excluded, ...expandRollover(seeds, ctx)];
+}
+
+/**
+ * Speculative lease-up of space that is empty at the start of the forecast.
+ *
+ * A suite with no lease against it would otherwise sit empty for the whole
+ * forecast, which understates value and makes occupancy a flat line. The
+ * market leasing profile already states what the space would let for and how
+ * long it would take, so that is what governs: the space absorbs after the
+ * profile's downtime on the profile's new-lease terms, and then rolls over
+ * like any other lease.
+ *
+ * Space that carries a future or pending lease is left alone. That space is
+ * pre-let, and layering a speculative lease on top would double-count it.
+ */
+export function buildSpeculativeOccurrences(
+  spaces: NormalizedSpace[],
+  spaceOccupancy: Map<string, Decimal[]>,
+  ctx: RolloverContext,
+): LeaseOccurrence[] {
+  const seeds: LeaseOccurrence[] = [];
+
+  for (const space of spaces) {
+    if (space.isNonRevenue || space.area.lessThanOrEqualTo(0)) continue;
+    const occupancy = spaceOccupancy.get(space.id);
+    if (!occupancy) continue;
+    // Only space that is empty for the entire forecast is absorbed here.
+    const everOccupied = occupancy.some((value) => value.greaterThan('0.0001'));
+    if (everOccupied) continue;
+
+    const profile = resolveProfile(ctx, null, [space.id], `space:${space.id}`);
+    if (!profile) continue;
+
+    const start = addMonths(ctx.forecastStart, Math.round(profile.downtimeMonths));
+    if (compareDates(start, ctx.forecastEnd) > 0) continue;
+    const expiration = addDays(addMonths(start, profile.newLeaseTermMonths), -1);
+    const market = marketRentAt(profile, start, ctx);
+    const monthlyRent = monthlyRentFromBasis(
+      market.amount,
+      market.basis,
+      space.area,
+      space.unitCount,
+    );
+
+    const id = `speculative:${space.id}`;
+    seeds.push({
+      id,
+      sourceLeaseId: id,
+      tenantId: `market:${profile.id}`,
+      tenantName: `Speculative lease-up (${profile.name})`,
+      scenario: 'new_lease',
+      weight: ONE,
+      generation: 0,
+      spaceIds: [space.id],
+      area: space.area,
+      unitCount: space.unitCount,
+      commencement: start,
+      rentStart: start,
+      expiration,
+      schedule: {
+        area: space.area,
+        unitCount: space.unitCount,
+        rentStart: start,
+        leaseEnd: expiration,
+        baseRent: market.amount,
+        baseRentBasis: market.basis,
+        steps: [],
+        escalation: profile.newEscalation,
+        marketRentAt: (date) => marketRentAt(profile, date, ctx),
+      },
+      freeRent:
+        profile.newFreeRentMonths > 0
+          ? [
+              {
+                ...freeRentRange(start, profile.newFreeRentMonths),
+                share: ONE,
+                appliesTo: ['base_rent'],
+              },
+            ]
+          : [],
+      percentageRent: null,
+      recovery: profile.recovery,
+      otherRevenue: [],
+      tiCost: d(profile.newTiPerArea).times(space.area),
+      lcCost: d(profile.newLcPercent).times(monthlyRent).times(profile.newLeaseTermMonths),
+      costDate: start,
+      marketLeasingProfileId: profile.id,
+    });
+
+    ctx.trace.record({
+      target: `occurrence:${id}`,
+      formula: 'marketLeasing.speculativeLeaseUp',
+      description: `Space ${space.code} is vacant for the whole forecast, so it is absorbed after ${profile.downtimeMonths} months of downtime on the new-lease terms of "${profile.name}".`,
+      inputs: traceInputs({
+        area: space.area,
+        downtimeMonths: profile.downtimeMonths,
+        marketRent: market.amount,
+        termMonths: profile.newLeaseTermMonths,
+        freeRentMonths: profile.newFreeRentMonths,
+        startDate: formatDate(start),
+      }),
+      result: monthlyRent.toString(),
+      sources: [`space:${space.id}`, `profile:${profile.id}`],
+    });
+  }
+
+  return expandRollover(seeds, ctx);
 }
 
 export interface OccurrenceSeries {
