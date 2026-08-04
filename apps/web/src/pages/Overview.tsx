@@ -64,13 +64,17 @@ export function DashboardPage(): JSX.Element {
             </div>
             <div className="metric">
               <dt>Rentable area</dt>
-              <dd>{formatNumber(totalArea, 0)}</dd>
-              <div className="metric-note">Across all assets</div>
+              <dd>
+                {formatNumber(totalArea, 0)}
+                <div className="metric-note">Across all assets</div>
+              </dd>
             </div>
             <div className="metric">
               <dt>Acquisition basis</dt>
-              <dd>{formatCurrency(totalBasis, 'USD', { compact: true })}</dd>
-              <div className="metric-note">Sum of stated purchase prices</div>
+              <dd>
+                {formatCurrency(totalBasis, 'USD', { compact: true })}
+                <div className="metric-note">Sum of stated purchase prices</div>
+              </dd>
             </div>
             <div className="metric">
               <dt>Portfolios</dt>
@@ -90,7 +94,7 @@ export function DashboardPage(): JSX.Element {
 
           <div className="card">
             <h2>Recently updated properties</h2>
-            <div className="table-scroll" style={{ maxHeight: 400 }}>
+            <div className="table-scroll" tabIndex={0} style={{ maxHeight: 400 }}>
               <table>
                 <caption className="visually-hidden">Properties</caption>
                 <thead>
@@ -187,7 +191,7 @@ export function PortfoliosPage(): JSX.Element {
 
       {portfolios.data && portfolios.data.portfolios.length > 0 && (
         <div className="card">
-          <div className="table-scroll">
+          <div className="table-scroll" tabIndex={0}>
             <table>
               <caption className="visually-hidden">Portfolios</caption>
               <thead>
@@ -256,8 +260,8 @@ export function PortfoliosPage(): JSX.Element {
                   {formatCurrency(aggregate.data.aggregate.grossAssetValue, 'USD', {
                     compact: true,
                   })}
+                  <div className="metric-note">{aggregate.data.aggregate.propertyCount} assets</div>
                 </dd>
-                <div className="metric-note">{aggregate.data.aggregate.propertyCount} assets</div>
               </div>
               <div className="metric">
                 <dt>Net asset value</dt>
@@ -269,10 +273,10 @@ export function PortfoliosPage(): JSX.Element {
                 <dt>Debt</dt>
                 <dd>
                   {formatCurrency(aggregate.data.aggregate.totalDebt, 'USD', { compact: true })}
+                  <div className="metric-note">
+                    LTV {formatPercent(aggregate.data.aggregate.loanToValue)}
+                  </div>
                 </dd>
-                <div className="metric-note">
-                  LTV {formatPercent(aggregate.data.aggregate.loanToValue)}
-                </div>
               </div>
               <div className="metric">
                 <dt>Year 1 NOI</dt>
@@ -284,8 +288,10 @@ export function PortfoliosPage(): JSX.Element {
               </div>
               <div className="metric">
                 <dt>Going-in cap rate</dt>
-                <dd>{formatPercent(aggregate.data.aggregate.weightedGoingInCapRate)}</dd>
-                <div className="metric-note">NOI over value, not an average</div>
+                <dd>
+                  {formatPercent(aggregate.data.aggregate.weightedGoingInCapRate)}
+                  <div className="metric-note">NOI over value, not an average</div>
+                </dd>
               </div>
               <div className="metric">
                 <dt>Physical occupancy</dt>
@@ -293,8 +299,10 @@ export function PortfoliosPage(): JSX.Element {
               </div>
               <div className="metric">
                 <dt>Portfolio unlevered IRR</dt>
-                <dd>{formatPercent(aggregate.data.aggregate.portfolioUnleveredIrr)}</dd>
-                <div className="metric-note">From combined cash flows</div>
+                <dd>
+                  {formatPercent(aggregate.data.aggregate.portfolioUnleveredIrr)}
+                  <div className="metric-note">From combined cash flows</div>
+                </dd>
               </div>
               <div className="metric">
                 <dt>Portfolio equity multiple</dt>
@@ -347,7 +355,7 @@ export function PortfoliosPage(): JSX.Element {
           {aggregate.data.aggregate.tenantConcentration.length > 0 && (
             <div className="card">
               <h2>Tenant concentration</h2>
-              <div className="table-scroll" style={{ maxHeight: 320 }}>
+              <div className="table-scroll" tabIndex={0} style={{ maxHeight: 320 }}>
                 <table>
                   <caption className="visually-hidden">
                     Tenant concentration by year-one rent
@@ -419,7 +427,7 @@ export function JobsPage(): JSX.Element {
       ) : (
         jobs.data && (
           <div className="card">
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table>
                 <caption className="visually-hidden">Background jobs</caption>
                 <thead>
@@ -510,7 +518,7 @@ export function AuditPage(): JSX.Element {
       ) : (
         audit.data && (
           <div className="card">
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table>
                 <caption className="visually-hidden">Audit log</caption>
                 <thead>

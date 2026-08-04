@@ -13,3 +13,11 @@ coverage/
 .DS_Store
 apps/web/dist/
 uploads/
+
+# End-to-end artefacts. e2e/.auth holds live session cookies for the seeded
+# development accounts and must never be committed.
+e2e/.auth/
+test-results/
+playwright-report/
+blob-report/
+.playwright/

@@ -22,11 +22,14 @@ a real screen reader, and a restore drill. None of those has been run.
 ```
 Tests       218 passed  (125 engine regression, 27 engine unit, 30 import,
                          23 authorization, 13 vertical slice)
-Typecheck   clean across all 7 packages
+Browser     23 passed   (3 sign-in, 2 underwriting, 2 lease editor,
+                         6 permissions, 1 import, 9 accessibility)
+Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (326 kB, 93 kB gzipped)
+Web build   succeeds (327 kB, 93 kB gzipped)
 Migrations  4 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, all models calculated
+Licences    340 packages, none requiring payment or a commercial licence
 ```
 
 ---
@@ -137,22 +140,23 @@ Seed        5 properties, 1 portfolio, all models calculated
 | Property list, search, filter, create | Functional | |
 | Property workspace | Functional | Overview, spaces, models |
 | Model workspace with tabs | Functional | Nine tabs |
-| Cash-flow statement, monthly and annual | Functional | Frozen first column, tabular figures |
-| Calculation inspector | Functional | Reads the stored trace; recomputes nothing |
-| Rent roll grid and lease editor | Functional | Inline date-order validation |
+| Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
+| Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
+| Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser |
 | Assumptions, six collections | Functional | Common fields tabulated; full record edited as JSON |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
 | Reports with four output formats | Functional | |
-| Rent-roll import wizard | Functional | |
+| Rent-roll import wizard | Tested | Browser test imports a part-invalid file and checks what reached the rent roll |
 | Versions and approval workflow | Functional | |
 | Portfolio roll-up | Functional | |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
 | Keyboard shortcut, unsaved-change warning | Functional | Ctrl/Cmd+Enter recalculates |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | **Not started** | No component or end-to-end browser tests exist |
+| Automated UI tests | Functional | 23 Playwright tests in Chromium on the built bundle. The assumptions editor, scenarios, versions, reports and portfolio builder are not yet covered |
+| Accessibility, machine-checked | Tested | `axe-core` on nine screens, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** copy/paste from Excel, multi-cell edit,
 fill-down, undo/redo, column hiding, saved views, command palette, configurable
@@ -227,9 +231,9 @@ maps, version side-by-side comparison.
 | Import parsing | Tested | 30 |
 | API authorization and isolation | Tested | 23 |
 | Vertical slice, end to end | Tested | 13 |
+| Browser end-to-end tests | Tested | 23, Chromium only |
+| Automated accessibility tests | Tested | 9 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
-| Browser end-to-end tests | Not started | |
-| Automated accessibility tests | Not started | Built to WCAG 2.2 AA; not machine-verified |
 | Performance tests | Not started | |
 | Load tests | Not started | |
 
@@ -242,9 +246,11 @@ schema and migrations; authentication, authorization and organization isolation;
 the deterministic import parser; the vertical slice from sign-in through to a
 traced valuation.
 
-**Works, not yet proven.** The web application in full, background jobs,
-reports and exports, sensitivity and cloning, portfolio aggregation. No browser
-tests exist, so a UI regression would not be caught automatically.
+**Works, not yet proven.** Background jobs, reports and exports, sensitivity
+and cloning, portfolio aggregation, and the parts of the web application the
+browser suite does not reach — the assumptions editor, scenarios, versions,
+reports and the portfolio builder. A regression in those would not be caught
+automatically.
 
 **Designed only.** Budgets and actuals, variance reporting, collaboration,
 dashboard configuration, documents, portfolio reports, Excel import, PDF

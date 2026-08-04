@@ -51,6 +51,21 @@ Now:
   six hours**, which is the single largest way a metered account leaks minutes.
 - `permissions: contents: read` — least privilege.
 - `workflow_dispatch` allows a manual run without adding a recurring cost.
+- Every check runs in **one job**. A second job would repeat the checkout, the
+  dependency install and the browser download; that repetition, not the checks
+  themselves, is what a metered account pays for.
+- Failed browser traces and the HTML report stay on the runner. Uploading them
+  as artifacts would consume metered artifact storage on a private repository,
+  and the failure output already names the rule, the element and the page.
+
+### The browser suite adds no billable service
+
+`pnpm test:e2e` downloads Chromium from Playwright's own CDN — free, no account,
+no key, no rate-limited registry. It runs on the same `ubuntu-latest` runner as
+everything else, against the same PostgreSQL service container. There is no
+hosted browser grid, no device farm and no visual-regression service. The run
+adds roughly a minute, and the `timeout-minutes: 20` ceiling was already
+generous enough to absorb it.
 
 ### If this repository is ever made private
 
@@ -87,6 +102,7 @@ generating a charge" behaviour.
 | Email | **No mailer.** Reset and invitation tokens are returned in the response outside production |
 | Monitoring | **None wired** |
 | Maps | **None.** The geographic dashboard widget is deferred rather than backed by a paid tile provider |
+| Browser testing | **Local Chromium only.** Playwright downloads the browser from its own CDN; no hosted grid, no account, no key |
 
 Every one of these sits behind an interface (`docs/architecture.md`), so a
 provider can be added later by choice — never by default.
@@ -112,16 +128,17 @@ applies anonymous pull *rate limits*, never charges.
 
 Checked automatically by `scripts/check-licences.mjs`, which runs offline
 against the installed tree and **fails the build** on a paid, commercial or
-copyleft licence. It runs in CI.
+strongly copyleft licence. It runs in CI.
 
 ```
-335 packages examined
+340 packages examined
 
   273  MIT
    24  ISC
-   16  Apache-2.0
+   19  Apache-2.0
     7  BSD-3-Clause
     6  BSD-2-Clause
+    2  MPL-2.0                        see below
     2  Unlicense
     2  MIT/X11
     1  Python-2.0
@@ -132,6 +149,20 @@ copyleft licence. It runs in CI.
 ```
 
 No AGPL, SSPL, BUSL, Elastic, `UNLICENSED` or commercial licence is present.
+
+### The two file-level copyleft packages
+
+`axe-core` and `@axe-core/playwright` are **MPL-2.0**. They arrived with the
+accessibility tests. MPL-2.0 is free software and requires no payment and no
+commercial licence for any use this project makes of it; its obligation is
+file-level, meaning modifications *to MPL-covered files* must be published under
+the same licence. Nothing here modifies them — they are consumed unmodified, as
+a development dependency, and never ship in the application bundle.
+
+Because that is a weaker claim than "no copyleft at all", the checker reports
+them in their own category with the reason attached, rather than quietly
+widening the permissive allow-list. A future reader should be able to see the
+distinction rather than have it hidden from them.
 
 ### The one ambiguity, stated plainly
 

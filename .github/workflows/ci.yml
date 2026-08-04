@@ -17,6 +17,12 @@ name: CI
 #     hours, which is the single largest way a metered account leaks minutes.
 #   * Only `ubuntu-latest` is used. Windows bills at 2x and macOS at 10x.
 #   * Only free, official container images are used.
+#   * Every check runs in one job. A second job would repeat the checkout, the
+#     dependency install and the browser download, which is the cost that
+#     matters — not the checks themselves.
+#   * Failed end-to-end traces and the HTML report stay on the runner rather
+#     than being uploaded as artifacts, because artifact storage is metered on
+#     a private repository. Failures print the rule, the element and the page.
 #
 # Do not add a scheduled (`cron`) trigger. A schedule bills whether or not
 # anything changed, and is the other common way a free allowance is consumed.
@@ -90,6 +96,22 @@ jobs:
 
       - name: Build the web client
         run: pnpm --filter @cre/web run build
+
+      # Chromium only. Firefox and WebKit would triple the download and the run
+      # time for coverage this suite does not currently claim; see
+      # docs/testing-strategy.md. The browser is a free download from
+      # Playwright's own CDN and no account or key is involved.
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Drives the built bundle in a real browser against a real API and
+      # database, and runs the axe accessibility checks. `pnpm test:e2e`
+      # rebuilds the end-to-end database from the migrations and the seed
+      # before it starts, so the run does not depend on the suites above.
+      - name: End-to-end and accessibility tests
+        run: pnpm test:e2e
+        env:
+          E2E_DATABASE_URL: postgres://cre:cre@localhost:5432/cre_platform_e2e
 
       # Reported, not yet enforced. Raising this to a failure is tracked in
       # docs/feature-status.md.

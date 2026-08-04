@@ -100,7 +100,7 @@ export function ReturnsTab(): JSX.Element {
                 </h3>
                 <span className="badge accent">{formatCurrency(valuation.value, currency)}</span>
               </div>
-              <div className="table-scroll" style={{ maxHeight: 320 }}>
+              <div className="table-scroll" tabIndex={0} style={{ maxHeight: 320 }}>
                 <table>
                   <caption className="visually-hidden">
                     {valuation.method} inputs and intermediate results
@@ -157,7 +157,7 @@ export function ReturnsTab(): JSX.Element {
                     {Number(schedule.covenantBreaches[0]?.limit).toFixed(4)}.
                   </div>
                 )}
-                <div className="table-scroll" style={{ maxHeight: 380 }}>
+                <div className="table-scroll" tabIndex={0} style={{ maxHeight: 380 }}>
                   <table>
                     <caption className="visually-hidden">{schedule.facilityName} schedule</caption>
                     <thead>
@@ -230,7 +230,7 @@ export function ReturnsTab(): JSX.Element {
             when that balance is paid to zero. Amounts by tier show where each partner's cash came
             from.
           </p>
-          <div className="table-scroll">
+          <div className="table-scroll" tabIndex={0}>
             <table>
               <caption className="visually-hidden">Partner-level distributions and returns</caption>
               <thead>
@@ -312,8 +312,8 @@ function Metric({
         ) : (
           value
         )}
+        {note && <div className="metric-note">{note}</div>}
       </dd>
-      {note && <div className="metric-note">{note}</div>}
     </div>
   );
 }

@@ -174,7 +174,7 @@ export function ScenariosTab(): JSX.Element {
 
         {result && !run.pending && (
           <div style={{ marginTop: 16 }}>
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table className="freeze-first">
                 <caption className="visually-hidden">
                   {metricSpec?.label} sensitivity to {titleCase(result.rows.variable)}

@@ -41,7 +41,40 @@ export interface MigrateResult {
   skipped: string[];
 }
 
+/**
+ * Advisory lock key held for the duration of a migration run.
+ *
+ * Two processes migrating the same database at the same time — two API
+ * instances restarting together, or two test suites preparing their own schemas
+ * — race on anything database-scoped rather than schema-scoped. `CREATE
+ * EXTENSION IF NOT EXISTS` is the clearest example: the existence check and the
+ * catalogue insert are not atomic, so the loser fails on a duplicate key in
+ * `pg_extension`. Serialising the whole run removes that class of failure
+ * instead of special-casing each statement. The number is arbitrary but fixed;
+ * every process must choose the same one for the lock to mean anything. It is
+ * sent as text and cast in SQL because the driver does not serialise `bigint`.
+ */
+const MIGRATION_LOCK_KEY = '4073112659001';
+
 export async function migrate(sql: Sql, dir = MIGRATIONS_DIR): Promise<MigrateResult> {
+  // An advisory lock belongs to the session that took it, so it is held on a
+  // reserved connection for as long as the run lasts. The migrations themselves
+  // still go through the pool: the lock only has to exist somewhere, not on the
+  // connection doing the work.
+  const holder = await sql.reserve();
+  try {
+    await holder`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY}::bigint)`;
+    try {
+      return await runMigrations(sql, dir);
+    } finally {
+      await holder`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY}::bigint)`;
+    }
+  } finally {
+    holder.release();
+  }
+}
+
+async function runMigrations(sql: Sql, dir: string): Promise<MigrateResult> {
   await ensureMigrationsTable(sql);
   const files = await listMigrationFiles(dir);
   const existing = (await sql`
