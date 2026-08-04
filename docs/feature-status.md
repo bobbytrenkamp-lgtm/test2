@@ -197,6 +197,7 @@ maps, version side-by-side comparison.
 | Secrets outside source control | Functional | `.env` git-ignored, validated at startup |
 | Multi-factor authentication | Not started | `mfa_enrolled` column only |
 | Dependency scanning in CI | Functional | `pnpm audit` runs; not yet failing the build |
+| Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
 | Malware scanning of uploads | Designed | Column exists; no scanner |
 | Upload size and type verification | Partial | Body limit enforced; no upload endpoint yet |
 | Database backup and restore | Designed | Documented; **never executed** |
@@ -212,7 +213,8 @@ maps, version side-by-side comparison.
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Functional | |
 | Docker Compose | **Designed, unverified** | Written but never run — no Docker daemon was available |
-| CI workflow | Functional | Runs typecheck, lint, tests, build against PostgreSQL |
+| CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
+| Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Not started | No provider wired |
 | Deployment automation, rollback | Documented | Process described; not automated |
 

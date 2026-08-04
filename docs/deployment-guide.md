@@ -16,7 +16,10 @@ but have **not been drilled**. Treat both as untested until someone runs them.
 - PostgreSQL 16 or later
 - pnpm 9
 
-No paid service, external API or proprietary component is required.
+No paid service, external API or proprietary component is required. The whole
+stack runs on locally installed open-source components; see
+[`zero-cost-operation.md`](zero-cost-operation.md) for the audit, including how
+the CI workflow is configured to stay inside GitHub's free allowance.
 
 ## Local development, without Docker (verified)
 

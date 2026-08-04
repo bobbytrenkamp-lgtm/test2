@@ -33,4 +33,13 @@ export default tseslint.config(
     ],
     rules: { 'no-console': 'off' },
   },
+  {
+    // Maintenance scripts are Node command-line tools: they run outside any
+    // bundler, and printing to stdout is their entire purpose.
+    files: ['scripts/**/*.mjs', 'scripts/**/*.js'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+    rules: { 'no-console': 'off' },
+  },
 );
