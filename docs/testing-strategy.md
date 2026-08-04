@@ -208,6 +208,27 @@ a loop that issues one round trip per property. Both are needed.
 It found the second of those: portfolio aggregation was issuing two queries per
 property in a sequential loop. See `docs/architecture.md`.
 
+## The concurrency test
+
+```
+pnpm concurrency-test
+CONCURRENCY=200 ROUNDS=5 pnpm concurrency-test
+```
+
+Drives the real Fastify server, with its real connection pool, through a mix of
+reads weighted the way a working day is. It fails on any request error, on a
+failed concurrent write, or on a p95 outside budget. It runs in CI at fifty
+clients — fewer than a local run, because a shared runner has less CPU and the
+point in CI is to catch failures and deadlocks rather than to chase a throughput
+number that would not be portable anyway.
+
+It reports percentiles, not an average. An average hides the request that took
+four seconds behind the ninety-nine that took ten milliseconds, and the slow one
+is the one someone notices.
+
+It corrected an assumption: the connection pool is not the constraint. See
+`docs/architecture.md`.
+
 ## Test isolation
 
 Each database suite creates its own PostgreSQL **schema**, migrates into it, and

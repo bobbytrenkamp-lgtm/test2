@@ -24,6 +24,7 @@
     "drill:restore": "tsx scripts/restore-drill.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "load-test": "tsx scripts/load-test.ts",
+    "concurrency-test": "tsx scripts/concurrency-test.ts",
     "dev": "pnpm --parallel --filter @cre/api --filter @cre/web --filter @cre/worker run dev"
   },
   "devDependencies": {

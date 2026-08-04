@@ -127,6 +127,16 @@ jobs:
       - name: Database load test
         run: pnpm load-test
 
+      # Drives the real server through parallel clients and fails on any error
+      # or an out-of-budget tail. Fewer clients than the local run: a shared
+      # runner has less CPU, and this checks for failures and deadlocks rather
+      # than chasing a throughput number that would not be portable anyway.
+      - name: Concurrency test
+        run: pnpm concurrency-test
+        env:
+          CONCURRENCY: 50
+          ROUNDS: 4
+
       # Backs the database up, restores it into a scratch database, and checks
       # that a stored valuation still reproduces from the restored data. A
       # backup nobody restores is a hope, not a backup; running it here means

@@ -15,7 +15,7 @@ features that have also passed the production-hardening pass in
 `docs/implementation-roadmap.md` — load testing, an accessibility audit against
 a real screen reader, and a restore drill. The restore drill, an engine
 performance baseline and a database load test all now run in CI. Still
-outstanding: a concurrency test, and an audit with a real screen reader.
+outstanding: an audit with a real screen reader.
 
 ---
 
@@ -37,6 +37,7 @@ Seed        5 properties, 1 portfolio, 5 frozen versions, all models
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
 Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
 Load test   5,000 properties, 200,000 leases; every query inside budget
+Concurrency 200 parallel clients, ~1,000 req/s, p95 200ms, 0 failures
 Licences    340 packages, none requiring payment or a commercial licence
 ```
 
@@ -269,7 +270,8 @@ notifications, geographic maps, version side-by-side comparison.
 | Property-based tests | Not started | |
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
-| Concurrency and connection-pool test | Not started | The load test measures one client at a time |
+| Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
+| Optimistic locking on writes | Not started | Concurrent lease writes are last-write-wins; measured and documented |
 
 ---
 

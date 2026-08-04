@@ -129,8 +129,17 @@ issued two round trips per property in a loop — 1,000 of them for a 500-proper
 fund — now a single `DISTINCT ON` query. The aggregate had no tests at all, so
 seven were written alongside the rewrite.
 
-Still to do: a **concurrency** test — the load test measures one client at a
-time and says nothing about connection-pool contention. Grid virtualisation and
+~~Concurrency test~~ — done. `pnpm concurrency-test` drives the real server
+through 200 parallel clients: ~1,000 req/s, p95 200 ms, zero failures. It
+corrected an assumption of mine — the connection pool is **not** the constraint;
+measured across 5 to 60 connections throughput was flat to worse, because the
+single Node process is the bottleneck. Throughput scales by running more API
+processes. It also records that concurrent lease writes are last-write-wins,
+with no optimistic locking.
+
+Still to do: optimistic locking on lease writes, grid virtualisation, cursor
+pagination on the audit log, error monitoring, an audit with a real screen
+reader, and deployment automation with a rollback path. Grid virtualisation and
 cursor pagination once profiling says where. Accessibility audit with a real
 screen reader. Error monitoring. Deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.

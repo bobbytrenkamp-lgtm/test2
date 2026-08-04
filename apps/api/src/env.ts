@@ -12,6 +12,21 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  /**
+   * PostgreSQL connections this process may hold.
+   *
+   * **This is not a throughput knob.** The concurrency test measured 5, 10, 30
+   * and 60 connections under 200 parallel clients and found throughput flat to
+   * slightly worse as the pool grew, with the latency tail lengthening. The
+   * constraint is the single Node process — serialising large cash-flow
+   * payloads is CPU work, and more connections only add contention for it.
+   * Throughput scales by running more API processes, not a bigger pool.
+   *
+   * It is here because a deployment has to *bound* connections against the
+   * database's own `max_connections`: every API process multiplies this, and a
+   * database that refuses connections is a worse failure than a slow one.
+   */
+  DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(200).default(10),
   API_HOST: z.string().default('0.0.0.0'),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   SESSION_SECRET: z
