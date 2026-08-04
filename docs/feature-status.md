@@ -13,18 +13,18 @@ Status values: `Not started` · `Designed` · `In development` · `Functional` �
 Nothing is yet marked **Production ready**. That designation is reserved for
 features that have also passed the production-hardening pass in
 `docs/implementation-roadmap.md` — load testing, an accessibility audit against
-a real screen reader, and a restore drill. The restore drill and an engine
-performance baseline now run in CI; a database and API load test at portfolio
-scale, and the screen-reader audit, have not been done.
+a real screen reader, and a restore drill. The restore drill, an engine
+performance baseline and a database load test all now run in CI. Still
+outstanding: a concurrency test, and an audit with a real screen reader.
 
 ---
 
 ## Verification at the last check
 
 ```
-Tests       313 passed  (164 engine regression, 31 engine unit, 18 variance,
+Tests       320 passed  (164 engine regression, 31 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
-                         13 vertical slice)
+                         7 portfolios, 13 vertical slice)
 Browser      34 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 9 accessibility)
@@ -35,7 +35,8 @@ Migrations  5 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
-Benchmark   4 cases inside budget (128ms single tenant, 4.8s at 300 leases)
+Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
+Load test   5,000 properties, 200,000 leases; every query inside budget
 Licences    340 packages, none requiring payment or a commercial licence
 ```
 
@@ -81,7 +82,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | LP/GP waterfall | Tested | Preferred, ROC, catch-up, promote |
 | Sponsor fees | Functional | Acquisition, asset management, disposition only |
 | Development and refinance fee bases | Not started | Diagnosed as not modelled |
-| Portfolio aggregation | Functional | Rates rebuilt, IRR from combined flows |
+| Portfolio aggregation | Tested | Rates rebuilt, IRR from combined flows |
 | Calculation traces | Tested | Rent, recoveries, terminal value, DCF |
 | Diagnostics | Tested | No fixture raises an error |
 
@@ -133,7 +134,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Calculate, cash flow, trace | Tested | |
 | Sensitivity (one- and two-way) | Functional | Full engine run per cell |
 | Scenario batch | Functional | Queued to the worker |
-| Portfolio aggregate | Functional | Reports exclusions rather than zeroing |
+| Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
 | Reports (JSON, CSV, XLSX, print HTML) | Functional | |
 | Portable JSON export | Functional | Documented, non-proprietary |
 | Rent-roll import (analyse, validate, commit) | Functional | Parsing itself is Tested |
@@ -267,7 +268,8 @@ notifications, geographic maps, version side-by-side comparison.
 | Automated accessibility tests | Tested | 11 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
-| Load tests, database and API | Not started | The benchmark measures the engine, not query plans or concurrency |
+| Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
+| Concurrency and connection-pool test | Not started | The load test measures one client at a time |
 
 ---
 

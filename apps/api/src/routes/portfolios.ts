@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getLatestCalculation, writeAudit } from '@cre/database';
+import { writeAudit } from '@cre/database';
 import { aggregatePortfolio, type PortfolioMember } from '@cre/calculation-engine';
 import { badRequest, notFound, requireCapability } from '../context.js';
 
@@ -116,22 +116,50 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
 
     const members: PortfolioMember[] = [];
     const excluded: Array<{ propertyId: string; propertyName: string; reason: string }> = [];
+    const propertyIds = properties.map((property) => property.id as string);
+
+    /*
+     * The leading model for every property, and its latest result, in one
+     * query.
+     *
+     * This was a loop issuing two round trips per property. The load test put
+     * that at roughly half a millisecond each against a local database — fine
+     * on a laptop, and about two seconds of pure latency for a thousand-property
+     * fund once the database is a network hop away. Round trips are the cost
+     * here, not the work, so the fix is to stop making them rather than to make
+     * them faster.
+     *
+     * `DISTINCT ON` picks one row per property under the same precedence the
+     * loop applied: published, then approved, then most recently updated.
+     */
+    const leading = (propertyIds.length === 0
+      ? []
+      : await request.db`
+            WITH leading_model AS (
+              SELECT DISTINCT ON (m.property_id) m.property_id, m.id AS model_id
+              FROM models m
+              WHERE m.organization_id = ${context.organizationId}
+                AND m.property_id = ANY(${propertyIds}::uuid[])
+                AND m.deleted_at IS NULL
+                AND (${query.modelClassification ?? null}::text IS NULL
+                     OR m.classification = ${query.modelClassification ?? null}::text)
+              ORDER BY m.property_id,
+                       CASE m.status WHEN 'published' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
+                       m.updated_at DESC
+            )
+            SELECT DISTINCT ON (lm.property_id)
+                   lm.property_id, lm.model_id, r.result
+            FROM leading_model lm
+            LEFT JOIN calculation_runs r
+              ON r.model_id = lm.model_id AND r.status = 'succeeded' AND r.result IS NOT NULL
+            ORDER BY lm.property_id, r.created_at DESC
+          `) as unknown as Array<{ property_id: string; model_id: string; result: unknown | null }>;
+
+    const byProperty = new Map(leading.map((row) => [row.property_id, row]));
 
     for (const property of properties) {
-      const modelRows = (await request.db`
-        SELECT id FROM models
-        WHERE property_id = ${property.id as string}
-          AND organization_id = ${context.organizationId}
-          AND deleted_at IS NULL
-          AND (${query.modelClassification ?? null}::text IS NULL
-               OR classification = ${query.modelClassification ?? null}::text)
-        ORDER BY
-          CASE status WHEN 'published' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
-          updated_at DESC
-        LIMIT 1
-      `) as unknown as Array<{ id: string }>;
-      const modelId = modelRows[0]?.id;
-      if (!modelId) {
+      const row = byProperty.get(property.id as string);
+      if (!row) {
         excluded.push({
           propertyId: property.id as string,
           propertyName: property.name as string,
@@ -139,8 +167,7 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
         });
         continue;
       }
-      const latest = await getLatestCalculation(request.db, modelId);
-      if (!latest) {
+      if (!row.result) {
         excluded.push({
           propertyId: property.id as string,
           propertyName: property.name as string,
@@ -156,7 +183,7 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
         ownershipPercent: (property.ownership_percent as string) ?? '1',
         rentableArea: (property.rentable_area as string | null) ?? null,
         unitCount: (property.unit_count as number) ?? 0,
-        result: latest.result,
+        result: row.result as PortfolioMember['result'],
       });
     }
 

@@ -29,9 +29,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
+| Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**313 tests in total.**
+**320 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -50,7 +51,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**34 browser tests in total**, for 347 across the whole repository.
+**34 browser tests in total**, for 354 across the whole repository.
 
 ## The regression library
 
@@ -187,6 +188,25 @@ hardware fixes that.
 
 Absolute timings are not portable between machines and the script says so in its
 own output.
+
+## The database load test
+
+```
+pnpm load-test                      # 1,000 properties
+LOAD_PROPERTIES=5000 pnpm load-test
+```
+
+Builds a scratch organization — properties, models, leases, stored calculations
+and audit rows — times the queries the interface actually issues, then drops the
+database again. It refuses to run against a database whose name does not mark it
+as disposable, exactly as the restore drill does.
+
+The engine benchmark and this measure different failure modes. An engine that is
+linear in the model tells you nothing about a list query that scans a table, or
+a loop that issues one round trip per property. Both are needed.
+
+It found the second of those: portfolio aggregation was issuing two queries per
+property in a sequential loop. See `docs/architecture.md`.
 
 ## Test isolation
 

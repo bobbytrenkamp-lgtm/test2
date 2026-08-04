@@ -197,10 +197,42 @@ thousands of times, to compute a number that needed it once.
 - Rollover branching is bounded by weight pruning and a generation ceiling.
 - Large work is queued rather than run on the request path.
 
+### The database at scale
+
+`pnpm load-test` builds a scratch organization — 5,000 properties, 10,000
+models, 200,000 leases, 50,000 audit rows — and times the queries the interface
+actually issues. It runs in CI at a thousand properties.
+
+| Query | Time |
+| --- | --- |
+| Property list, first page | ~3 ms |
+| Property list, deep page (OFFSET 900) | ~3 ms |
+| Property search, `name ILIKE` | ~9 ms |
+| Model list, whole organization | ~9 ms |
+| Audit log, first page of 50,000 | ~22 ms |
+| Latest calculation, full result JSONB | ~1 ms |
+
+Every list query stays flat as the tables grow, which is what the pagination and
+the indexes are there for. The claim at the top of this section is now measured
+rather than asserted.
+
+**What it found.** Portfolio aggregation issued two queries per property — one
+to find the leading model, one to read its stored result — in a sequential loop.
+At 500 properties that was 1,000 round trips and 248 ms locally. Round trips are
+the cost, not the work: against a database one network hop away at 1 ms, a
+thousand-property fund would spend about two seconds waiting rather than
+computing. It is now a single `DISTINCT ON` query, 49 ms for the same 500
+properties, and **one** round trip regardless of size.
+
+The portfolio aggregate had no tests at all when that rewrite happened, so
+`tests/portfolios.test.ts` was written alongside it — model precedence,
+and the two exclusion reasons a property can be dropped for.
+
 Not yet done: grid virtualisation for very large rent rolls, cursor pagination
-on the audit log, and a database-level load test at the stated portfolio scale —
-the benchmark measures the engine, not the query plans. These are recorded in
-`docs/feature-status.md` rather than claimed.
+on the audit log (offset paging is measured fine at this scale but degrades
+deep into a large table), and a concurrency test — the load test measures one
+client at a time, so it says nothing about connection-pool contention. These are
+recorded in `docs/feature-status.md` rather than claimed.
 
 ## Deliberately not distributed
 
