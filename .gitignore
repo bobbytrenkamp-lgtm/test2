@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.pgdata/
+.tmp/
+*.log
+.DS_Store
+apps/web/dist/
+uploads/

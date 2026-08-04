@@ -1,0 +1,61 @@
+# Local development stack.
+#
+# NOTE: these files have not been executed — the build environment had no Docker
+# daemon. See docs/deployment-guide.md. Local development on a directly
+# installed PostgreSQL 16 is verified and documented there.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cre
+      POSTGRES_PASSWORD: cre
+      POSTGRES_DB: cre_platform
+    ports: ['5432:5432']
+    volumes: ['postgres-data:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cre -d cre_platform']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://cre:cre@postgres:5432/cre_platform
+      API_PORT: '4000'
+      WEB_ORIGIN: http://localhost:8080
+      # Development-only value. Generate a real secret for any deployment.
+      SESSION_SECRET: local-development-secret-not-for-any-real-deployment
+      SESSION_COOKIE_SECURE: 'false'
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ['4000:4000']
+    command: >
+      sh -c "pnpm --filter @cre/database run migrate &&
+             pnpm --filter @cre/api run start"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://cre:cre@postgres:5432/cre_platform
+      SESSION_SECRET: local-development-secret-not-for-any-real-deployment
+    depends_on:
+      postgres: { condition: service_healthy }
+    command: ['pnpm', '--filter', '@cre/worker', 'run', 'start']
+
+  web:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.web
+    depends_on: [api]
+    ports: ['8080:80']
+
+volumes:
+  postgres-data:

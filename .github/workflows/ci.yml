@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cre
+          POSTGRES_PASSWORD: cre
+          POSTGRES_DB: cre_platform_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cre"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://cre:cre@localhost:5432/cre_platform_test
+      SESSION_SECRET: ci-session-secret-long-enough-to-satisfy-validation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `version` here on purpose: the action reads `packageManager` from
+      # package.json, and specifying both is an error. Keeping it in one place
+      # also means CI and a developer's machine cannot drift apart on the
+      # pnpm version.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      # Engine, import, authorization and vertical-slice suites. The
+      # database-backed suites run for real; they do not skip in CI.
+      - run: pnpm test
+
+      - name: Build the web client
+        run: pnpm --filter @cre/web run build
+
+      # Reported, not yet enforced. Raising this to a failure is tracked in
+      # docs/feature-status.md.
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high || true
