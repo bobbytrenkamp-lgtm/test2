@@ -52,22 +52,28 @@ export function ValidationTab(): JSX.Element {
         <dl className="metric-grid">
           <div className="metric">
             <dt>Rentable area</dt>
-            <dd>{formatNumber(first?.totalRentableArea, 0)}</dd>
-            <div className="metric-note">{cashFlow.areaUnit}</div>
+            <dd>
+              {formatNumber(first?.totalRentableArea, 0)}
+              <div className="metric-note">{cashFlow.areaUnit}</div>
+            </dd>
           </div>
           <div className="metric">
             <dt>Occupied, month 1</dt>
-            <dd>{formatNumber(first?.occupiedArea, 0)}</dd>
-            <div className="metric-note">
-              {(Number(first?.physicalOccupancyPercent ?? 0) * 100).toFixed(1)}% physical
-            </div>
+            <dd>
+              {formatNumber(first?.occupiedArea, 0)}
+              <div className="metric-note">
+                {(Number(first?.physicalOccupancyPercent ?? 0) * 100).toFixed(1)}% physical
+              </div>
+            </dd>
           </div>
           <div className="metric">
             <dt>Occupied, final month</dt>
-            <dd>{formatNumber(last?.occupiedArea, 0)}</dd>
-            <div className="metric-note">
-              {(Number(last?.physicalOccupancyPercent ?? 0) * 100).toFixed(1)}% physical
-            </div>
+            <dd>
+              {formatNumber(last?.occupiedArea, 0)}
+              <div className="metric-note">
+                {(Number(last?.physicalOccupancyPercent ?? 0) * 100).toFixed(1)}% physical
+              </div>
+            </dd>
           </div>
           <div className="metric">
             <dt>Economic occupancy, month 1</dt>
@@ -79,7 +85,7 @@ export function ValidationTab(): JSX.Element {
       {cashFlow.recoveryDetail.length > 0 && (
         <div className="card">
           <h2>Expense recovery workings</h2>
-          <div className="table-scroll" style={{ maxHeight: 420 }}>
+          <div className="table-scroll" tabIndex={0} style={{ maxHeight: 420 }}>
             <table>
               <caption className="visually-hidden">
                 Recovery detail by lease and fiscal year
@@ -187,7 +193,7 @@ export function ReportsTab(): JSX.Element {
         </p>
         <ErrorMessage error={reports.error} />
         {reports.loading && <Loading label="Loading report definitions" />}
-        <div className="table-scroll" style={{ maxHeight: 360 }}>
+        <div className="table-scroll" tabIndex={0} style={{ maxHeight: 360 }}>
           <table>
             <caption className="visually-hidden">Available property reports</caption>
             <thead>
@@ -262,7 +268,7 @@ export function ReportsTab(): JSX.Element {
               <p className="field-hint" style={{ marginTop: 0 }}>
                 {preview.data.report.description}
               </p>
-              <div className="table-scroll">
+              <div className="table-scroll" tabIndex={0}>
                 <table className="freeze-first">
                   <caption className="visually-hidden">{preview.data.report.title}</caption>
                   <thead>
@@ -450,7 +456,7 @@ export function VersionsTab(): JSX.Element {
           </EmptyState>
         ) : (
           versions.data && (
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0}>
               <table>
                 <caption className="visually-hidden">Immutable model versions</caption>
                 <thead>
@@ -569,6 +575,8 @@ export function ImportsTab(): JSX.Element {
     return response;
   });
 
+  const [committed, setCommitted] = useState<{ imported: number; skipped: number } | null>(null);
+
   const commit = useMutation(async () =>
     api.post<{ imported: number; skipped: number }>(`/models/${model.id}/imports/commit`, {
       batchId: analysis?.batchId,
@@ -599,16 +607,18 @@ export function ImportsTab(): JSX.Element {
           style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
         />
       </Field>
-      <input
-        type="file"
-        accept=".csv,text/csv"
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          setFilename(file.name);
-          setContent(await file.text());
-        }}
-      />
+      <Field label="Or choose a file" hint="The file is read in the browser and shown above first.">
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            setFilename(file.name);
+            setContent(await file.text());
+          }}
+        />
+      </Field>
 
       <ErrorMessage error={analyze.error} />
       <div className="row end" style={{ marginTop: 12 }}>
@@ -674,7 +684,7 @@ export function ImportsTab(): JSX.Element {
               : `${validation.issues.filter((i) => i.severity === 'error').length} row(s) have errors and will be skipped.`}
           </div>
           {validation.issues.length > 0 && (
-            <div className="table-scroll" style={{ maxHeight: 260 }}>
+            <div className="table-scroll" tabIndex={0} style={{ maxHeight: 260 }}>
               <table>
                 <caption className="visually-hidden">Import findings</caption>
                 <thead>
@@ -712,12 +722,31 @@ export function ImportsTab(): JSX.Element {
               className="primary"
               disabled={commit.pending || validation.leaseCount === 0}
               onClick={async () => {
-                if (await commit.run()) reloadCashFlow();
+                const result = await commit.run();
+                if (result) {
+                  setCommitted(result);
+                  reloadCashFlow();
+                }
               }}
             >
               {commit.pending ? 'Importing…' : 'Import valid rows'}
             </button>
           </div>
+
+          {/* Writing to the rent roll without saying so would leave the analyst
+              guessing whether the button worked. The count of skipped rows
+              matters as much as the count written: it is the number they now
+              have to go and fix by hand. */}
+          {committed && (
+            <div className="message info" role="status" style={{ marginTop: 12 }}>
+              {committed.imported} lease{committed.imported === 1 ? '' : 's'} written to the rent
+              roll
+              {committed.skipped > 0
+                ? `, ${committed.skipped} row${committed.skipped === 1 ? '' : 's'} skipped because of the errors above.`
+                : '. No rows were skipped.'}{' '}
+              Recalculate to see them in the cash flow.
+            </div>
+          )}
         </>
       )}
     </div>

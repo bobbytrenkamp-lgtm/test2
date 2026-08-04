@@ -52,15 +52,20 @@ export function PropertyDetailPage(): JSX.Element {
       <dl className="metric-grid" style={{ marginBottom: 16 }}>
         <div className="metric">
           <dt>Rentable area</dt>
-          <dd>{formatNumber(record.rentable_area, 0)}</dd>
-          <div className="metric-note">{record.area_unit}</div>
+          <dd>
+            {formatNumber(record.rentable_area, 0)}
+            <div className="metric-note">{record.area_unit}</div>
+          </dd>
         </div>
         <div className="metric">
           <dt>Space list total</dt>
-          <dd>{formatNumber(spaceArea, 0)}</dd>
-          <div className="metric-note">
-            {spaces.length} space{spaces.length === 1 ? '' : 's'} — this is the recovery denominator
-          </div>
+          <dd>
+            {formatNumber(spaceArea, 0)}
+            <div className="metric-note">
+              {spaces.length} space{spaces.length === 1 ? '' : 's'} — this is the recovery
+              denominator
+            </div>
+          </dd>
         </div>
         <div className="metric">
           <dt>Units</dt>
@@ -72,8 +77,10 @@ export function PropertyDetailPage(): JSX.Element {
         </div>
         <div className="metric">
           <dt>Market</dt>
-          <dd style={{ fontSize: 15 }}>{record.market ?? '—'}</dd>
-          <div className="metric-note">{record.submarket ?? ''}</div>
+          <dd style={{ fontSize: 15 }}>
+            {record.market ?? '—'}
+            <div className="metric-note">{record.submarket ?? ''}</div>
+          </dd>
         </div>
       </dl>
 
@@ -98,7 +105,7 @@ export function PropertyDetailPage(): JSX.Element {
           </EmptyState>
         )}
         {models.data && models.data.models.length > 0 && (
-          <div className="table-scroll">
+          <div className="table-scroll" tabIndex={0}>
             <table>
               <caption className="visually-hidden">Models for this property</caption>
               <thead>
@@ -156,7 +163,7 @@ export function PropertyDetailPage(): JSX.Element {
             denominator. Add them before entering leases.
           </EmptyState>
         ) : (
-          <div className="table-scroll">
+          <div className="table-scroll" tabIndex={0}>
             <table>
               <caption className="visually-hidden">Spaces</caption>
               <thead>

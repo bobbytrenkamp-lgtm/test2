@@ -10,11 +10,13 @@
   },
   "scripts": {
     "build": "pnpm -r --filter=./packages/** run build && pnpm -r --filter=./apps/** run build",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -r run typecheck && tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report",
     "licences": "node scripts/check-licences.mjs",
     "test:watch": "vitest",
     "db:migrate": "pnpm --filter @cre/database run migrate",
@@ -22,10 +24,13 @@
     "dev": "pnpm --parallel --filter @cre/api --filter @cre/web --filter @cre/worker run dev"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
     "@eslint/js": "^9.15.0",
+    "@playwright/test": "1.56.1",
     "@types/node": "^22.9.0",
     "eslint": "^9.15.0",
     "prettier": "^3.3.3",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.15.0",
     "vitest": "^2.1.5"

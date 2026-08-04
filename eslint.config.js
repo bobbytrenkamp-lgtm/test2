@@ -9,6 +9,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.config.js',
       '**/*.config.ts',
+      'test-results/**',
+      'playwright-report/**',
     ],
   },
   js.configs.recommended,
@@ -31,6 +33,15 @@ export default tseslint.config(
       'packages/database/src/seed.ts',
       'apps/worker/**',
     ],
+    rules: { 'no-console': 'off' },
+  },
+  {
+    // The end-to-end suite is Node-side tooling: it prepares a database and
+    // reports what it did.
+    files: ['e2e/**/*.ts'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
     rules: { 'no-console': 'off' },
   },
   {

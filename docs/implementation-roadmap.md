@@ -10,7 +10,7 @@
 | 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries, NOI, capital, traces, 12 regression fixtures. |
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
-| 6. Analyst interface | **Substantially complete, untested.** Workspace, cash-flow grid, validation panel, calculation inspector, one keyboard workflow. Spreadsheet-grade editing is not built. |
+| 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, one keyboard workflow, now covered by a browser suite. Spreadsheet-grade editing is not built. |
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Partial.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow. Side-by-side version comparison is not built. |
 | 9. Budgets and asset management | **Not started.** Tables are migrated; no API, no interface. |
@@ -20,15 +20,21 @@
 
 ## What to do next, in order
 
-### 1. Test the web application (largest gap)
+### 1. ~~Test the web application~~ — done
 
-It typechecks, builds and has been exercised by hand, but a regression would not
-be caught. Add Playwright against the seeded database covering: sign in →
-property → model → calculate → inspect a traced figure; the lease editor's
-validation; role-based control visibility; and the import wizard. Then add
-`@axe-core/playwright` for accessibility.
+23 Playwright tests now drive Chromium against the built bundle, a real API and
+a freshly seeded database: sign in → property → model → calculate → inspect a
+traced figure; the lease editor's validation; capability-driven control
+visibility for three roles; the import wizard on a part-invalid file; and
+`axe-core` on nine screens. See `docs/testing-strategy.md`.
 
-*Why first: everything below this line risks breaking what already works.*
+Four defects surfaced immediately and are fixed: every form control in the
+platform was unlabelled, scrollable tables were unreachable by keyboard, the
+import wizard wrote rows without saying so, and concurrent migrations raced on
+`CREATE EXTENSION`.
+
+**What remains here:** the assumptions editor, scenarios, versions, reports and
+the portfolio builder are not covered, and the suite runs in Chromium only.
 
 ### 2. Verify what is written but unproven
 

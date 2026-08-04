@@ -83,7 +83,7 @@ export function RentRollTab(): JSX.Element {
             is absorbed speculatively on the market leasing assumptions.
           </EmptyState>
         ) : (
-          <div className="table-scroll">
+          <div className="table-scroll" tabIndex={0}>
             <table>
               <caption className="visually-hidden">Leases on this model</caption>
               <thead>

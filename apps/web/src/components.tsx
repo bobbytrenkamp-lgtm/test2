@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
 import type { Diagnostic } from '@cre/domain-models';
 import { formatNumber, titleCase } from './format.js';
 import type { ApiError } from './api.js';
@@ -62,10 +62,15 @@ export function Metric({
   note?: string;
 }): JSX.Element {
   return (
+    // The note lives inside the <dd> it qualifies. A definition list may only
+    // pair terms with descriptions, so a third sibling here would break the
+    // structure a screen reader relies on to read the pair as one fact.
     <div className="metric">
       <dt>{label}</dt>
-      <dd>{value}</dd>
-      {note && <div className="metric-note">{note}</div>}
+      <dd>
+        {value}
+        {note && <div className="metric-note">{note}</div>}
+      </dd>
     </div>
   );
 }
@@ -117,7 +122,7 @@ export function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }): 
             : `${errors.length} critical errors must be corrected before this model can be approved.`}
         </div>
       )}
-      <div className="table-scroll">
+      <div className="table-scroll" tabIndex={0}>
         <table>
           <caption className="visually-hidden">Model validation findings</caption>
           <thead>
@@ -275,6 +280,23 @@ export function BarChart({
   );
 }
 
+interface LabellableProps {
+  id?: string;
+  'aria-describedby'?: string;
+}
+
+/**
+ * A labelled form control.
+ *
+ * The label is bound to the control it names, and the hint or error beneath it
+ * is bound as the control's description. Without that binding a screen reader
+ * announces an unnamed text box, and the hint — often the part that says what
+ * format a rate or a date has to be in — is never read at all. Since the
+ * caller passes the control as a child, `Field` generates the identifier and
+ * applies it, so no call site can forget.
+ *
+ * A control that already carries its own `id` keeps it.
+ */
 export function Field({
   label,
   hint,
@@ -286,13 +308,32 @@ export function Field({
   error?: string;
   children: ReactNode;
 }): JSX.Element {
+  const generatedId = useId();
+  const hintId = `${generatedId}-hint`;
+  const errorId = `${generatedId}-error`;
+
+  const element = isValidElement(children) ? (children as ReactElement<LabellableProps>) : null;
+  const controlId = element?.props.id ?? generatedId;
+  const description = error ? errorId : hint ? hintId : undefined;
+
+  const control = element
+    ? cloneElement(element, {
+        id: controlId,
+        'aria-describedby': element.props['aria-describedby'] ?? description,
+      })
+    : children;
+
   return (
     <div className="field">
-      <label>{label}</label>
-      {children}
-      {hint && !error && <div className="field-hint">{hint}</div>}
+      <label htmlFor={element ? controlId : undefined}>{label}</label>
+      {control}
+      {hint && !error && (
+        <div className="field-hint" id={hintId}>
+          {hint}
+        </div>
+      )}
       {error && (
-        <div className="field-error" role="alert">
+        <div className="field-error" id={errorId} role="alert">
           {error}
         </div>
       )}

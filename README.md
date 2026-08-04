@@ -83,18 +83,28 @@ catch-up and promote.
 ```bash
 pnpm test                                    # engine + import suites
 DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slice
+pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**218 tests.** The regression library holds twelve independently designed
+**218 tests, plus 23 in the browser.** The regression library holds twelve independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
 construction.
 
+`pnpm test:e2e` rebuilds a dedicated database from the migrations and the seed,
+starts the API and a preview server, and drives the **built** bundle in Chromium:
+the underwriting path through to the calculation inspector, lease validation,
+capability-driven control visibility for three roles, the import wizard, and
+`axe-core` accessibility checks on nine screens where any violation fails the
+build.
+
 The suites have already caught real bugs: interest never accruing in a loan's
 funding month; vacant space never leasing up; `12,500` parsing as `12.5`; error
-rows still importing; framework client errors reported as 500s. Each is
-described in [`docs/testing-strategy.md`](docs/testing-strategy.md).
+rows still importing; framework client errors reported as 500s; concurrent
+migrations racing on `CREATE EXTENSION`; every form control in the platform
+being unlabelled; scrollable tables unreachable by keyboard. Each is described in
+[`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## Documentation
 
@@ -124,10 +134,10 @@ database schema and migrations; authentication, authorization and
 cross-organization isolation; the deterministic import parser; the vertical
 slice from sign-in through to a traced valuation and a frozen approval.
 
-**Works, not yet proven.** The web application in full, background jobs, reports
-and exports, sensitivity analysis, model cloning, portfolio aggregation. There
-are **no automated UI tests**, so a front-end regression would not be caught
-automatically. That is the largest gap and the first item on the roadmap.
+**Works, not yet proven.** Background jobs, reports and exports, sensitivity
+analysis, model cloning, portfolio aggregation, and the screens the browser
+suite does not reach — the assumptions editor, scenarios, versions, reports and
+the portfolio builder. The suite runs in Chromium only.
 
 **Designed only.** Budgets and actuals, variance reporting, collaboration,
 configurable dashboards, documents, portfolio reports, Excel *import*,
@@ -141,6 +151,8 @@ been run. Both are documented; neither should be relied on until executed.
 Nothing in this repository is marked *production ready*. That designation is
 reserved for features that have also passed load testing, an accessibility audit
 with a real screen reader, and a restore drill — none of which has been done.
+The `axe-core` checks catch mechanical failures; they are not a screen-reader
+audit and are not offered as one.
 
 ## Licence
 

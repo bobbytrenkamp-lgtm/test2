@@ -419,7 +419,7 @@ function Collection({
         </EmptyState>
       ) : (
         resource.data && (
-          <div className="table-scroll" style={{ maxHeight: 340 }}>
+          <div className="table-scroll" tabIndex={0} style={{ maxHeight: 340 }}>
             <table>
               <caption className="visually-hidden">{title}</caption>
               <thead>

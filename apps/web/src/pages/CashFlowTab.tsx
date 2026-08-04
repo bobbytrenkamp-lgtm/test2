@@ -142,7 +142,7 @@ export function CashFlowTab(): JSX.Element {
           </span>
         </div>
 
-        <div className="table-scroll">
+        <div className="table-scroll" tabIndex={0}>
           <table className="freeze-first">
             <caption className="visually-hidden">
               {isAnnual ? 'Annual' : 'Monthly'} cash flow for {model.name}. Amounts in {currency};

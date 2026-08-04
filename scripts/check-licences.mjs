@@ -36,6 +36,28 @@ const ALLOWED = [
 ];
 
 /**
+ * File-level copyleft licences, accepted only where the obligation demonstrably
+ * does not reach this project's own source. These are reported separately from
+ * the permissive list rather than folded into it, because the distinction is
+ * real and a future reader deserves to see it.
+ *
+ * MPL-2.0 requires that modifications *to MPL-covered files* be published under
+ * the same licence. It says nothing about separate files that merely use them,
+ * so consuming an unmodified MPL package places no obligation on this
+ * repository. It is free software, costs nothing, and needs no commercial
+ * licence for any use this project makes of it.
+ */
+const ALLOWED_WEAK_COPYLEFT = [
+  {
+    pattern: /^MPL-2\.0$/i,
+    reason:
+      'File-level copyleft. Consumed unmodified as a development dependency, ' +
+      'so the reciprocity obligation never reaches this project’s own files. ' +
+      'Free of charge, no commercial licence required.',
+  },
+];
+
+/**
  * Licences that are outright disqualifying: they either cost money or impose
  * obligations incompatible with this project's intended use.
  */
@@ -110,6 +132,11 @@ function collect() {
   return found;
 }
 
+/** Returns the weak-copyleft entry covering this licence, if there is one. */
+function weakCopyleft(licence) {
+  return ALLOWED_WEAK_COPYLEFT.find((entry) => entry.pattern.test(licence.trim()));
+}
+
 /** A dual licence passes when any one of its options is allowed. */
 function isAllowed(licence) {
   const options = licence
@@ -126,6 +153,7 @@ const listOnly = process.argv.includes('--list');
 
 const violations = [];
 const undeclared = [];
+const weak = [];
 const byLicence = new Map();
 
 for (const [name, licence] of packages) {
@@ -143,9 +171,14 @@ for (const [name, licence] of packages) {
     }
     continue;
   }
-  if (!isAllowed(licence)) {
-    violations.push({ name, licence, reason: 'licence not on the permissive allow-list' });
+  if (isAllowed(licence)) continue;
+
+  const concession = weakCopyleft(licence);
+  if (concession) {
+    weak.push({ name, licence, reason: concession.reason });
+    continue;
   }
+  violations.push({ name, licence, reason: 'licence not on the permissive allow-list' });
 }
 
 if (listOnly) {
@@ -165,6 +198,11 @@ if (undeclared.length > 0) {
   for (const name of undeclared) console.log(`  - ${name}: ${KNOWN_UNDECLARED[name]}`);
 }
 
+if (weak.length > 0) {
+  console.log(`\n${weak.length} package(s) under file-level copyleft, each accepted for a reason:`);
+  for (const entry of weak) console.log(`  - ${entry.name} (${entry.licence}): ${entry.reason}`);
+}
+
 if (violations.length > 0) {
   console.error(`\n${violations.length} licence violation(s):`);
   for (const violation of violations) {
@@ -178,4 +216,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log('No paid, commercial or copyleft licence obligations found.');
+console.log('\nNothing here requires a payment or a commercial licence.');

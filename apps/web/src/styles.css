@@ -354,6 +354,14 @@ label {
 /* Tables and grids                                                           */
 /* -------------------------------------------------------------------------- */
 
+/*
+ * Scrollable table container.
+ *
+ * Every element carrying this class must also carry tabIndex={0}. A region
+ * that scrolls but cannot be focused is unreachable to anyone navigating by
+ * keyboard: the content is on the page and there is no way to get to it. The
+ * end-to-end accessibility suite fails on a container that omits it.
+ */
 .table-scroll {
   overflow: auto;
   max-height: 70vh;
