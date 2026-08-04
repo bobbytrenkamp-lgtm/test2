@@ -23,12 +23,12 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | --- | --- | --- | --- |
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 14 | No |
-| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 125 | No |
+| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 164 | No |
 | Import parsing and normalisation | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**218 tests in total.**
+**257 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -45,11 +45,11 @@ built bundle:
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 9 |
 
-**23 browser tests in total**, for 241 across the whole repository.
+**23 browser tests in total**, for 280 across the whole repository.
 
 ## The regression library
 
-Twelve independently designed fictional properties:
+Fifteen independently designed fictional properties:
 
 1. Single-tenant industrial, triple net, 3% compounding escalations
 2. Multi-tenant office with base-year recoveries and rollover
@@ -63,6 +63,9 @@ Twelve independently designed fictional properties:
 10. Floating-rate debt with an index floor
 11. Amortising loan replaced by a refinancing
 12. LP/GP waterfall with preferred, catch-up and promote
+13. Renewal option at 60%, extending a three-year term by two years
+14. Termination option at 25%, ending a five-year term mid-2028
+15. Contraction option at 50%, handing back 4,000 of 10,000 sqft
 
 Each fixture stores its inputs (the fixture function), its expected outputs (the
 assertions), the assumptions behind them (comments stating the arithmetic), a
@@ -85,6 +88,11 @@ reference) and the engine version (asserted on every result).
 - A floating rate of index + 250bp binds against its 6.5% floor in years three
   and four, exactly as the index path predicts.
 - A 30-year amortisation matches `B_k = P(1+r)^k − pmt((1+r)^k − 1)/r`.
+- The option fixtures are deliberately plain enough to check in one line:
+  10,000 sqft at $24.00/sqft/yr is $240,000 a year and exactly $20,000 a month,
+  so a 25% termination half way through 2028 gives
+  `0.25 × 120,000 + 0.75 × 240,000 = 210,000`, and a 50% contraction to 6,000
+  sqft gives `0.5 × 144,000 + 0.5 × 240,000 = 192,000`.
 
 ### Invariants asserted on every fixture
 
@@ -192,6 +200,14 @@ Recording these because they are the argument for the approach:
 9. **Rows were written to the rent roll with no confirmation.** The import
    wizard's commit button worked and said nothing, leaving the analyst to guess
    whether it had. Caught while writing the import test.
+10. **The seed never froze a model version**, so the demonstration data had an
+    empty Versions tab and the restore drill had no stored valuation to
+    reproduce. Caught by the drill on its first run.
+11. **A lease holding part of a space reported the space fully occupied.**
+    Physical occupancy came from how much of the *period* an occurrence covered,
+    ignoring how much of the *area* it held. Caught by the contraction fixture,
+    which expected 80% occupancy and got 100%. This one changed existing model
+    numbers, so it took the engine to 2.0.0.
 
 ## Gaps, stated plainly
 

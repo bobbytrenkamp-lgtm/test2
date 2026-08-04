@@ -1235,6 +1235,132 @@ export function lpGpWaterfall(): ModelInput {
   });
 }
 
+/**
+ * Fixtures 13-15 - Lease options.
+ *
+ * Deliberately arithmetically plain so every expected figure can be derived in
+ * one line: 10,000 sf at $24.00/sf/yr is $240,000 a year and exactly $20,000 a
+ * month, with no escalation, no recoveries and no expenses to obscure it. The
+ * lease is excluded from rollover so that what the test sees is the option's
+ * effect alone and not a market-leasing branch layered on top.
+ */
+function optionBase(options: unknown[], expiration: string): ModelInput {
+  return buildModel({
+    modelId: 'fx-options',
+    modelName: 'Kingsbridge Court (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 60,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-OPT',
+      name: 'Kingsbridge Court',
+      propertyType: 'office',
+      rentableArea: '10000',
+    },
+    spaces: [{ id: 'S1', code: 'Whole building', area: '10000', spaceType: 'office' }],
+    tenants: [{ id: 'T1', name: 'Halloway Reinsurance', industry: 'Insurance' }],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '10000',
+        commencementDate: '2026-01-01',
+        expirationDate: expiration,
+        baseRent: '24.00',
+        baseRentBasis: 'per_area_per_year',
+        escalation: { type: 'none' },
+        recovery: { method: 'none' },
+        excludeFromRollover: true,
+        options,
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      discountingConvention: 'end_of_period',
+      terminalCapRate: '0.07',
+      saleCostPercent: '0',
+      saleMonth: 60,
+      acquisitionPrice: '3000000',
+      acquisitionCosts: '0',
+    },
+  } as Parameters<typeof buildModel>[0]);
+}
+
+/** A renewal option at 60%, extending a three-year term by two years at $30.00/sf. */
+export function renewalOption(): ModelInput {
+  return optionBase(
+    [
+      {
+        id: 'OPT-RENEW',
+        type: 'renewal',
+        exerciseDate: '2028-07-01',
+        noticeDate: '2028-01-01',
+        probability: '0.60',
+        termMonths: 24,
+        rentMethod: 'fixed',
+        rentAmount: '30.00',
+        rentBasis: 'per_area_per_year',
+      },
+    ],
+    '2028-12-31',
+  );
+}
+
+/** A termination option at 25%, ending a five-year term half way through 2028. */
+export function terminationOption(): ModelInput {
+  return optionBase(
+    [
+      {
+        id: 'OPT-TERM',
+        type: 'termination',
+        exerciseDate: '2028-06-30',
+        probability: '0.25',
+        // Negative because `cost` is a landlord cost: a fee received from the
+        // tenant on termination is a negative cost.
+        cost: '-150000',
+      },
+    ],
+    '2030-12-31',
+  );
+}
+
+/** A contraction option at 50%, handing back 4,000 of 10,000 sf from 2028. */
+export function contractionOption(): ModelInput {
+  return optionBase(
+    [
+      {
+        id: 'OPT-CONTRACT',
+        type: 'contraction',
+        exerciseDate: '2028-01-01',
+        probability: '0.50',
+        areaChange: '4000',
+      },
+    ],
+    '2030-12-31',
+  );
+}
+
+/** An expansion option, which the engine deliberately refuses to model. */
+export function expansionOption(): ModelInput {
+  return optionBase(
+    [
+      {
+        id: 'OPT-EXPAND',
+        type: 'expansion',
+        exerciseDate: '2028-01-01',
+        probability: '0.50',
+        areaChange: '5000',
+      },
+    ],
+    '2030-12-31',
+  );
+}
+
 export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   singleTenantIndustrial,
   multiTenantOffice,
@@ -1248,4 +1374,7 @@ export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   floatingRateDebt,
   refinanceScenario,
   lpGpWaterfall,
+  renewalOption,
+  terminationOption,
+  contractionOption,
 };

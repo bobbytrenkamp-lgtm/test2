@@ -53,11 +53,16 @@ policy blocks Docker Hub's blob CDN. A review is not a build. Anyone with
 registry access should run `docker compose build && docker compose up` and
 report what breaks.
 
-### 3. Close the engine's honest gaps
+### 3. Close the engine's honest gaps — options partly done
 
-- **Lease options.** Renewal, expansion, contraction and termination options are
-  persisted but do not affect cash flow. Probability-weighted exercise is the
-  single largest remaining piece of financial behaviour.
+- ~~**Lease options.**~~ Renewal, termination and contraction are now modelled as
+  probability-weighted paths, applied in exercise-date order so mutually
+  exclusive options behave without special-casing. Three regression fixtures,
+  engine 2.0.0. **Expansion is deliberately not modelled**: the option records
+  how much area is taken but not which space it comes from, so honouring it
+  would either double-count area or invent rentable area the property does not
+  have. Adding a space reference to `LeaseOption` is the next step there.
+  Purchase, ROFR and ROFO bear on disposition, not operating cash flow.
 - **Multiple recovery pools per lease**, reconciliation timing and prior-year
   true-ups.
 - **Development and refinance fee bases** in the waterfall.

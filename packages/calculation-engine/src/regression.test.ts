@@ -4,12 +4,16 @@ import { calculate } from './engine.js';
 import {
   ALL_FIXTURES,
   baseYearRecovery,
+  contractionOption,
+  expansionOption,
   expenseStopRecovery,
   floatingRateDebt,
   lpGpWaterfall,
   percentageRentProperty,
   refinanceScenario,
+  renewalOption,
   singleTenantIndustrial,
+  terminationOption,
 } from './__fixtures__/properties.js';
 
 /**
@@ -416,6 +420,129 @@ describe('engine-wide invariants', () => {
       });
     });
   }
+});
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Lease options.
+ *
+ * Every figure below is one line of arithmetic on the fixture: 10,000 sf at
+ * $24.00/sf/yr is $240,000 a year and exactly $20,000 a month, flat, with no
+ * recoveries or expenses in the way. That is deliberate — an option's effect on
+ * a cash flow should be checkable without a spreadsheet.
+ *
+ * The lease is excluded from rollover in these fixtures, so what is measured is
+ * the option alone rather than a market-leasing branch layered on top of it.
+ */
+describe('Fixture 13: renewal option at 60%', () => {
+  const result = run(renewalOption());
+
+  it('bills the contract term in full, whichever way the option goes', () => {
+    // Both branches hold the whole building to 2028-12-31, so the weights sum
+    // back to one and the contract years are unaffected by the option.
+    expect(year(result, 2026).lines.scheduledBaseRent).toBe('240000.00');
+    expect(year(result, 2027).lines.scheduledBaseRent).toBe('240000.00');
+    expect(year(result, 2028).lines.scheduledBaseRent).toBe('240000.00');
+  });
+
+  it('bills the extension at the option rent, weighted by its probability', () => {
+    // Exercised branch only: 0.60 x 10,000 sf x $30.00 = $180,000 a year.
+    // The 40% branch has no lease after 2028 and contributes nothing.
+    expect(year(result, 2029).lines.scheduledBaseRent).toBe('180000.00');
+    expect(year(result, 2030).lines.scheduledBaseRent).toBe('180000.00');
+  });
+
+  it('carries occupancy at the exercise probability once the term has run', () => {
+    // 60% of the building is occupied in expectation from 2029.
+    const january2029 = result.occupancy[36];
+    expect(Number(january2029?.physicalOccupancyPercent)).toBeCloseTo(0.6, 6);
+    // The contract term is fully occupied on both branches.
+    expect(Number(result.occupancy[0]?.physicalOccupancyPercent)).toBeCloseTo(1, 6);
+  });
+
+  it('raises no critical error', () => {
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
+  });
+});
+
+describe('Fixture 14: termination option at 25%', () => {
+  const result = run(terminationOption());
+
+  it('bills both branches in full before the exercise date', () => {
+    expect(year(result, 2026).lines.scheduledBaseRent).toBe('240000.00');
+    expect(year(result, 2027).lines.scheduledBaseRent).toBe('240000.00');
+  });
+
+  it('bills the exercise year as the weighted blend of a short and a full year', () => {
+    // Terminating branch (25%): January to June inclusive, 6 x $20,000 =
+    // $120,000. Continuing branch (75%): the full $240,000.
+    //   0.25 x 120,000 + 0.75 x 240,000 = 30,000 + 180,000 = 210,000
+    expect(year(result, 2028).lines.scheduledBaseRent).toBe('210000.00');
+  });
+
+  it('bills only the continuing branch thereafter', () => {
+    // 0.75 x 240,000 = 180,000.
+    expect(year(result, 2029).lines.scheduledBaseRent).toBe('180000.00');
+    expect(year(result, 2030).lines.scheduledBaseRent).toBe('180000.00');
+  });
+
+  it('carries occupancy at the complement of the termination probability', () => {
+    // July 2028 is period 31 (1-based month 31 = index 30).
+    expect(Number(result.occupancy[30]?.physicalOccupancyPercent)).toBeCloseTo(0.75, 6);
+  });
+
+  it('raises no critical error', () => {
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
+  });
+});
+
+describe('Fixture 15: contraction option at 50%', () => {
+  const result = run(contractionOption());
+
+  it('bills the full premises before the exercise date', () => {
+    expect(year(result, 2026).lines.scheduledBaseRent).toBe('240000.00');
+    expect(year(result, 2027).lines.scheduledBaseRent).toBe('240000.00');
+  });
+
+  it('bills the reduced premises on the exercising branch only', () => {
+    // Contracting branch (50%): 6,000 sf x $24.00 = $144,000.
+    // Continuing branch (50%): 10,000 sf x $24.00 = $240,000.
+    //   0.5 x 144,000 + 0.5 x 240,000 = 72,000 + 120,000 = 192,000
+    expect(year(result, 2028).lines.scheduledBaseRent).toBe('192000.00');
+    expect(year(result, 2029).lines.scheduledBaseRent).toBe('192000.00');
+    expect(year(result, 2030).lines.scheduledBaseRent).toBe('192000.00');
+  });
+
+  it('leaves the surrendered area vacant rather than re-letting it', () => {
+    // 0.5 x 6,000 + 0.5 x 10,000 = 8,000 of 10,000 occupied in expectation.
+    expect(Number(result.occupancy[24]?.physicalOccupancyPercent)).toBeCloseTo(0.8, 6);
+  });
+
+  it('raises no critical error', () => {
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
+  });
+});
+
+describe('options the engine deliberately does not model', () => {
+  it('says so, rather than silently ignoring an expansion option', () => {
+    const result = run(expansionOption());
+    const warning = result.diagnostics.find((entry) => entry.code === 'LEASE_OPTION_NOT_MODELLED');
+    expect(warning).toBeDefined();
+    expect(warning?.severity).toBe('warning');
+    expect(warning?.message).toContain('expansion');
+    // The reason has to be in the message: a warning nobody can act on is
+    // noise, and the reader needs to know it is the missing space reference.
+    expect(warning?.message).toContain('which space');
+  });
+
+  it('leaves the cash flow untouched by an option it will not model', () => {
+    // Identical to the contraction fixture's lease but with an expansion option
+    // instead, so the rent must be the plain unoptioned $240,000 a year.
+    const result = run(expansionOption());
+    expect(year(result, 2028).lines.scheduledBaseRent).toBe('240000.00');
+    expect(year(result, 2030).lines.scheduledBaseRent).toBe('240000.00');
+  });
 });
 
 /* -------------------------------------------------------------------------- */
