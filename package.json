@@ -22,6 +22,7 @@
     "db:migrate": "pnpm --filter @cre/database run migrate",
     "db:seed": "pnpm --filter @cre/database run seed",
     "drill:restore": "tsx scripts/restore-drill.ts",
+    "benchmark": "tsx scripts/benchmark.ts",
     "dev": "pnpm --parallel --filter @cre/api --filter @cre/web --filter @cre/worker run dev"
   },
   "devDependencies": {

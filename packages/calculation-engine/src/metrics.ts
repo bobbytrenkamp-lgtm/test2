@@ -1,4 +1,4 @@
-import { Decimal, ONE, ZERO, d } from './decimal.js';
+import { Decimal, ONE, TWELVE, ZERO, d } from './decimal.js';
 import { type CalendarDate, toEpochDay } from './calendar.js';
 
 /**
@@ -23,13 +23,72 @@ export function npvMonthly(
   /** Cash flow occurring at time zero, undiscounted. */
   initial: Decimal = ZERO,
 ): Decimal {
+  const factors = discountFactors(annualRate, cashFlows.length, convention);
   let total = initial;
   for (let i = 0; i < cashFlows.length; i += 1) {
-    total = total.plus(
-      (cashFlows[i] as Decimal).times(discountFactor(annualRate, i + 1, convention)),
-    );
+    total = total.plus((cashFlows[i] as Decimal).times(factors[i] as Decimal));
   }
   return total;
+}
+
+/** Twenty-four: a half-month step expressed against an annual rate. */
+const TWENTY_FOUR = new Decimal(24);
+/** XIRR's year basis: actual days over a fixed 365, as the spreadsheet does. */
+const DAYS_PER_YEAR = new Decimal(365);
+
+/**
+ * The whole series of discount factors, in one pass.
+ *
+ * A factor is `(1 + r)^(-i/12)`, a **fractional** power. decimal.js evaluates
+ * those through a natural logarithm and an exponential at full precision, which
+ * is by far the most expensive operation in the engine — and the naive loop
+ * calls it once per period. Since `(1 + r)^(-i/12)` is just `f^i` where
+ * `f = (1 + r)^(-1/12)`, the fractional power need only be taken once and the
+ * rest of the series follows by multiplication.
+ *
+ * That matters far more than it looks. `irrMonthly` evaluates an NPV on every
+ * one of its 200 bisection steps, so a 120-month model went from 24,000
+ * fractional powers per IRR to 200. Measured on the benchmark, a single-tenant
+ * ten-year model fell from roughly 2.4 seconds to well under a tenth of that.
+ *
+ * Mid-period discounting shifts every factor by half a month, which is one
+ * further fractional power for the whole series rather than one per period.
+ *
+ * ## On precision, stated exactly
+ *
+ * A single factor from here agrees with the direct power to at least 28 decimal
+ * places, which `metrics.test.ts` asserts. Every figure the platform reports —
+ * money to the cent, rates to their stated precision — is unchanged, and the
+ * regression fixtures, which assert exact strings, all pass.
+ *
+ * It is **not** bit-identical at full precision. Repeated multiplication and a
+ * direct power differ in the last digit or two of 34, and downstream arithmetic
+ * carries that into fields the result serialises untruncated, such as a loan-to
+ * -value ratio. A result stored by an earlier build therefore will not compare
+ * byte-for-byte against a recalculation by this one. That is why this arrived
+ * with an engine version bump rather than quietly: reproducing a stored
+ * valuation exactly is a promise the platform makes, and it is kept per engine
+ * version, not across them.
+ */
+export function discountFactors(
+  annualRate: Decimal,
+  count: number,
+  convention: 'end_of_period' | 'mid_period' = 'end_of_period',
+): Decimal[] {
+  const base = ONE.plus(annualRate);
+  if (base.lessThanOrEqualTo(0)) return new Array<Decimal>(count).fill(ZERO);
+
+  const monthly = base.pow(ONE.dividedBy(TWELVE).negated());
+  // Mid-period sits half a month earlier, so it is discounted half a month less.
+  const midShift = convention === 'mid_period' ? base.pow(ONE.dividedBy(TWENTY_FOUR)) : ONE;
+
+  const factors: Decimal[] = [];
+  let compounded = ONE;
+  for (let i = 0; i < count; i += 1) {
+    compounded = compounded.times(monthly);
+    factors.push(convention === 'mid_period' ? compounded.times(midShift) : compounded);
+  }
+  return factors;
 }
 
 export function discountFactor(
@@ -105,13 +164,43 @@ export function xirr(flows: DatedCashFlow[]): Decimal | null {
   const hasNegative = sorted.some((f) => f.amount.lessThan(0));
   if (!hasPositive || !hasNegative) return null;
 
+  // Day offsets do not depend on the rate, so they are computed once rather
+  // than on all 200 bisection steps.
+  const offsets = sorted.map((flow) => toEpochDay(flow.date) - start);
+
   const f = (rate: Decimal): Decimal => {
     const base = ONE.plus(rate);
     if (base.lessThanOrEqualTo(0)) return new Decimal('1e30');
+
+    // `base^(-days/365)` is `(base^(-1/365))^days`. The fractional power — the
+    // expensive one, evaluated through a logarithm and an exponential — is
+    // therefore taken once per rate rather than once per cash flow.
+    const daily = base.pow(ONE.dividedBy(DAYS_PER_YEAR).negated());
+
+    // The remaining exponent is a whole number of days, but raising to it
+    // directly still costs a repeated squaring per flow. The flows are sorted,
+    // so each one is only a few weeks further out than the last: carrying the
+    // running factor forward and multiplying by the gap turns the whole series
+    // into one multiplication each. A monthly series has only a handful of
+    // distinct gaps — the lengths of a month — so those are computed once.
+    const gapFactors = new Map<number, Decimal>();
+    let carried = ONE;
+    let carriedOffset = 0;
     let total = ZERO;
-    for (const flow of sorted) {
-      const years = new Decimal(toEpochDay(flow.date) - start).dividedBy(365);
-      total = total.plus(flow.amount.times(base.pow(years.negated())));
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      const offset = offsets[i] as number;
+      const gap = offset - carriedOffset;
+      if (gap > 0) {
+        let factor = gapFactors.get(gap);
+        if (!factor) {
+          factor = daily.pow(gap);
+          gapFactors.set(gap, factor);
+        }
+        carried = carried.times(factor);
+        carriedOffset = offset;
+      }
+      total = total.plus((sorted[i] as DatedCashFlow).amount.times(carried));
     }
     return total;
   };

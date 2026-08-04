@@ -52,6 +52,22 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 2.1.0
+ *
+ * Performance only. The discount-factor series and XIRR each took decimal.js's
+ * most expensive operation — a fractional power — once per period, on each of
+ * 200 bisection steps. Both now take it once and derive the rest by
+ * multiplication, which made a single-tenant ten-year model eighteen times
+ * faster. See `metrics.ts`.
+ *
+ * Nothing the platform reports changed: money is identical to the cent and all
+ * regression fixtures, which assert exact strings, pass unaltered. The version
+ * moves because the change is not bit-identical at full precision — repeated
+ * multiplication differs from a direct power in the last digit or two of 34,
+ * and that reaches fields the result serialises untruncated. A valuation stored
+ * by 2.0.0 will therefore not compare byte-for-byte against a 2.1.0
+ * recalculation, which `pnpm drill:restore` reports rather than hides.
+ *
  * ## 2.0.0
  *
  * Lease options now affect the cash flow: renewal, termination and contraction
@@ -70,7 +86,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '2.0.0';
+export const ENGINE_VERSION = '2.1.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

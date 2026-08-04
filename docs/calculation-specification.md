@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **2.0.0** — `packages/calculation-engine`.
+Engine version **2.1.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -752,6 +752,23 @@ Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+### 2.1.0
+
+Performance only. `discountFactors` and `xirr` each took a **fractional** power
+— decimal.js's most expensive operation, routed through a logarithm and an
+exponential at 34 digits — once per period, on each of 200 bisection steps.
+Both now take it once and derive the rest by multiplication. A single-tenant
+ten-year model went from 2,386 ms to 128 ms.
+
+Every reported figure is unchanged: money to the cent, and all regression
+fixtures, which assert exact strings, pass unaltered. The version moves because
+repeated multiplication is not bit-identical to a direct power at full
+precision, and that reaches fields the result serialises untruncated, such as a
+loan-to-value ratio. **A valuation stored under 2.0.0 will not compare
+byte-for-byte against a 2.1.0 recalculation.** `pnpm drill:restore` reports that
+rather than hiding it: it skips stored results from a different engine version
+and says how many it skipped.
 
 ### 2.0.0
 

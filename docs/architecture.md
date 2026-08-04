@@ -144,7 +144,49 @@ specified so the constraints are settled before any code exists:
 
 ## Performance
 
-Designed for thousands of properties and hundreds of thousands of lease steps.
+Designed for thousands of properties and hundreds of thousands of lease steps,
+and now **measured** rather than asserted. `pnpm benchmark` times the engine on
+four synthetic models and fails the build when a case exceeds its budget; it
+runs on every CI build.
+
+| Case | Leases | Rent steps | Months | Time |
+| --- | --- | --- | --- | --- |
+| Single tenant | 1 | 4 | 120 | ~130 ms |
+| Small multi-tenant | 25 | 100 | 120 | ~440 ms |
+| Large multi-tenant | 100 | 600 | 120 | ~1.5 s |
+| Very large multi-tenant | 300 | 2,400 | 120 | ~4.8 s |
+
+Absolute numbers are not portable between machines. What is portable is the
+shape: work per lease-month is roughly flat across the range, so cost grows
+linearly with the model and scale is a question of hardware and queueing rather
+than of algorithm.
+
+### What the first run found
+
+The first benchmark showed a **2.4-second floor on a single-tenant model** —
+almost all of it independent of how many leases the model held. Profiling put
+82% of the time inside decimal.js's `pow`, which evaluates a *fractional*
+exponent through a natural logarithm and an exponential at full precision.
+
+Two places were calling it once per period:
+
+- `discountFactor` computes `(1 + r)^(-i/12)` per period, and `irrMonthly`
+  evaluates an NPV on each of its 200 bisection steps — 24,000 fractional powers
+  per IRR on a ten-year model. Since `(1 + r)^(-i/12)` is `f^i` for
+  `f = (1 + r)^(-1/12)`, the fractional power is now taken once and the series
+  follows by multiplication.
+- `xirr` did the same per cash flow. The flows are sorted, so the running factor
+  is carried forward and multiplied by the gap to the next one; a monthly series
+  has only a handful of distinct gaps, so those are computed once per rate.
+
+The single-tenant case went from 2,386 ms to 128 ms — **18× faster** — and the
+whole test suite from 57 seconds to under 4. No calculated figure changed:
+`discountFactors` is asserted to agree with `discountFactor` to 28 decimal
+places, and all 309 tests passed before and after.
+
+That is the argument for measuring rather than reasoning about performance. The
+platform was doing the most expensive operation decimal.js offers, tens of
+thousands of times, to compute a number that needed it once.
 
 - Indexes on every foreign key and on the filters that exist:
   `models(property_id)`, `leases(model_id, expiration_date)`,
@@ -156,7 +198,8 @@ Designed for thousands of properties and hundreds of thousands of lease steps.
 - Large work is queued rather than run on the request path.
 
 Not yet done: grid virtualisation for very large rent rolls, cursor pagination
-on the audit log, and a load-tested performance baseline. These are recorded in
+on the audit log, and a database-level load test at the stated portfolio scale —
+the benchmark measures the engine, not the query plans. These are recorded in
 `docs/feature-status.md` rather than claimed.
 
 ## Deliberately not distributed

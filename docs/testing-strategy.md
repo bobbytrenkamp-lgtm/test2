@@ -22,7 +22,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Suite | Location | Count | Needs a database |
 | --- | --- | --- | --- |
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
-| Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 14 | No |
+| Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 164 | No |
 | Budget variance arithmetic | `packages/calculation-engine/src/variance.test.ts` | 18 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
@@ -31,7 +31,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**309 tests in total.**
+**313 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -50,7 +50,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**34 browser tests in total**, for 343 across the whole repository.
+**34 browser tests in total**, for 347 across the whole repository.
 
 ## The regression library
 
@@ -167,6 +167,27 @@ allow-list of known failures — one would become permanent within a month.
 These are the mechanical failures only. An audit with a real screen reader has
 still not been done, and remains on the roadmap.
 
+## The performance baseline
+
+```
+pnpm benchmark
+```
+
+Four synthetic models of increasing size, timed with a warm-up pass discarded,
+each against a budget. Exceeding a budget fails the process, so a regression
+breaks the build rather than sitting unread in a log. The budgets are loose on
+purpose: they catch an order-of-magnitude change, not the few percent of noise a
+shared runner produces.
+
+The number that matters is not any single timing but the **work per
+lease-month** across the range. Flat means the cost is linear in the model,
+which is what makes scale a question of hardware and queueing. Rising sharply
+would mean something is superlinear in the lease count, and no amount of
+hardware fixes that.
+
+Absolute timings are not portable between machines and the script says so in its
+own output.
+
 ## Test isolation
 
 Each database suite creates its own PostgreSQL **schema**, migrates into it, and
@@ -213,6 +234,12 @@ Recording these because they are the argument for the approach:
     ignoring how much of the *area* it held. Caught by the contraction fixture,
     which expected 80% occupancy and got 100%. This one changed existing model
     numbers, so it took the engine to 2.0.0.
+12. **A single-tenant model took 2.4 seconds to calculate**, almost all of it
+    independent of the number of leases. `discountFactor` and `xirr` each took a
+    *fractional* power — decimal.js's most expensive operation, routed through a
+    logarithm and an exponential at 34 digits — once per period, on each of 200
+    bisection steps. Caught by the first run of `pnpm benchmark`; 18× faster
+    after, with no calculated figure changed.
 
 ## Gaps, stated plainly
 

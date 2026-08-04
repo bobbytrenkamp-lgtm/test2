@@ -16,7 +16,7 @@
 | 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
 | 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation, concentration analysis. Fund-level cash flows and investor reporting are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Started.** Restore drill written, executed and running in CI. Machine-checked accessibility on nine screens. Still missing: load test, screen-reader audit, error monitoring, deployment automation. |
+| 12. Production hardening | **Started.** Restore drill and an engine performance baseline both run in CI. Machine-checked accessibility on eleven screens. Still missing: a database and API load test, screen-reader audit, error monitoring, deployment automation. |
 
 ## What to do next, in order
 
@@ -115,11 +115,18 @@ contributions, distributions, unfunded commitments, investor reporting.
 
 ### 8. Production hardening (phase 12)
 
-Load test at the stated scale (thousands of properties, hundreds of thousands of
-lease steps). Grid virtualisation and cursor pagination once profiling says
-where. Accessibility audit with a real screen reader. Error monitoring.
-Deployment automation with a rollback path. ~~Backup and restore drill~~ — done,
-see item 2.
+~~Engine performance baseline~~ — done. `pnpm benchmark` times four synthetic
+models against budgets and runs in CI. Its first run found a 2.4-second floor on
+a *single-tenant* model: `discountFactor` and `xirr` were each taking decimal.js's
+most expensive operation — a fractional power — once per period, tens of
+thousands of times per calculation. Fixed; 18× faster, no figure changed. See
+`docs/architecture.md`.
+
+Still to do: a **database and API** load test at the stated scale (thousands of
+properties), which the engine benchmark does not cover. Grid virtualisation and
+cursor pagination once profiling says where. Accessibility audit with a real
+screen reader. Error monitoring. Deployment automation with a rollback path.
+~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted
 

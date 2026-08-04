@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 2.0.0 · Last verified 2026-08-04**
+**Engine version 2.1.0 · Last verified 2026-08-04**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -13,15 +13,16 @@ Status values: `Not started` · `Designed` · `In development` · `Functional` �
 Nothing is yet marked **Production ready**. That designation is reserved for
 features that have also passed the production-hardening pass in
 `docs/implementation-roadmap.md` — load testing, an accessibility audit against
-a real screen reader, and a restore drill. The restore drill has now been run and
-runs in CI; load testing and the screen-reader audit have not.
+a real screen reader, and a restore drill. The restore drill and an engine
+performance baseline now run in CI; a database and API load test at portfolio
+scale, and the screen-reader audit, have not been done.
 
 ---
 
 ## Verification at the last check
 
 ```
-Tests       309 passed  (164 engine regression, 27 engine unit, 18 variance,
+Tests       313 passed  (164 engine regression, 31 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
                          13 vertical slice)
 Browser      34 passed  (3 sign-in, 2 underwriting, 2 lease editor,
@@ -34,6 +35,7 @@ Migrations  5 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
+Benchmark   4 cases inside budget (128ms single tenant, 4.8s at 300 leases)
 Licences    340 packages, none requiring payment or a commercial licence
 ```
 
@@ -254,7 +256,7 @@ notifications, geographic maps, version side-by-side comparison.
 | Suite | Status | Count |
 | --- | --- | --- |
 | Engine regression fixtures | Tested | 15 fixtures, 164 assertions |
-| Calendar and metrics unit tests | Tested | 27 |
+| Calendar and metrics unit tests | Tested | 31 |
 | Variance calculation | Tested | 18 |
 | Import parsing, rent roll | Tested | 30 |
 | Import parsing, trial balance | Tested | 21 |
@@ -264,8 +266,8 @@ notifications, geographic maps, version side-by-side comparison.
 | Browser end-to-end tests | Tested | 34, Chromium only |
 | Automated accessibility tests | Tested | 11 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
-| Performance tests | Not started | |
-| Load tests | Not started | |
+| Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
+| Load tests, database and API | Not started | The benchmark measures the engine, not query plans or concurrency |
 
 ---
 
