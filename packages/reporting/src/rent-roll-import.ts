@@ -171,14 +171,36 @@ export function normalizeNumber(raw: string): string | null {
 
   if (cleaned === '') return null;
 
-  // Decide which separator is the decimal point by looking at the last one.
+  // Decide which separator is the decimal point.
+  //
+  // When both appear, the last one is the decimal separator: "1.234,50" is
+  // European and "1,234.50" is not. When only one appears, a single separator
+  // followed by exactly three digits is read as a thousands separator, because
+  // "12,500" and "1.500" are overwhelmingly more likely to be twelve and a half
+  // thousand and fifteen hundred than 12.5 and 1.5 on a rent roll. That
+  // convention is documented in docs/import-specification.md.
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
+  const commaCount = (cleaned.match(/,/g) ?? []).length;
+  const dotCount = (cleaned.match(/\./g) ?? []).length;
+
   let normalized: string;
-  if (lastComma > lastDot) {
-    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+  if (commaCount > 0 && dotCount > 0) {
+    normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, '').replace(/,/g, '.')
+        : cleaned.replace(/,/g, '');
+  } else if (commaCount + dotCount === 0) {
+    normalized = cleaned;
   } else {
-    normalized = cleaned.replace(/,/g, '');
+    const separator = commaCount > 0 ? ',' : '.';
+    const count = commaCount > 0 ? commaCount : dotCount;
+    const lastIndex = commaCount > 0 ? lastComma : lastDot;
+    const trailingDigits = cleaned.length - lastIndex - 1;
+    const isGrouping = count > 1 || trailingDigits === 3;
+    normalized = isGrouping
+      ? cleaned.split(separator).join('')
+      : cleaned.replace(separator, '.');
   }
   if (!/^\d*\.?\d*$/.test(normalized) || normalized === '' || normalized === '.') return null;
 
@@ -417,6 +439,9 @@ export function mapRows(
     if (existing) existing.push(rowIndex);
     else seen.set(leaseCode, [rowIndex]);
 
+    // A row that raised any error is never importable, even when the individual
+    // values parsed: an inverted lease term is unusable however clean its dates.
+    if (issues.some((issue) => issue.rowIndex === rowIndex && issue.severity === 'error')) return;
     if (area === null || rent === null || !commencement.value || !expiration.value) return;
 
     leases.push({

@@ -1,0 +1,305 @@
+import type { ReactNode } from 'react';
+import type { Diagnostic } from '@cre/domain-models';
+import { formatNumber, titleCase } from './format.js';
+import type { ApiError } from './api.js';
+
+/** Shared presentational building blocks. */
+
+export function Loading({ label = 'Loading' }: { label?: string }): JSX.Element {
+  return (
+    <div className="loading" role="status" aria-live="polite">
+      {label}…
+    </div>
+  );
+}
+
+export function ErrorMessage({ error }: { error: ApiError | null }): JSX.Element | null {
+  if (!error) return null;
+  const details = Array.isArray(error.details) ? error.details : null;
+  return (
+    <div className="message error" role="alert">
+      <strong>{error.message}</strong>
+      {details && details.length > 0 && (
+        <ul>
+          {details.slice(0, 8).map((detail, index) => (
+            <li key={index}>
+              {typeof detail === 'string'
+                ? detail
+                : `${(detail as { path?: string }).path ?? ''} ${(detail as { message?: string }).message ?? JSON.stringify(detail)}`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="empty-state">
+      <h3>{title}</h3>
+      <p>{children}</p>
+      {action}
+    </div>
+  );
+}
+
+export function Metric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}): JSX.Element {
+  return (
+    <div className="metric">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+      {note && <div className="metric-note">{note}</div>}
+    </div>
+  );
+}
+
+const STATUS_TONE: Record<string, string> = {
+  draft: '',
+  analyst_review: 'accent',
+  manager_review: 'accent',
+  approved: 'positive',
+  published: 'positive',
+  superseded: 'warning',
+  archived: '',
+  occupied: 'positive',
+  vacant: 'warning',
+  future: 'accent',
+  expired: '',
+  terminated: 'negative',
+};
+
+export function StatusBadge({ status }: { status: string }): JSX.Element {
+  return <span className={`badge ${STATUS_TONE[status] ?? ''}`}>{titleCase(status)}</span>;
+}
+
+/**
+ * Model health panel.
+ *
+ * Errors are listed first and cannot be dismissed from here: a critical
+ * mathematical error must be corrected in the model, not acknowledged away.
+ */
+export function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }): JSX.Element {
+  const order = { error: 0, warning: 1, informational: 2, accepted_exception: 3 } as const;
+  const sorted = [...diagnostics].sort((a, b) => order[a.severity] - order[b.severity]);
+  const errors = sorted.filter((entry) => entry.severity === 'error');
+
+  if (sorted.length === 0) {
+    return (
+      <div className="message info">
+        No validation findings. The engine calculated this model without raising anything.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {errors.length > 0 && (
+        <div className="message error" role="alert">
+          {errors.length === 1
+            ? 'One critical error must be corrected before this model can be approved.'
+            : `${errors.length} critical errors must be corrected before this model can be approved.`}
+        </div>
+      )}
+      <div className="table-scroll">
+        <table>
+          <caption className="visually-hidden">Model validation findings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Severity</th>
+              <th scope="col">Subject</th>
+              <th scope="col">Finding</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((entry, index) => (
+              <tr key={`${entry.code}-${entry.subject ?? ''}-${index}`}>
+                <td>
+                  <span
+                    className={`badge ${
+                      entry.severity === 'error'
+                        ? 'negative'
+                        : entry.severity === 'warning'
+                          ? 'warning'
+                          : ''
+                    }`}
+                  >
+                    {titleCase(entry.severity)}
+                  </span>
+                </td>
+                <td>{entry.subject ?? '—'}</td>
+                <td style={{ whiteSpace: 'normal', minWidth: '28rem' }}>{entry.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A small column chart with an always-available data table.
+ *
+ * The axis is anchored at zero so a bar's height is proportional to its value;
+ * truncating it would exaggerate differences, which is exactly the kind of
+ * distortion a financial chart must not introduce.
+ */
+export function BarChart({
+  title,
+  labels,
+  values,
+  formatValue,
+  height = 180,
+}: {
+  title: string;
+  labels: string[];
+  values: number[];
+  formatValue: (value: number) => string;
+  height?: number;
+}): JSX.Element {
+  const width = Math.max(320, labels.length * 56);
+  const padding = { top: 12, right: 8, bottom: 26, left: 62 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+
+  const max = Math.max(0, ...values);
+  const min = Math.min(0, ...values);
+  const span = max - min || 1;
+  const zeroY = padding.top + (max / span) * plotHeight;
+  const barWidth = plotWidth / Math.max(labels.length, 1);
+
+  const ticks = [max, max - span / 2, min];
+
+  return (
+    <figure style={{ margin: 0 }}>
+      <figcaption className="chart-caption" style={{ marginBottom: 8, marginTop: 0 }}>
+        {title}
+      </figcaption>
+      <div style={{ overflowX: 'auto' }}>
+        <svg
+          className="chart"
+          viewBox={`0 0 ${width} ${height}`}
+          width={width}
+          height={height}
+          role="img"
+          aria-label={`${title}. ${labels
+            .map((label, index) => `${label}: ${formatValue(values[index] ?? 0)}`)
+            .join('. ')}`}
+        >
+          <g className="grid">
+            {ticks.map((tick, index) => {
+              const y = padding.top + ((max - tick) / span) * plotHeight;
+              return (
+                <g key={index}>
+                  <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} />
+                  <text x={padding.left - 6} y={y + 3} textAnchor="end">
+                    {formatValue(tick)}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+          <g>
+            {values.map((value, index) => {
+              const barHeight = (Math.abs(value) / span) * plotHeight;
+              const x = padding.left + index * barWidth + barWidth * 0.15;
+              const y = value >= 0 ? zeroY - barHeight : zeroY;
+              return (
+                <rect
+                  key={index}
+                  className={value >= 0 ? 'bar-positive' : 'bar-negative'}
+                  x={x}
+                  y={y}
+                  width={barWidth * 0.7}
+                  height={Math.max(barHeight, 1)}
+                  rx={2}
+                />
+              );
+            })}
+          </g>
+          <g className="axis">
+            <line x1={padding.left} x2={width - padding.right} y1={zeroY} y2={zeroY} />
+            {labels.map((label, index) => (
+              <text
+                key={index}
+                x={padding.left + index * barWidth + barWidth / 2}
+                y={height - 8}
+                textAnchor="middle"
+              >
+                {label}
+              </text>
+            ))}
+          </g>
+        </svg>
+      </div>
+      <details className="chart-data">
+        <summary>Show the underlying figures as a table</summary>
+        <table>
+          <caption className="visually-hidden">{title} data</caption>
+          <thead>
+            <tr>
+              <th scope="col">Period</th>
+              <th scope="col" className="numeric">
+                Value
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {labels.map((label, index) => (
+              <tr key={label}>
+                <th scope="row">{label}</th>
+                <td className="numeric">{formatValue(values[index] ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </figure>
+  );
+}
+
+export function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  error?: string;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {children}
+      {hint && !error && <div className="field-hint">{hint}</div>}
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AreaCell({ value }: { value: string | null }): JSX.Element {
+  return <span className="numeric">{formatNumber(value, 0)}</span>;
+}

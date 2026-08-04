@@ -1,0 +1,83 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { Capability } from '@cre/domain-models';
+import { ApiError, api, type Session } from './api.js';
+
+interface SessionContextValue {
+  session: Session | null;
+  loading: boolean;
+  can: (capability: Capability) => boolean;
+  refresh: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  switchOrganization: (organizationId: string) => Promise<void>;
+}
+
+const SessionContext = createContext<SessionContextValue | null>(null);
+
+export function SessionProvider({ children }: { children: ReactNode }): JSX.Element {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      setSession(await api.get<Session>('/auth/me'));
+    } catch (error) {
+      // A 401 simply means nobody is signed in; anything else is worth
+      // surfacing on the sign-in screen rather than crashing the shell.
+      if (!(error instanceof ApiError) || error.status !== 401) {
+        console.error('Failed to resolve the session', error);
+      }
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      await api.post('/auth/login', { email, password });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const signOut = useCallback(async () => {
+    await api.post('/auth/logout');
+    setSession(null);
+  }, []);
+
+  const switchOrganization = useCallback(
+    async (organizationId: string) => {
+      await api.post(`/organizations/${organizationId}/switch`);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      session,
+      loading,
+      // The server re-checks every capability; this only decides what to show.
+      can: (capability) => session?.capabilities.includes(capability) ?? false,
+      refresh,
+      signIn,
+      signOut,
+      switchOrganization,
+    }),
+    [session, loading, refresh, signIn, signOut, switchOrganization],
+  );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+export function useSession(): SessionContextValue {
+  const context = useContext(SessionContext);
+  if (!context) throw new Error('useSession must be used inside a SessionProvider.');
+  return context;
+}

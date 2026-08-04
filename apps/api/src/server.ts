@@ -39,9 +39,28 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     logger: options.logger ?? env.NODE_ENV !== 'test',
     trustProxy: true,
     bodyLimit: 5 * 1024 * 1024,
-    // Rent rolls and tenant financial detail must never reach the logs.
-    disableRequestLogging: false,
   });
+
+  // Several endpoints take no payload but are still POSTs. A client that sets a
+  // JSON content-type and sends nothing is making a well-formed request, so an
+  // empty body is parsed as an empty object rather than rejected.
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body: string, done) => {
+      if (body === undefined || body === null || body.trim() === '') {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch (error) {
+        const failure = error as Error & { statusCode?: number };
+        failure.statusCode = 400;
+        done(failure, undefined);
+      }
+    },
+  );
 
   await app.register(helmet, {
     contentSecurityPolicy: {
@@ -111,10 +130,23 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         },
       });
     }
-    if ((error as { statusCode?: number }).statusCode === 429) {
+    const status = (error as { statusCode?: number }).statusCode;
+    if (status === 429) {
       return reply
         .status(429)
         .send({ error: { code: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' } });
+    }
+
+    // A client error raised by the framework itself (a malformed body, an
+    // unsupported content type) is the caller's to fix, so its status and
+    // message are passed through rather than being reported as a server fault.
+    if (status !== undefined && status >= 400 && status < 500) {
+      return reply.status(status).send({
+        error: {
+          code: (error as { code?: string }).code ?? 'BAD_REQUEST',
+          message: error instanceof Error ? error.message : 'The request could not be processed.',
+        },
+      });
     }
 
     // Unexpected failures are logged in full but never echoed to the client,

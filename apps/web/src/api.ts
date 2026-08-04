@@ -1,0 +1,209 @@
+import type { Capability, Diagnostic, ModelResult, Role, TraceEntry } from '@cre/domain-models';
+
+/**
+ * API client.
+ *
+ * Every state-changing request carries the X-Requested-With header the server
+ * requires, which is what makes the SameSite=Lax session cookie safe against
+ * cross-site form posts. Credentials are always included so the cookie travels
+ * with the request.
+ */
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+async function request<T>(
+  path: string,
+  options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+): Promise<T> {
+  const method = options.method ?? 'GET';
+  const response = await fetch(`/api/v1${path}`, {
+    method,
+    credentials: 'include',
+    headers: {
+      'X-Requested-With': 'cre-platform',
+      ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+
+  if (!response.ok) {
+    let code = 'REQUEST_FAILED';
+    let message = `Request failed (${response.status}).`;
+    let details: unknown;
+    try {
+      const payload = (await response.json()) as { error?: { code: string; message: string; details?: unknown } };
+      if (payload.error) {
+        code = payload.error.code;
+        message = payload.error.message;
+        details = payload.error.details;
+      }
+    } catch {
+      // A non-JSON error body (a proxy error page, for example) keeps the
+      // generic message rather than surfacing raw HTML to the user.
+    }
+    throw new ApiError(response.status, code, message, details);
+  }
+
+  if (response.status === 204) return undefined as T;
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) return (await response.text()) as unknown as T;
+  return (await response.json()) as T;
+}
+
+export const api = {
+  get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
+  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
+  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+};
+
+/* -------------------------------------------------------------------------- */
+/* Response shapes                                                            */
+/* -------------------------------------------------------------------------- */
+
+export interface Session {
+  user: { id: string; email: string; name: string; mfaEnrolled: boolean };
+  organizationId: string | null;
+  role: Role | null;
+  capabilities: Capability[];
+  organizations: Array<{ organization_id: string; name: string; slug: string; role: Role }>;
+}
+
+export interface Property {
+  id: string;
+  name: string;
+  property_type: string;
+  property_subtype: string | null;
+  city: string | null;
+  state_region: string | null;
+  market: string | null;
+  submarket: string | null;
+  rentable_area: string | null;
+  unit_count: number;
+  currency: string;
+  area_unit: string;
+  year_built: number | null;
+  acquisition_price: string | null;
+  acquisition_date: string | null;
+  tags: string[];
+}
+
+export interface Space {
+  id: string;
+  code: string;
+  floor: string | null;
+  space_type: string;
+  area: string;
+  unit_count: number;
+  is_non_revenue: boolean;
+}
+
+export interface Model {
+  id: string;
+  property_id: string;
+  name: string;
+  classification: string;
+  status: string;
+  valuation_date: string;
+  forecast_start_date: string;
+  forecast_months: number;
+  fiscal_year_start_month: number;
+  proration_convention: string;
+  currency: string;
+  area_unit: string;
+  notes: string | null;
+  discount_rate: string | null;
+  discounting_convention: string;
+  terminal_cap_rate: string | null;
+  terminal_noi_basis: string;
+  sale_cost_percent: string;
+  sale_month: number | null;
+  direct_cap_rate: string | null;
+  acquisition_price: string | null;
+  acquisition_costs: string;
+  general_vacancy_rate: string;
+  credit_loss_rate: string;
+}
+
+export interface Lease {
+  id: string;
+  code: string;
+  tenant_id: string;
+  tenant_name: string;
+  status: string;
+  area: string;
+  unit_count: number;
+  space_codes: string[];
+  commencement_date: string;
+  rent_start_date: string | null;
+  expiration_date: string;
+  base_rent: string;
+  base_rent_basis: string;
+  rent_steps: Array<{ startDate: string; amount: string; basis: string }>;
+  escalation: Record<string, unknown>;
+  recovery: Record<string, unknown>;
+  notes: string | null;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  industry: string | null;
+  is_anchor: boolean;
+}
+
+export type CashFlowResponse = Pick<
+  ModelResult,
+  | 'periods'
+  | 'annual'
+  | 'monthly'
+  | 'occupancy'
+  | 'valuations'
+  | 'returns'
+  | 'diagnostics'
+  | 'debtSchedules'
+  | 'waterfall'
+  | 'recoveryDetail'
+  | 'leaseCashFlows'
+> & {
+  runId: string;
+  engineVersion: string;
+  calculatedAt: string;
+  currency: string;
+  areaUnit: string;
+};
+
+export interface CalculateResponse {
+  runId: string;
+  engineVersion: string;
+  diagnostics: Diagnostic[];
+  annual: ModelResult['annual'];
+  returns: ModelResult['returns'];
+  valuations: ModelResult['valuations'];
+}
+
+export interface TraceResponse {
+  runId: string;
+  total: number;
+  entries: TraceEntry[];
+}
+
+export interface PortfolioSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  strategy: string | null;
+  property_count: number;
+}
