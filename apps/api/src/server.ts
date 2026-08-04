@@ -16,6 +16,7 @@ import { registerPortfolioRoutes } from './routes/portfolios.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerImportRoutes } from './routes/imports.js';
 import { registerReportRoutes } from './routes/reports.js';
+import { registerBudgetRoutes } from './routes/budgets.js';
 
 export interface ServerOptions {
   env: Env;
@@ -173,6 +174,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerAuditRoutes(api);
       await registerImportRoutes(api);
       await registerReportRoutes(api);
+      await registerBudgetRoutes(api);
     },
     { prefix: '/api/v1' },
   );

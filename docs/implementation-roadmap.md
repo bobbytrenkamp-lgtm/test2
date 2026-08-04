@@ -13,7 +13,7 @@
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, one keyboard workflow, now covered by a browser suite. Spreadsheet-grade editing is not built. |
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Partial.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow. Side-by-side version comparison is not built. |
-| 9. Budgets and asset management | **Not started.** Tables are migrated; no API, no interface. |
+| 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
 | 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation, concentration analysis. Fund-level cash flows and investor reporting are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Started.** Restore drill written, executed and running in CI. Machine-checked accessibility on nine screens. Still missing: load test, screen-reader audit, error monitoring, deployment automation. |
@@ -68,11 +68,22 @@ report what breaks.
 - **Development and refinance fee bases** in the waterfall.
 - **Cash-management triggers** on covenant breach.
 
-### 4. Budgets, actuals and variance (phase 9)
+### 4. ~~Budgets, actuals and variance~~ — done
 
-The tables exist. Needed: an actuals import, budget-versus-actual and
-forecast-versus-forecast calculations, favourable/unfavourable designation,
-commentary with approval, and a reforecast workflow.
+Budget periods, a trial-balance import reading both the wide and long layouts a
+ledger exports, budget-versus-actual and budget-versus-forecast variance,
+favourable/unfavourable designation with materiality thresholds, and commentary
+that cannot be approved by its own author.
+
+The sign convention is the load-bearing decision: amounts are held money-in
+positive, money-out negative, which makes a favourable variance simply a
+positive one on every account. A miscategorised row then lands in the wrong
+subtotal — visible — rather than reversing its own variance, which is not. See
+`docs/calculation-specification.md` §21.
+
+**What remains:** a reforecast workflow that carries actuals-to-date forward
+into a revised forecast automatically. Today a reforecast is a budget period
+like any other and has to be loaded.
 
 ### 5. Spreadsheet-grade editing (phase 6)
 

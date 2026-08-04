@@ -24,11 +24,14 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 14 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 164 | No |
-| Import parsing and normalisation | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
+| Budget variance arithmetic | `packages/calculation-engine/src/variance.test.ts` | 18 | No |
+| Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
+| Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
+| Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**257 tests in total.**
+**309 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -44,8 +47,9 @@ built bundle:
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 9 |
+| Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 
-**23 browser tests in total**, for 280 across the whole repository.
+**28 browser tests in total**, for 337 across the whole repository.
 
 ## The regression library
 

@@ -15,6 +15,7 @@ import {
 import { runAndStoreCalculationFromInput } from './repositories/calculations.js';
 import { buildModelInput, createModelVersion } from './repositories/models.js';
 import { ENGINE_VERSION } from '@cre/calculation-engine';
+import type { AccountCategory } from '@cre/domain-models';
 
 /**
  * Demonstration data.
@@ -1068,6 +1069,13 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
     });
   }
 
+  // An approved budget and six months of actuals against it, so the variance
+  // screen shows a real comparison rather than an empty form. The actuals are
+  // invented and deliberately imperfect: rent slightly ahead in some months and
+  // behind in others, repairs overspent once. A demonstration where everything
+  // lands exactly on budget teaches nothing about what the screen is for.
+  await seedBudgets(sql, organization.id, office.id, officeModel, analyst.id, reviewer.id);
+
   return {
     organizationId: organization.id,
     users: [
@@ -1121,4 +1129,157 @@ async function createModel(sql: Sql, input: CreateModelInput): Promise<string> {
     RETURNING id
   `) as unknown as Array<{ id: string }>;
   return (rows[0] as { id: string }).id;
+}
+
+/**
+ * An approved budget for the office asset, and six months of actuals.
+ *
+ * Amounts follow the cash-flow convention the variance calculation depends on:
+ * money in positive, money out negative. The actuals deviate from budget in
+ * both directions on purpose — a demonstration where everything lands exactly
+ * on budget teaches nothing about what the screen is for.
+ */
+async function seedBudgets(
+  sql: Sql,
+  organizationId: string,
+  propertyId: string,
+  modelId: string,
+  authorId: string,
+  reviewerId: string,
+): Promise<void> {
+  const months = [
+    '2026-01-01',
+    '2026-02-01',
+    '2026-03-01',
+    '2026-04-01',
+    '2026-05-01',
+    '2026-06-01',
+  ];
+
+  const accounts: Array<{
+    code: string;
+    name: string;
+    category: AccountCategory;
+    budget: string;
+    /** Actual per month, in the same order as `months`. */
+    actual: string[];
+  }> = [
+    {
+      code: '4000',
+      name: 'Base rent',
+      category: 'revenue',
+      budget: '412000',
+      actual: ['412000', '412000', '408500', '415000', '415000', '415000'],
+    },
+    {
+      code: '4200',
+      name: 'Expense recoveries',
+      category: 'revenue',
+      budget: '96000',
+      actual: ['94100', '94100', '94100', '97800', '97800', '97800'],
+    },
+    {
+      code: '4300',
+      name: 'Parking income',
+      category: 'revenue',
+      budget: '31000',
+      actual: ['29500', '30100', '31400', '32200', '33100', '33800'],
+    },
+    {
+      code: '5100',
+      name: 'Repairs and maintenance',
+      category: 'operating_expense',
+      budget: '-48000',
+      actual: ['-46200', '-45900', '-91300', '-47100', '-46800', '-47500'],
+    },
+    {
+      code: '5200',
+      name: 'Utilities',
+      category: 'operating_expense',
+      budget: '-64000',
+      actual: ['-71400', '-69800', '-63200', '-58900', '-55100', '-54600'],
+    },
+    {
+      code: '5300',
+      name: 'Property taxes',
+      category: 'operating_expense',
+      budget: '-97000',
+      actual: ['-97000', '-97000', '-97000', '-97000', '-97000', '-97000'],
+    },
+    {
+      code: '5400',
+      name: 'Management fee',
+      category: 'operating_expense',
+      budget: '-27000',
+      actual: ['-26800', '-26800', '-26600', '-27200', '-27200', '-27200'],
+    },
+  ];
+
+  const createPeriod = async (kind: string, label: string): Promise<string> => {
+    const rows = (await sql`
+      INSERT INTO budget_periods (organization_id, property_id, model_id, kind, fiscal_year, label)
+      VALUES (${organizationId}, ${propertyId}, ${modelId}, ${kind}, 2026, ${label})
+      ON CONFLICT (property_id, kind, fiscal_year, label) DO UPDATE SET label = EXCLUDED.label
+      RETURNING id
+    `) as unknown as Array<{ id: string }>;
+    return (rows[0] as { id: string }).id;
+  };
+
+  const budgetId = await createPeriod('approved_budget', 'FY2026 approved budget');
+  const actualId = await createPeriod('actual', 'FY2026 actuals to June');
+
+  const write = async (
+    periodId: string,
+    pick: (account: (typeof accounts)[number], index: number) => string | null,
+  ): Promise<void> => {
+    const rows: Array<Record<string, unknown>> = [];
+    for (const account of accounts) {
+      for (const [index, month] of months.entries()) {
+        const amount = pick(account, index);
+        if (amount === null) continue;
+        rows.push({
+          budget_period_id: periodId,
+          account_code: account.code,
+          account_name: account.name,
+          account_category: account.category,
+          period_month: month,
+          amount,
+        });
+      }
+    }
+    await sql`DELETE FROM budget_entries WHERE budget_period_id = ${periodId}`;
+    if (rows.length > 0) await sql`INSERT INTO budget_entries ${sql(rows as never)}`;
+  };
+
+  await write(budgetId, (account) => account.budget);
+  await write(actualId, (account, index) => account.actual[index] ?? null);
+
+  await sql`
+    UPDATE budget_periods SET approved_by = ${reviewerId}, approved_at = now()
+    WHERE id = ${budgetId} AND approved_at IS NULL
+  `;
+
+  // The overspend in March has an explanation attached, written by the analyst
+  // and signed off by the reviewer, so the approval workflow is visible in the
+  // demonstration data rather than only in the tests.
+  const commentary = (await sql`
+    INSERT INTO variance_commentary
+      (property_id, fiscal_year, period_month, account_code, commentary, author_id)
+    VALUES (
+      ${propertyId}, 2026, '2026-03-01', '5100',
+      ${'Roof membrane replaced after storm damage. Insurance recovery of 32,000 expected in Q3 and not yet recognised.'},
+      ${authorId}
+    )
+    ON CONFLICT (property_id, fiscal_year, period_month, account_code) DO NOTHING
+    RETURNING id
+  `) as unknown as Array<{ id: string }>;
+
+  const commentaryId = commentary[0]?.id;
+  if (commentaryId) {
+    await sql`
+      UPDATE variance_commentary
+      SET approved_by = ${reviewerId}, approved_at = now(), approved_text = commentary
+      WHERE id = ${commentaryId}
+    `;
+  }
 }

@@ -13,6 +13,7 @@ import { RentRollTab } from './pages/RentRollTab.js';
 import { AssumptionsTab } from './pages/AssumptionsTab.js';
 import { ReturnsTab } from './pages/ReturnsTab.js';
 import { ScenariosTab } from './pages/ScenariosTab.js';
+import { BudgetsTab } from './pages/BudgetsTab.js';
 import { ImportsTab, ReportsTab, ValidationTab, VersionsTab } from './pages/SupportTabs.js';
 
 const container = document.getElementById('root');
@@ -36,6 +37,7 @@ createRoot(container).render(
               <Route path="assumptions" element={<AssumptionsTab />} />
               <Route path="returns" element={<ReturnsTab />} />
               <Route path="scenarios" element={<ScenariosTab />} />
+              <Route path="budgets" element={<BudgetsTab />} />
               <Route path="validation" element={<ValidationTab />} />
               <Route path="reports" element={<ReportsTab />} />
               <Route path="imports" element={<ImportsTab />} />
