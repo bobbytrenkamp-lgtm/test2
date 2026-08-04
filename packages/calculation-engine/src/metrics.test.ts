@@ -4,6 +4,7 @@ import { parseDate } from './calendar.js';
 import {
   breakevenOccupancy,
   discountFactor,
+  discountFactors,
   equityMultiple,
   irrMonthly,
   npvMonthly,
@@ -28,6 +29,43 @@ describe('discounting', () => {
     expect(discountFactor(d('0.08'), 12, 'mid_period').toFixed(12)).toBe(
       Math.pow(1.08, -11.5 / 12).toFixed(12),
     );
+  });
+});
+
+describe('the batched discount factor series', () => {
+  /**
+   * `discountFactors` exists because taking a fractional power per period made
+   * the engine roughly twenty times slower than it needed to be.
+   *
+   * The substitution is only safe if the two agree far beyond any precision the
+   * platform reports at, so that is asserted to 28 decimal places rather than
+   * left as "close enough". They are **not** bit-identical at all 34 significant
+   * digits — repeated multiplication and a direct power differ in the last digit
+   * or two — which is why the change carried an engine version bump. See
+   * `metrics.ts` and the 2.1.0 note in `engine.ts`.
+   */
+  for (const convention of ['end_of_period', 'mid_period'] as const) {
+    it(`matches the per-period factor to 28 decimal places, ${convention}`, () => {
+      const rate = d('0.0825');
+      const batched = discountFactors(rate, 120, convention);
+      for (let i = 0; i < 120; i += 1) {
+        expect((batched[i] as Decimal).toFixed(28)).toBe(
+          discountFactor(rate, i + 1, convention).toFixed(28),
+        );
+      }
+    });
+  }
+
+  it('matches at a rate of zero, where every factor is one', () => {
+    const factors = discountFactors(d('0'), 5);
+    for (const factor of factors) expect(factor.toFixed(20)).toBe('1.00000000000000000000');
+  });
+
+  it('returns zero factors for a rate that would make the base non-positive', () => {
+    // A discount rate of -100% or worse has no meaningful factor; returning
+    // zero keeps the caller from raising a negative number to a fraction.
+    const factors = discountFactors(d('-1'), 3);
+    expect(factors.map((factor) => factor.toString())).toEqual(['0', '0', '0']);
   });
 });
 

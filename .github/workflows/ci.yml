@@ -113,6 +113,13 @@ jobs:
         env:
           E2E_DATABASE_URL: postgres://cre:cre@localhost:5432/cre_platform_e2e
 
+      # Times the engine on four synthetic models and fails if any exceeds its
+      # budget. The budgets are loose on purpose — they catch an
+      # order-of-magnitude regression, not the few percent of noise a shared
+      # runner produces.
+      - name: Performance baseline
+        run: pnpm benchmark
+
       # Backs the database up, restores it into a scratch database, and checks
       # that a stored valuation still reproduces from the restored data. A
       # backup nobody restores is a hope, not a backup; running it here means

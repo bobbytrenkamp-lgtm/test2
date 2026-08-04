@@ -1,7 +1,7 @@
 import type { ValuationAssumptions, ValuationResult } from '@cre/domain-models';
 import { Decimal, TWELVE, ZERO, d } from './decimal.js';
 import type { ForecastCalendar } from './calendar.js';
-import { discountFactor, slice } from './metrics.js';
+import { discountFactors, slice } from './metrics.js';
 import { TraceRecorder, traceInputs } from './trace.js';
 
 export interface SaleResult {
@@ -157,9 +157,13 @@ export function computeDcf(ctx: ValuationContext, sale: SaleResult | null): Valu
   const detail: NonNullable<ValuationResult['presentValueByPeriod']> = [];
   let pvCashFlow = ZERO;
 
+  // One pass for the whole series; see `discountFactors` on why taking the
+  // fractional power once matters.
+  const factors = discountFactors(discountRate, sale.saleIndex + 1, convention);
+
   for (let i = 0; i <= sale.saleIndex; i += 1) {
     const cashFlow = ctx.unleveredCashFlow[i] ?? ZERO;
-    const factor = discountFactor(discountRate, i + 1, convention);
+    const factor = factors[i] as Decimal;
     const pv = cashFlow.times(factor);
     pvCashFlow = pvCashFlow.plus(pv);
     detail.push({
@@ -172,7 +176,7 @@ export function computeDcf(ctx: ValuationContext, sale: SaleResult | null): Valu
 
   // The reversion is discounted at the sale date on the same convention as the
   // operating cash flows so the two are consistent.
-  const reversionFactor = discountFactor(discountRate, sale.saleIndex + 1, convention);
+  const reversionFactor = factors[sale.saleIndex] as Decimal;
   const pvReversion = sale.netSaleProceeds.times(reversionFactor);
   const value = pvCashFlow.plus(pvReversion);
 
