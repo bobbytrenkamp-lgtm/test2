@@ -261,17 +261,29 @@ and it is what I assumed before measuring.
 
 ### Concurrent writes
 
-Ten simultaneous writes to one lease all succeed and the last one wins. There is
-**no optimistic concurrency control**: two analysts editing the same lease will
-not collide, and the second save silently discards the first. That is a known
-limitation rather than a surprise — the test asserts the behaviour so a change
-to it is visible — and a version column on `leases` with an `If-Match` precondition
-is the fix when it matters.
+The first concurrency run found that ten simultaneous writes to one lease all
+succeeded and the last one won — an analyst's work disappearing with nobody
+told, on a record that decides what a property is worth.
 
-Not yet done: grid virtualisation for very large rent rolls, cursor pagination
-on the audit log (offset paging is measured fine at this scale but degrades
-deep into a large table), and optimistic locking on lease writes. These are
-recorded in `docs/feature-status.md` rather than claimed.
+Leases now carry a `version`, incremented on every write. A caller that read the
+lease sends the version it saw; if the stored one has moved, the write is
+refused with **409** and the current version, so the client can show what
+changed rather than guess. The check and the write share one transaction with
+the row locked, because reading the version in a separate statement would leave
+exactly the race it exists to close.
+
+Ten simultaneous version-guarded writes now resolve to **one accepted and nine
+refused**, asserted by both the test suite and the concurrency script.
+
+Sending no version is a deliberate opt-out and stays last-write-wins. Bulk
+import uses it: an import is an explicit "replace these rows" and has nothing to
+have read first. The lease editor always sends one, because it loaded the lease
+before showing it.
+
+Not yet done: the same protection on models and assumption collections; grid
+virtualisation for very large rent rolls; and cursor pagination on the audit log
+(offset paging is measured fine at this scale but degrades deep into a large
+table). These are recorded in `docs/feature-status.md` rather than claimed.
 
 ## Deliberately not distributed
 

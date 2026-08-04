@@ -190,12 +190,12 @@ try {
   /* Concurrent writes to one record                                       */
   /* -------------------------------------------------------------------- */
 
-  // Two people editing the same lease at the same moment. There is no
-  // optimistic concurrency control on a lease, so the expected outcome is that
-  // both succeed and the later write wins. This asserts that it is a clean
-  // last-write-wins and not a deadlock, a constraint violation or a half-applied
-  // record — and records the behaviour so it is a known limitation rather than
-  // a surprise. See docs/architecture.md.
+  // Two people editing the same lease at the same moment.
+  //
+  // Both paths are exercised. A write that carries the version it read is
+  // protected: exactly one of a simultaneous pair may win, and the loser is
+  // told. A write that carries no version is the deliberate opt-out bulk import
+  // needs, and stays last-write-wins.
   const leases = (await app
     .inject({
       method: 'GET',
@@ -203,36 +203,55 @@ try {
       headers: authed,
     })
     .then((response) => response.json())) as {
-    leases: Array<{ code: string; tenant_id: string; area: string }>;
+    leases: Array<{ code: string; tenant_id: string; area: string; version: number }>;
   };
   const lease = leases.leases[0];
 
-  let writeFailures = 0;
+  let writeProblems = 0;
   if (lease) {
-    const writes = await Promise.all(
-      Array.from({ length: 10 }, (_, i) =>
-        (app as FastifyInstance).inject({
-          method: 'PUT',
-          url: `/api/v1/models/${modelId}/leases/${encodeURIComponent(lease.code)}`,
-          headers: authed,
-          payload: {
-            tenantId: lease.tenant_id,
-            status: 'occupied',
-            area: lease.area,
-            spaceIds: [],
-            commencementDate: '2026-01-01',
-            expirationDate: '2031-12-31',
-            baseRent: String(20 + i),
-            baseRentBasis: 'per_area_per_year',
-          },
-        }),
-      ),
-    );
-    writeFailures = writes.filter((response) => response.statusCode >= 400).length;
+    const write = (rent: number, expectedVersion?: number) =>
+      (app as FastifyInstance).inject({
+        method: 'PUT',
+        url: `/api/v1/models/${modelId}/leases/${encodeURIComponent(lease.code)}`,
+        headers: authed,
+        payload: {
+          tenantId: lease.tenant_id,
+          status: 'occupied',
+          area: lease.area,
+          spaceIds: [],
+          commencementDate: '2026-01-01',
+          expirationDate: '2031-12-31',
+          baseRent: String(rent),
+          baseRentBasis: 'per_area_per_year',
+          ...(expectedVersion === undefined ? {} : { expectedVersion }),
+        },
+      });
+
+    const unguarded = await Promise.all(Array.from({ length: 10 }, (_, i) => write(20 + i)));
+    const unguardedAccepted = unguarded.filter((r) => r.statusCode < 400).length;
+
+    const version = (
+      (await app
+        .inject({ method: 'GET', url: `/api/v1/models/${modelId}/leases`, headers: authed })
+        .then((r) => r.json())) as { leases: Array<{ code: string; version: number }> }
+    ).leases.find((entry) => entry.code === lease.code)?.version as number;
+
+    const guarded = await Promise.all(Array.from({ length: 10 }, (_, i) => write(40 + i, version)));
+    const guardedAccepted = guarded.filter((r) => r.statusCode < 400).length;
+    const conflicts = guarded.filter((r) => r.statusCode === 409).length;
+
     console.warn(
-      `\n10 concurrent writes to one lease: ${writes.length - writeFailures} accepted, ` +
-        `${writeFailures} rejected. Last write wins; there is no optimistic locking.`,
+      `\n10 concurrent writes with no version:   ${unguardedAccepted} accepted ` +
+        '(deliberate last-write-wins, what bulk import uses)',
     );
+    console.warn(
+      `10 concurrent writes at one version:   ${guardedAccepted} accepted, ` +
+        `${conflicts} refused as stale`,
+    );
+
+    if (unguardedAccepted !== 10) writeProblems += 1;
+    // Exactly one may win. More than one means an edit was silently lost.
+    if (guardedAccepted !== 1 || conflicts !== 9) writeProblems += 1;
   }
 
   /* -------------------------------------------------------------------- */
@@ -248,8 +267,11 @@ try {
         `(first: ${sample.label} returned ${sample.status})`,
     );
   }
-  if (writeFailures > 0) {
-    problems.push(`${writeFailures} of 10 concurrent writes to one lease failed`);
+  if (writeProblems > 0) {
+    problems.push(
+      'concurrent writes to one lease did not behave as specified: exactly one ' +
+        'version-guarded write must win and the rest must be refused',
+    );
   }
   const p95 = percentile(allSorted, 95);
   if (p95 > P95_BUDGET) {

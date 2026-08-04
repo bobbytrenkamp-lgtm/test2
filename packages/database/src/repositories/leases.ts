@@ -143,6 +143,32 @@ export interface UpsertLeaseInput {
   marketLeasingProfileId?: string | null;
   excludeFromRollover?: boolean;
   notes?: string | null;
+  /**
+   * The version the caller believes it is editing.
+   *
+   * Supplied by anything that read the lease first — the editor does. When it
+   * no longer matches the stored version, someone else has written since, and
+   * the write is refused rather than applied over work the caller never saw.
+   *
+   * Omitted by bulk import, which is a deliberate "replace these rows" and has
+   * nothing to have read.
+   */
+  expectedVersion?: number | null;
+}
+
+/** Raised when a lease has moved on since the caller read it. */
+export class LeaseVersionConflict extends Error {
+  constructor(
+    readonly code: string,
+    readonly expected: number,
+    readonly actual: number,
+  ) {
+    super(
+      `Lease ${code} has been changed by someone else since you opened it ` +
+        `(you have version ${expected}, it is now ${actual}).`,
+    );
+    this.name = 'LeaseVersionConflict';
+  }
 }
 
 /**
@@ -152,6 +178,23 @@ export interface UpsertLeaseInput {
  */
 export async function upsertLease(sql: Sql, input: UpsertLeaseInput): Promise<LeaseRow> {
   return (await sql.begin(async (tx) => {
+    // The check and the write share one transaction, and the row is locked
+    // while it happens. Reading the version in a separate statement would leave
+    // exactly the race this exists to close.
+    if (input.expectedVersion !== undefined && input.expectedVersion !== null) {
+      const existing = (await tx`
+        SELECT version FROM leases
+        WHERE model_id = ${input.modelId} AND code = ${input.code}
+        FOR UPDATE
+      `) as unknown as Array<{ version: number }>;
+      const current = existing[0]?.version;
+      // A lease that does not exist yet cannot have been changed by anyone, so
+      // a version on a creation is simply ignored rather than refused.
+      if (current !== undefined && current !== input.expectedVersion) {
+        throw new LeaseVersionConflict(input.code, input.expectedVersion, current);
+      }
+    }
+
     const rows = (await tx`
       INSERT INTO leases (
         model_id, tenant_id, code, status, area, unit_count, commencement_date,
@@ -192,6 +235,7 @@ export async function upsertLease(sql: Sql, input: UpsertLeaseInput): Promise<Le
         market_leasing_profile_id = EXCLUDED.market_leasing_profile_id,
         exclude_from_rollover = EXCLUDED.exclude_from_rollover,
         notes = EXCLUDED.notes,
+        version = leases.version + 1,
         updated_at = now()
       RETURNING *
     `) as unknown as LeaseRow[];
