@@ -12,7 +12,9 @@ import {
   upsertMarketLeasingProfile,
   upsertOtherRevenue,
 } from './repositories/leases.js';
-import { runAndStoreCalculation } from './repositories/calculations.js';
+import { runAndStoreCalculationFromInput } from './repositories/calculations.js';
+import { buildModelInput, createModelVersion } from './repositories/models.js';
+import { ENGINE_VERSION } from '@cre/calculation-engine';
 
 /**
  * Demonstration data.
@@ -1042,10 +1044,27 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
 
   // Calculate every model so the demonstration portfolio aggregates on first
   // load rather than showing an empty dashboard.
+  //
+  // Each calculation is run against a frozen version rather than against the
+  // live tables, which is how the platform is meant to be used: a figure anyone
+  // relies on should be reproducible from an input that cannot be edited
+  // afterwards. It also means the demonstration data actually demonstrates
+  // versioning instead of showing an empty Versions tab, and it gives
+  // `pnpm drill:restore` a stored valuation to reproduce.
   for (const modelId of Object.values(modelIds)) {
-    await runAndStoreCalculation(sql, organization.id, modelId, {
+    const modelInput = await buildModelInput(sql, organization.id, modelId);
+    const version = await createModelVersion(sql, {
+      modelId,
+      modelInput,
+      engineVersion: ENGINE_VERSION,
+      label: 'Initial underwriting',
+      notes: 'Created by the demonstration seed. All figures are fictional.',
+      createdBy: analyst.id,
+    });
+    await runAndStoreCalculationFromInput(sql, modelId, modelInput, {
       withTrace: true,
       requestedBy: analyst.id,
+      modelVersionId: version.id,
     });
   }
 

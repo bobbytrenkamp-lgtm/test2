@@ -1,24 +1,35 @@
-# syntax=docker/dockerfile:1
-#
 # API image. The worker shares this image and differs only in its command, so
 # the two can never drift apart on dependency or engine version.
+#
+# No `# syntax=` directive: it would pull a BuildKit frontend image on every
+# build, and nothing here needs a feature the built-in frontend lacks.
 FROM node:22-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+# Every workspace member's manifest, because pnpm-workspace.yaml globs apps/*
+# and packages/*, and `--frozen-lockfile` compares the lockfile against the
+# full set of importers. Omitting one makes the lockfile look stale and fails
+# the install.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/domain-models/package.json packages/domain-models/
 COPY packages/calculation-engine/package.json packages/calculation-engine/
 COPY packages/database/package.json packages/database/
 COPY packages/reporting/package.json packages/reporting/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
-RUN pnpm install --frozen-lockfile --ignore-scripts || pnpm install --ignore-scripts
+COPY apps/web/package.json apps/web/
+# `--frozen-lockfile` with no fallback. A build that quietly resolves different
+# versions than the ones the test suite ran against is worse than a failed one,
+# because it produces an artefact nobody has tested and says nothing about it.
+RUN pnpm install --frozen-lockfile --ignore-scripts --prod=false
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# Dependencies first, then source. The installed tree is not overwritten by the
+# copies below because .dockerignore keeps host node_modules out of the context.
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps ./apps

@@ -1,8 +1,17 @@
 # Local development stack.
 #
-# NOTE: these files have not been executed — the build environment had no Docker
-# daemon. See docs/deployment-guide.md. Local development on a directly
-# installed PostgreSQL 16 is verified and documented there.
+# VERIFICATION STATUS, precisely:
+#   * `docker compose config` parses and validates this file — done, passes.
+#   * The images have still never been built. The environment this was developed
+#     in reaches the Docker daemon but its network policy blocks Docker Hub's
+#     blob CDN, so `node:22-alpine`, `nginx:1.27-alpine` and `postgres:16-alpine`
+#     cannot be pulled. Several defects found by reading these files have been
+#     fixed (see git history), but a review is not a build. Treat the images as
+#     unbuilt until someone runs `docker compose build` on a machine that can
+#     reach the registry.
+#
+# Local development on a directly installed PostgreSQL 16 is verified, as is the
+# backup and restore drill (`pnpm drill:restore`). See docs/deployment-guide.md.
 
 services:
   postgres:
