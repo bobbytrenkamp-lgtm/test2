@@ -34,7 +34,12 @@ export interface ServerOptions {
  */
 export async function buildServer(options: ServerOptions): Promise<FastifyInstance> {
   const { env } = options;
-  const db = options.db ?? createDatabase({ connectionString: env.DATABASE_URL });
+  const db =
+    options.db ??
+    createDatabase({
+      connectionString: env.DATABASE_URL,
+      maxConnections: env.DATABASE_MAX_CONNECTIONS,
+    });
 
   const app = Fastify({
     logger: options.logger ?? env.NODE_ENV !== 'test',

@@ -228,10 +228,49 @@ The portfolio aggregate had no tests at all when that rewrite happened, so
 `tests/portfolios.test.ts` was written alongside it — model precedence,
 and the two exclusion reasons a property can be dropped for.
 
+### Under concurrent load
+
+`pnpm concurrency-test` drives the real Fastify server, with its real connection
+pool, through a mix of reads weighted the way a working day is. It reports
+percentiles rather than an average: an average hides the request that took four
+seconds behind the ninety-nine that took ten milliseconds, and the slow one is
+the one someone notices.
+
+At **200 parallel clients**, 1,000 requests: roughly **1,000 req/s, p95 ~200 ms,
+zero failures**. Latency grows linearly with queue depth and nothing deadlocks
+or errors, which is the healthy shape.
+
+**The connection pool is not the constraint.** Measured at 5, 10, 30 and 60
+connections under the same load, throughput was flat to slightly *worse* as the
+pool grew, and the tail lengthened:
+
+| Pool | Throughput | p95 |
+| --- | --- | --- |
+| 5 | 1,084 req/s | 184 ms |
+| 10 | 844 req/s | 246 ms |
+| 30 | 886 req/s | 279 ms |
+| 60 | 770 req/s | 420 ms |
+
+The bottleneck is the single Node process — serialising large cash-flow payloads
+is CPU work, and more connections only add contention for it. **Throughput
+scales by running more API processes, not a bigger pool.** `DATABASE_MAX_CONNECTIONS`
+exists to *bound* connections against the database's own `max_connections`,
+since every API process multiplies it; it is not a performance dial. That
+correction is worth stating plainly because the opposite is the intuitive guess,
+and it is what I assumed before measuring.
+
+### Concurrent writes
+
+Ten simultaneous writes to one lease all succeed and the last one wins. There is
+**no optimistic concurrency control**: two analysts editing the same lease will
+not collide, and the second save silently discards the first. That is a known
+limitation rather than a surprise — the test asserts the behaviour so a change
+to it is visible — and a version column on `leases` with an `If-Match` precondition
+is the fix when it matters.
+
 Not yet done: grid virtualisation for very large rent rolls, cursor pagination
 on the audit log (offset paging is measured fine at this scale but degrades
-deep into a large table), and a concurrency test — the load test measures one
-client at a time, so it says nothing about connection-pool contention. These are
+deep into a large table), and optimistic locking on lease writes. These are
 recorded in `docs/feature-status.md` rather than claimed.
 
 ## Deliberately not distributed
