@@ -14,7 +14,7 @@
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Partial.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow. Side-by-side version comparison is not built. |
 | 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
-| 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation, concentration analysis. Fund-level cash flows and investor reporting are not built. |
+| 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation (now single-query and tested), concentration analysis. Fund-level cash flows and investor reporting are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Started.** Restore drill and an engine performance baseline both run in CI. Machine-checked accessibility on eleven screens. Still missing: a database and API load test, screen-reader audit, error monitoring, deployment automation. |
 
@@ -122,8 +122,15 @@ most expensive operation — a fractional power — once per period, tens of
 thousands of times per calculation. Fixed; 18× faster, no figure changed. See
 `docs/architecture.md`.
 
-Still to do: a **database and API** load test at the stated scale (thousands of
-properties), which the engine benchmark does not cover. Grid virtualisation and
+~~Database load test~~ — done. `pnpm load-test` builds 5,000 properties,
+10,000 models and 200,000 leases and times the real queries; it runs in CI at a
+thousand. Every list query stays flat. It found that portfolio aggregation
+issued two round trips per property in a loop — 1,000 of them for a 500-property
+fund — now a single `DISTINCT ON` query. The aggregate had no tests at all, so
+seven were written alongside the rewrite.
+
+Still to do: a **concurrency** test — the load test measures one client at a
+time and says nothing about connection-pool contention. Grid virtualisation and
 cursor pagination once profiling says where. Accessibility audit with a real
 screen reader. Error monitoring. Deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.

@@ -120,6 +120,13 @@ jobs:
       - name: Performance baseline
         run: pnpm benchmark
 
+      # Builds a thousand-property organization in a scratch database and times
+      # the queries the interface actually issues. The engine benchmark above
+      # measures arithmetic; this measures what happens when the tables are
+      # large, which is a different failure mode.
+      - name: Database load test
+        run: pnpm load-test
+
       # Backs the database up, restores it into a scratch database, and checks
       # that a stored valuation still reproduces from the restored data. A
       # backup nobody restores is a hope, not a backup; running it here means
