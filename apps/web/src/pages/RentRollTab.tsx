@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, formatNumber, titleCase } from '../format.j
 import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
+import { PasteRentRoll } from '../components/PasteRentRoll.js';
 
 /**
  * The rent roll.
@@ -21,6 +22,7 @@ export function RentRollTab(): JSX.Element {
   const { can } = useSession();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [pasting, setPasting] = useState(false);
 
   const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
   const spaces = useResource<{ spaces: Space[] }>(
@@ -57,16 +59,29 @@ export function RentRollTab(): JSX.Element {
           </span>
           <div className="spacer" />
           {editable && (
-            <button
-              type="button"
-              className="primary"
-              onClick={() => {
-                setCreating(true);
-                setEditing(null);
-              }}
-            >
-              Add lease
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasting((value) => !value);
+                  setCreating(false);
+                  setEditing(null);
+                }}
+              >
+                {pasting ? 'Cancel paste' : 'Paste from spreadsheet'}
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setCreating(true);
+                  setEditing(null);
+                  setPasting(false);
+                }}
+              >
+                Add lease
+              </button>
+            </>
           )}
         </div>
 
@@ -145,6 +160,18 @@ export function RentRollTab(): JSX.Element {
           </div>
         )}
       </div>
+
+      {pasting && (
+        <PasteRentRoll
+          modelId={model.id}
+          onCancel={() => setPasting(false)}
+          onImported={() => {
+            setPasting(false);
+            leases.reload();
+            reloadCashFlow();
+          }}
+        />
+      )}
 
       {(creating || editing) && (
         <LeaseEditor

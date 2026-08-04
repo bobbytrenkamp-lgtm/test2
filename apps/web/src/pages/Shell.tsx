@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useSession } from '../session.js';
 import { Loading } from '../components.js';
 import { SignInPage } from './SignIn.js';
+import { CommandPalette } from '../components/CommandPalette.js';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -71,6 +72,8 @@ export function Shell(): JSX.Element {
           </NavLink>
         ))}
       </nav>
+
+      <CommandPalette />
 
       <main className="app-main" id="main" tabIndex={-1}>
         {!session.organizationId ? (

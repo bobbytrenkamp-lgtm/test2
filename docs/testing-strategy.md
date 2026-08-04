@@ -48,8 +48,9 @@ built bundle:
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 9 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
+| Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**28 browser tests in total**, for 337 across the whole repository.
+**34 browser tests in total**, for 343 across the whole repository.
 
 ## The regression library
 
