@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **1.0.0** — `packages/calculation-engine`.
+Engine version **2.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -17,6 +17,7 @@ call, the choice and its reasoning are stated rather than left implicit.
 4. [Growth curves](#4-growth-curves)
 5. [Lease revenue](#5-lease-revenue)
 6. [Rollover and market leasing](#6-rollover-and-market-leasing)
+6a. [Lease options](#6a-lease-options)
 7. [Percentage rent](#7-percentage-rent)
 8. [Operating expenses](#8-operating-expenses)
 9. [Expense recoveries](#9-expense-recoveries)
@@ -250,6 +251,83 @@ occupiedFraction)`. Market rent on that area at the space's profile is added to
 `absorptionAndTurnoverVacancy`. The two net to the contract rent actually
 billed, which is what makes the vacancy visible as a line rather than as an
 absence.
+
+---
+
+## 6a. Lease options
+
+An option is a right the tenant holds and may or may not use. The forecast does
+not guess which way it goes: the lease expands into **paths**, one per
+combination of outcomes, each carrying the product of its probabilities. This is
+the same treatment rollover gets, for the same reason — committing the forecast
+to one branch produces a number nobody can defend when the other branch happens.
+
+A path is a sequence of occurrences sharing one weight. Its **last** occurrence
+is what rollover chains forward from; the earlier ones have already been
+superseded within the path. Rolling over from an earlier occurrence as well
+would let the same space twice over the same months.
+
+Options are applied in `exerciseDate` order. That ordering is what makes
+mutually exclusive options behave without special-casing them: once a
+termination has ended the lease in March, a renewal option dated the following
+year is unreachable on that path and is skipped there, while remaining live on
+every path where the termination lapsed.
+
+Branches below `0.0001` are pruned, matching rollover.
+
+### Renewal
+
+| | |
+| --- | --- |
+| Exercised, weight `w × p` | The contract term runs to its contractual expiry, then an extension commences the **day after** it for `termMonths`. |
+| Lapsed, weight `w × (1 − p)` | The lease is untouched and rolls over normally on expiry. |
+
+`exerciseDate` is the decision point, used to test reachability. It is **not**
+the start of the new term: an exercised renewal still runs the lease to its
+contractual expiry first. `noticeDate` is recorded and traced but does not
+affect the arithmetic.
+
+The option states the rent outright, so contractual steps and escalations from
+the original term do not carry into the extension. Rent is set by `rentMethod`:
+
+| `rentMethod` | Rent |
+| --- | --- |
+| `fixed` | `rentAmount` on `rentBasis`. |
+| `market` | The market leasing profile's rent at the date the extension starts, so an option priced at market moves with the market rather than freezing at today's figure. |
+| `percent_of_market` | Market at that date × `rentAmount` (a fraction, e.g. `0.95`). |
+| `prior_rent` | The rent in force at the end of the preceding term. |
+
+### Termination
+
+The term ends on `exerciseDate` instead of its contractual expiry. Rent steps
+falling outside the shortened term stop applying. The space then rolls over from
+that date, so it is not lost from the forecast.
+
+### Contraction
+
+The tenant hands back `areaChange` and keeps the rest to the original expiry on
+the original terms. The surrendered area becomes **vacant**. Re-letting it would
+require assumptions the option does not carry, and leaving it vacant is the
+conservative reading. If `areaChange` is not less than the area held, the option
+is treated as a termination on that date and a warning is raised.
+
+### Cost convention
+
+`cost` is a **landlord** cost, paid on the date the outcome takes effect. A
+termination fee *received* from the tenant is therefore entered as a negative
+cost. One sign convention across all option types is easier to reason about than
+a per-type rule, but it does mean the sign has to be read deliberately.
+
+### What is not modelled
+
+| Type | Why |
+| --- | --- |
+| `expansion` | The option records how much area is taken but not **which space** it comes from. Honouring it would either double-count area against whatever already occupies that space, or create rentable area the property does not have. The schema needs a space reference first. |
+| `purchase`, `rofr`, `rofo` | These bear on whether and when the asset is sold, not on operating cash flow. Model the disposition through the sale assumptions. |
+
+Each raises `LEASE_OPTION_NOT_MODELLED` at warning severity, naming the type and
+the reason, so an option that will not reach the cash flow is never silently
+dropped.
 
 ---
 
@@ -674,11 +752,28 @@ produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
 
+### 2.0.0
+
+Lease options reach the cash flow (section 6a). On its own that is additive: a
+model with no options is unchanged.
+
+What makes it major is the occupancy correction it required. Physical occupancy
+of a space was derived from how much of the **period** an occurrence covered,
+ignoring how much of the space's **area** it held, so a lease taking 6,000 of a
+10,000 sqft suite reported the suite fully occupied. Occupancy is now scaled by
+the occurrence's share of the area it sits on.
+
+Any model where a lease covers only part of a space will therefore report
+different physical occupancy, and different general vacancy and credit loss with
+it, since those are applied to occupancy. None of the twelve pre-existing
+regression fixtures moved — they all let whole spaces — but real rent rolls do
+not, which is why this is a major bump and not a minor one.
+
 ---
 
 ## Verification
 
-`packages/calculation-engine/src/regression.test.ts` holds twelve independently
+`packages/calculation-engine/src/regression.test.ts` holds fifteen independently
 designed fictional fixtures. Expected values are derived by hand from the
 fixture assumptions, or recomputed in the test by a different method than the
 engine uses — a closed-form geometric annuity rather than a per-period loop, for
@@ -691,5 +786,9 @@ compounding over five years; a base-year structure holding NOI exactly flat
 against a 10%-growing expense; an expense stop at a half-building pro-rata
 share; a natural breakpoint moving with base rent; a floating rate binding
 against its floor in years three and four; a 30-year amortisation schedule
-checked against the closed-form remaining-balance formula; and an LP/GP
-waterfall reconciling contributions, distributions and promote.
+checked against the closed-form remaining-balance formula; an LP/GP waterfall
+reconciling contributions, distributions and promote; and the three option
+fixtures, whose figures are one line of arithmetic each — 10,000 sqft at
+$24.00/sqft/yr is $240,000 a year and exactly $20,000 a month, so a 25%
+termination half way through 2028 is `0.25 x 120,000 + 0.75 x 240,000 =
+210,000`.

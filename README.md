@@ -86,7 +86,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**218 tests, plus 23 in the browser.** The regression library holds twelve independently designed
+**257 tests, plus 23 in the browser.** The regression library holds fifteen independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -103,7 +103,8 @@ The suites have already caught real bugs: interest never accruing in a loan's
 funding month; vacant space never leasing up; `12,500` parsing as `12.5`; error
 rows still importing; framework client errors reported as 500s; concurrent
 migrations racing on `CREATE EXTENSION`; every form control in the platform
-being unlabelled; scrollable tables unreachable by keyboard. Each is described in
+being unlabelled; scrollable tables unreachable by keyboard; a lease holding part
+of a space reporting the whole space occupied. Each is described in
 [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## Documentation

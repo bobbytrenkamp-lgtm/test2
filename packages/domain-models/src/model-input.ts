@@ -185,6 +185,7 @@ export const leaseOptionSchema = z.object({
   cost: decimalString.default('0'),
   areaChange: decimalString.default('0'),
 });
+export type LeaseOption = z.infer<typeof leaseOptionSchema>;
 
 export const leasingCostSchema = z.object({
   /** Tenant improvement allowance. */

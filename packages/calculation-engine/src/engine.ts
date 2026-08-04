@@ -51,8 +51,26 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * Bump the minor version for additive behaviour and the major version whenever
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
+ *
+ * ## 2.0.0
+ *
+ * Lease options now affect the cash flow: renewal, termination and contraction
+ * are expanded into probability-weighted branches the way rollover already was.
+ * On its own that is additive — a model with no options is unchanged.
+ *
+ * What makes it major is the occupancy correction it required. Physical
+ * occupancy of a space was derived from how much of the *period* an occurrence
+ * covered, ignoring how much of the space's *area* it held. A lease taking
+ * 6,000 of a 10,000 sqft suite reported the suite fully occupied. Occupancy is
+ * now scaled by the occurrence's share of the area it sits on.
+ *
+ * Every model where a lease covers only part of a space will therefore show
+ * different physical occupancy, and different general vacancy and credit loss
+ * with it, because those are applied to occupancy. None of the twelve
+ * pre-existing regression fixtures moved — they all let whole spaces — but real
+ * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '1.0.0';
+export const ENGINE_VERSION = '2.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

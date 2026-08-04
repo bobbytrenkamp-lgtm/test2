@@ -25,6 +25,7 @@ import {
   rentForPeriod,
 } from './rent-schedule.js';
 import { TraceRecorder, traceInputs } from './trace.js';
+import { expandOptions } from './lease-options.js';
 
 /**
  * A single occupancy of space by a tenant over a date range, at a probability
@@ -482,19 +483,33 @@ export function expandRollover(seeds: LeaseOccurrence[], ctx: RolloverContext): 
   return all;
 }
 
-/** Expands contract leases into the full set of weighted lease occurrences. */
+/**
+ * Expands contract leases into the full set of weighted lease occurrences.
+ *
+ * A lease first expands into probability-weighted paths according to its
+ * options (see `lease-options.ts`). Within a path the occurrences run one after
+ * another — a contract term followed by an exercised renewal, say — so only the
+ * **last** one is a rollover seed. Rolling over from an earlier occurrence too
+ * would let the same space out twice over the same months.
+ */
 export function buildOccurrences(leases: Lease[], ctx: RolloverContext): LeaseOccurrence[] {
   const seeds: LeaseOccurrence[] = [];
-  const excluded: LeaseOccurrence[] = [];
+  const fixed: LeaseOccurrence[] = [];
 
   for (const lease of leases) {
     if (lease.status === 'vacant' || lease.status === 'terminated') continue;
-    const occurrence = occurrenceFromContractLease(lease, ctx);
-    if (lease.excludeFromRollover) excluded.push(occurrence);
-    else seeds.push(occurrence);
+    const base = occurrenceFromContractLease(lease, ctx);
+
+    for (const path of expandOptions(base, lease, ctx)) {
+      const tail = path.occurrences[path.occurrences.length - 1];
+      if (!tail) continue;
+      fixed.push(...path.occurrences.slice(0, -1));
+      if (lease.excludeFromRollover) fixed.push(tail);
+      else seeds.push(tail);
+    }
   }
 
-  return [...excluded, ...expandRollover(seeds, ctx)];
+  return [...fixed, ...expandRollover(seeds, ctx)];
 }
 
 /**
@@ -635,6 +650,18 @@ export function computeOccurrenceSeries(
   const occupiedArea = zeros(n);
   const occupancyFraction = zeros(n);
 
+  // How much of the space it sits on this occurrence actually fills. A lease
+  // normally takes its whole suite, so this is 1 and nothing changes. It is not
+  // 1 when a tenant has handed part of the premises back under a contraction
+  // option: the lease still names the same suite, but only holds part of it,
+  // and treating that as a fully occupied suite would report the surrendered
+  // area as occupied by a tenant who has given it up.
+  const spanArea = occurrence.spaceIds.reduce(
+    (total, spaceId) => total.plus(ctx.spaces.get(spaceId)?.area ?? ZERO),
+    ZERO,
+  );
+  const areaShare = spanArea.isZero() ? ONE : occurrence.area.dividedBy(spanArea);
+
   for (let i = 0; i < n; i += 1) {
     const period = calendar.periods[i];
     if (!period) continue;
@@ -648,7 +675,7 @@ export function computeOccurrenceSeries(
       occurrence.expiration,
       calendar.proration,
     );
-    occupancyFraction[i] = occupancy.times(occurrence.weight);
+    occupancyFraction[i] = occupancy.times(occurrence.weight).times(areaShare);
     occupiedArea[i] = occurrence.area.times(occupancy).times(occurrence.weight);
 
     if (recordTrace && !rent.amount.isZero()) {

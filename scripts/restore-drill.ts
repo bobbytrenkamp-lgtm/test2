@@ -24,7 +24,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { calculate } from '../packages/calculation-engine/src/index.js';
+import { ENGINE_VERSION, calculate } from '../packages/calculation-engine/src/index.js';
 import { createDatabase } from '../packages/database/src/index.js';
 import type { ModelInput, ModelResult } from '../packages/domain-models/src/index.js';
 
@@ -53,6 +53,7 @@ interface Failure {
 
 const failures: Failure[] = [];
 const passed: string[] = [];
+const skipped: string[] = [];
 
 function check(name: string, ok: boolean, detail: string): void {
   if (ok) passed.push(name);
@@ -160,6 +161,7 @@ try {
       `${candidates.length} version/run pairs`,
     );
 
+    let reproducible = 0;
     for (const candidate of candidates) {
       const stored = candidate.result;
 
@@ -171,6 +173,19 @@ try {
         );
         continue;
       }
+
+      // A result produced by a different engine version is not expected to
+      // reproduce — that is what a major version bump means. Reporting it as a
+      // failed restore would blame the backup for a deliberate change in the
+      // engine, so it is counted and skipped instead. The stored result remains
+      // the record of what was concluded at the time, which is why it is kept.
+      if (stored.engineVersion !== ENGINE_VERSION) {
+        skipped.push(
+          `${candidate.version_id}: calculated by engine ${stored.engineVersion}, this build is ${ENGINE_VERSION}`,
+        );
+        continue;
+      }
+      reproducible += 1;
 
       // Recalculate from the restored input, pinning the timestamp so the
       // comparison is of financial content and not of when it was run.
@@ -189,6 +204,14 @@ try {
           : firstDifference(normalise(stored), normalise(recomputed)),
       );
     }
+
+    // A backup full of results this engine can no longer reproduce has not
+    // demonstrated anything, however many rows survived.
+    check(
+      'at least one stored valuation was reproducible on this engine version',
+      reproducible > 0,
+      `${reproducible} of ${candidates.length} at engine ${ENGINE_VERSION}`,
+    );
   } finally {
     await original.end({ timeout: 5 });
     await restored.end({ timeout: 5 });
@@ -236,6 +259,10 @@ function firstDifference(expected: string, actual: string): string {
 }
 
 console.warn(`\n${passed.length} check(s) passed.`);
+if (skipped.length > 0) {
+  console.warn(`${skipped.length} stored result(s) skipped as a different engine version:`);
+  for (const entry of skipped) console.warn(`  - ${entry}`);
+}
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) FAILED:`);
   for (const failure of failures) console.error(`  - ${failure.check}: ${failure.detail}`);

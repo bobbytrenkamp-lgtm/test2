@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 1.0.0 · Last verified 2026-08-04**
+**Engine version 2.0.0 · Last verified 2026-08-04**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -21,7 +21,7 @@ runs in CI; load testing and the screen-reader audit have not.
 ## Verification at the last check
 
 ```
-Tests       218 passed  (125 engine regression, 27 engine unit, 30 import,
+Tests       257 passed  (164 engine regression, 27 engine unit, 30 import,
                          23 authorization, 13 vertical slice)
 Browser     23 passed   (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 import, 9 accessibility)
@@ -30,7 +30,7 @@ Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (327 kB, 93 kB gzipped)
 Migrations  4 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models calculated
-Drill       20 checks passed (dump, restore, 5 valuations reproduced)
+Drill       21 checks passed (dump, restore, 5 valuations reproduced)
 Licences    340 packages, none requiring payment or a commercial licence
 ```
 
@@ -50,6 +50,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Free rent, partial and fractional months | Tested | |
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
+| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 fixtures |
+| Lease options: expansion, purchase, ROFR, ROFO | Not started | Diagnosed as not modelled, with the reason |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
 | Market leasing precedence | Functional | Lease → space → default; winner recorded in trace |
 | Operating expenses, all 6 methods | Tested | |
@@ -80,9 +82,12 @@ Licences    340 packages, none requiring payment or a commercial licence
 
 **Known engine limitations**
 
-- Lease options (renewal, expansion, contraction, termination, purchase, ROFR,
-  ROFO) are captured in the schema and persisted, but **do not yet affect the
-  cash flow**. Probability-weighted option exercise is not implemented.
+- Lease options: renewal, termination and contraction are modelled as
+  probability-weighted branches. **Expansion, purchase, ROFR and ROFO are not**,
+  and each raises `LEASE_OPTION_NOT_MODELLED` naming the reason — expansion
+  because the option records how much area is taken but not which space it comes
+  from, the rest because they bear on disposition rather than operating cash
+  flow.
 - Percentage rent is spread across the year rather than settled at year end.
 - Recovery pools are one per lease; multiple simultaneous pools are not modelled.
 - Reconciliation timing and prior-year true-ups are not modelled.
@@ -228,7 +233,7 @@ maps, version side-by-side comparison.
 
 | Suite | Status | Count |
 | --- | --- | --- |
-| Engine regression fixtures | Tested | 12 fixtures, 125 assertions |
+| Engine regression fixtures | Tested | 15 fixtures, 164 assertions |
 | Calendar and metrics unit tests | Tested | 27 |
 | Import parsing | Tested | 30 |
 | API authorization and isolation | Tested | 23 |
