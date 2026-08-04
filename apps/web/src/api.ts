@@ -157,6 +157,8 @@ export interface Lease {
   escalation: Record<string, unknown>;
   recovery: Record<string, unknown>;
   notes: string | null;
+  /** Incremented on every write; sent back on save to detect a collision. */
+  version: number;
 }
 
 export interface Tenant {

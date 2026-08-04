@@ -277,6 +277,9 @@ function LeaseEditor({
       tenantId = created.tenant.id;
     }
     return api.put(`/models/${modelId}/leases/${encodeURIComponent(form.code)}`, {
+      // The version this editor opened. If someone else has saved since, the
+      // server refuses rather than writing over work this screen never showed.
+      expectedVersion: lease?.version ?? null,
       tenantId,
       status: form.status,
       area: form.area,
@@ -306,7 +309,18 @@ function LeaseEditor({
   return (
     <form className="card" onSubmit={submit}>
       <h2>{lease ? `Edit lease ${lease.code}` : 'New lease'}</h2>
-      <ErrorMessage error={save.error} />
+
+      {save.error?.status === 409 ? (
+        <div className="message error" role="alert">
+          <strong>{save.error.message}</strong>
+          <p style={{ marginBottom: 0 }}>
+            Nothing has been saved. Cancel and reopen the lease to see their changes, then reapply
+            yours. Saving over them would discard work you cannot see from here.
+          </p>
+        </div>
+      ) : (
+        <ErrorMessage error={save.error} />
+      )}
 
       <div className="form-grid">
         <Field label="Lease reference" hint="Stable identifier used in traces and reports.">

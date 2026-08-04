@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Sql } from '@cre/database';
 import { z } from 'zod';
 import {
+  LeaseVersionConflict,
   createModelVersion,
   buildModelInput,
   deleteLease,
@@ -28,7 +29,7 @@ import {
   rentBasisEnum,
   roleHasCapability,
 } from '@cre/domain-models';
-import { badRequest, forbidden, notFound, requireCapability } from '../context.js';
+import { HttpError, badRequest, forbidden, notFound, requireCapability } from '../context.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
@@ -222,6 +223,12 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
         marketLeasingProfileId: z.string().uuid().nullish(),
         excludeFromRollover: z.boolean().default(false),
         notes: z.string().max(5000).nullish(),
+        /**
+         * The version the caller read. Supplied by the editor, which loaded the
+         * lease before showing it. Omitting it accepts last-write-wins, which
+         * is what bulk import deliberately wants.
+         */
+        expectedVersion: z.number().int().min(1).nullish(),
       })
       .parse(request.body);
 
@@ -229,11 +236,26 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
       throw badRequest('A lease cannot expire before it commences.');
     }
 
-    const lease = await upsertLease(request.db, {
-      ...body,
-      modelId: params.id,
-      code: params.code,
-    });
+    let lease;
+    try {
+      lease = await upsertLease(request.db, {
+        ...body,
+        modelId: params.id,
+        code: params.code,
+      });
+    } catch (error) {
+      if (error instanceof LeaseVersionConflict) {
+        // 409, not 400: the request was well formed and would have been valid a
+        // moment ago. The current version goes back so the client can reload
+        // and show what changed rather than guessing.
+        throw new HttpError(409, 'LEASE_VERSION_CONFLICT', error.message, {
+          code: error.code,
+          expectedVersion: error.expected,
+          currentVersion: error.actual,
+        });
+      }
+      throw error;
+    }
     await writeAudit(request.db, {
       organizationId: context.organizationId,
       userId: context.userId,

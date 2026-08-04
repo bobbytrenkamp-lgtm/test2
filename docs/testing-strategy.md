@@ -30,9 +30,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
+| Lease optimistic locking | `tests/lease-concurrency.test.ts` | 6 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**320 tests in total.**
+**326 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -51,7 +52,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**34 browser tests in total**, for 354 across the whole repository.
+**34 browser tests in total**, for 360 across the whole repository.
 
 ## The regression library
 

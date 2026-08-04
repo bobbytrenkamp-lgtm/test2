@@ -22,16 +22,16 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       320 passed  (164 engine regression, 31 engine unit, 18 variance,
+Tests       326 passed  (164 engine regression, 31 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
-                         7 portfolios, 13 vertical slice)
+                         7 portfolios, 6 lease locking, 13 vertical slice)
 Browser      34 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 9 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
-Migrations  5 applied against PostgreSQL 16
+Migrations  6 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
@@ -271,7 +271,7 @@ notifications, geographic maps, version side-by-side comparison.
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
-| Optimistic locking on writes | Not started | Concurrent lease writes are last-write-wins; measured and documented |
+| Optimistic locking, leases | Tested | `version` column, 409 on a stale write, 6 tests including a true race. Models and assumptions are not yet protected |
 
 ---
 

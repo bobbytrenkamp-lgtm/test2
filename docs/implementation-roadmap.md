@@ -137,9 +137,15 @@ single Node process is the bottleneck. Throughput scales by running more API
 processes. It also records that concurrent lease writes are last-write-wins,
 with no optimistic locking.
 
-Still to do: optimistic locking on lease writes, grid virtualisation, cursor
-pagination on the audit log, error monitoring, an audit with a real screen
-reader, and deployment automation with a rollback path. Grid virtualisation and
+~~Optimistic locking on lease writes~~ — done. Leases carry a `version`; a
+write that names a version the store has moved past is refused with 409 and the
+current version, rather than silently discarding someone's edit. Ten
+simultaneous guarded writes resolve to one accepted and nine refused. Sending no
+version remains a deliberate opt-out, which is what bulk import needs.
+
+Still to do: the same protection on models and assumption collections, grid
+virtualisation, cursor pagination on the audit log, error monitoring, an audit
+with a real screen reader, and deployment automation with a rollback path. Grid virtualisation and
 cursor pagination once profiling says where. Accessibility audit with a real
 screen reader. Error monitoring. Deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.
