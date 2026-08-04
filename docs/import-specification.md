@@ -138,3 +138,80 @@ audit entry with the imported and skipped counts.
 - One sheet at a time.
 - Rent steps, options and recovery detail are not imported — only the fields
   above.
+
+---
+
+# Trial balance import (actuals and budgets)
+
+A separate reader, in `packages/reporting/src/actuals-import.ts`, for the
+general-ledger export that carries actuals or a budget. Same principles as the
+rent roll: local, deterministic, nothing written until the analyst has seen what
+would be written.
+
+## Layouts
+
+Both shapes accountancy systems actually export are read. The shape is detected,
+not configured — arguing with the export is not the analyst's job.
+
+**Wide** — one row per account, one column per month:
+
+```
+Account, Description,   Jan-26,  Feb-26,  Mar-26
+4000,    Base rent,     10000,   10000,   10500
+```
+
+**Long** — one row per account per month:
+
+```
+Account, Description, Period,   Amount
+4000,    Base rent,   2026-01,  10000
+```
+
+A period column paired with an amount column settles it as long, whatever else
+the header contains. Otherwise any month-shaped header means the months are the
+columns. **A single month column counts**: one month of actuals is the routine
+monthly close, and requiring two would reject the most ordinary upload there is.
+
+## Months
+
+`Jan-26`, `Jan 2026`, `January 2026`, `2026-01`, `2026-01-31`, `03/2026` and
+`12-2026` are read. Everything lands on the **first of the month**: a monthly
+figure has no meaningful day, and keeping one invites a timezone to shift it
+into the previous month. Anything unrecognised is refused rather than guessed —
+`Q1 2026` is an error, not a January.
+
+## Sign
+
+The platform stores amounts money-in-positive, money-out-negative. Ledgers
+usually state costs positive. `expenseSign` declares which convention the file
+uses, and costs are negated on the way in when it says `positive`. A cost
+already written negative is not negated twice.
+
+That conversion needs to know which rows are costs. Category comes from a
+category column if there is one, otherwise from account-code prefixes the caller
+supplies. A row whose category cannot be determined is **left as written and
+reported**, because applying the wrong sign would reverse its variance rather
+than merely misplace it.
+
+## Findings
+
+| Severity | Excludes the row | Raised for |
+| --- | --- | --- |
+| Error | Yes | No account column in the file; empty account code; unreadable month; unreadable amount |
+| Warning | No | Uncategorised row whose sign was therefore left alone |
+
+A row raising any error contributes nothing, even where some of its months
+parsed — half an account is not a usable figure.
+
+A blank cell in a wide sheet is skipped rather than stored as zero. "Nothing
+posted" and "someone entered zero" are different statements, and only one of
+them should appear in a variance report as a budgeted nil.
+
+## Limitations
+
+- CSV only, as with the rent roll.
+- The importer replaces a period's entries wholesale. A budget upload states the
+  whole period; appending would silently double every account on a second
+  upload.
+- An approved budget refuses new figures. Create a revised budget instead, so
+  the approved numbers stay on the record.

@@ -32,6 +32,7 @@ call, the choice and its reasoning are stated rather than left implicit.
 18. [Diagnostics](#18-diagnostics)
 19. [Calculation traces](#19-calculation-traces)
 20. [Versioning](#20-versioning)
+21. [Budget, actuals and variance](#21-budget-actuals-and-variance)
 
 ---
 
@@ -768,6 +769,80 @@ different physical occupancy, and different general vacancy and credit loss with
 it, since those are applied to occupancy. None of the twelve pre-existing
 regression fixtures moved — they all let whole spaces — but real rent rolls do
 not, which is why this is a major bump and not a minor one.
+
+
+---
+
+## 21. Budget, actuals and variance
+
+### The sign convention decides everything else
+
+Every amount follows the cash-flow statement's convention: **money in positive,
+money out negative.** An expense budget of 50,000 is stored as `-50000`.
+
+Under it, a favourable variance is simply a positive one — for every account,
+with no reference to whether the line is revenue or cost:
+
+| | Base | Comparison | Variance | Reading |
+| --- | --- | --- | --- | --- |
+| Revenue | 100 | 120 | +20 | more income — favourable |
+| Revenue | 100 | 80 | −20 | less income — unfavourable |
+| Expense | −50 | −60 | −10 | spent more — unfavourable |
+| Expense | −50 | −40 | +10 | spent less — favourable |
+
+The alternative — costs positive, with the comparison flipped for cost accounts
+— needs a correct category on every row to produce a correct answer, and
+silently reports the opposite of the truth when one is wrong. Here a
+miscategorised row lands in the wrong subtotal, which someone notices, rather
+than reversing its own variance, which nobody would.
+
+The account category is therefore used for **grouping and subtotals only**.
+
+It also makes a total a plain sum. Net operating income is
+`revenue + expenses`, not a category-aware subtraction.
+
+### The comparison
+
+`variance = comparison − base`, both sides named explicitly. Nothing assumes the
+base is "the" budget: measuring a reforecast against the original budget and
+against the approved budget are different questions with different answers, and
+a report that quietly picks one is worse than no report.
+
+Amounts are summed per account over the requested months, so a row is one
+account across the window rather than one account-month.
+
+`variancePercent = variance / |base|`. The absolute base keeps the percentage's
+sign aligned with the variance even for cost accounts, so "worse" always reads
+negative. A percentage against a zero base is **null**, not infinite: an amount
+against nothing budgeted is a new line, not a large overspend.
+
+### Materiality
+
+`materialityAmount` and `materialityPercent` are applied together — a variance
+must clear both to be called favourable or unfavourable. Anything else is
+**neutral**. Calling a rounding difference "favourable" trains people to ignore
+the column.
+
+An exactly zero variance is neutral regardless of thresholds.
+
+### Accounts on one side only
+
+Reported in `unmatchedAccounts`. An account nobody budgeted is more often a
+mapping mistake in the import than a genuine new line, and it would otherwise
+appear as a 100% favourable variance with nothing to compare against.
+
+### Forecast as a comparison side
+
+`forecastToBudgetLines` maps a model's monthly cash flow onto the same account
+codes, so a forecast can be compared against a budget without a second data
+entry pass. Lines with no account mapping are left out rather than guessed at.
+
+### Import
+
+`docs/import-specification.md` covers the trial-balance reader: wide (a column
+per month) and long (a row per account per month) layouts, month parsing, and
+the `expenseSign` conversion that brings a ledger's positive costs into the
+convention above.
 
 ---
 

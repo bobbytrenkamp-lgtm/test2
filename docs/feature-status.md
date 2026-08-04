@@ -21,15 +21,18 @@ runs in CI; load testing and the screen-reader audit have not.
 ## Verification at the last check
 
 ```
-Tests       257 passed  (164 engine regression, 27 engine unit, 30 import,
-                         23 authorization, 13 vertical slice)
-Browser     23 passed   (3 sign-in, 2 underwriting, 2 lease editor,
-                         6 permissions, 1 import, 9 accessibility)
+Tests       309 passed  (164 engine regression, 27 engine unit, 18 variance,
+                         51 import, 23 authorization, 13 budgets,
+                         13 vertical slice)
+Browser      28 passed  (3 sign-in, 2 underwriting, 2 lease editor,
+                         6 permissions, 1 rent-roll import, 5 budgets,
+                         9 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (327 kB, 93 kB gzipped)
-Migrations  4 applied against PostgreSQL 16
-Seed        5 properties, 1 portfolio, 5 frozen versions, all models calculated
+Web build   succeeds (335 kB, 95 kB gzipped)
+Migrations  5 applied against PostgreSQL 16
+Seed        5 properties, 1 portfolio, 5 frozen versions, all models
+            calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
 Licences    340 packages, none requiring payment or a commercial licence
 ```
@@ -112,7 +115,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Calculation runs and traces | Tested | |
 | Audit log | Tested | Append-only by convention; no DB-level grant yet |
 | Jobs | Functional | Claim, complete, fail with backoff, reap stalled |
-| Documents, imports, budgets, comments, tasks, dashboards | Designed | Tables exist and are migrated; only imports have an API |
+| Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
+| Documents, comments, tasks, dashboards | Designed | Tables exist and are migrated; no API |
 
 ## 3. API
 
@@ -229,17 +233,35 @@ maps, version side-by-side comparison.
 | Error monitoring | Not started | No provider wired |
 | Deployment automation, rollback | Documented | Process described; not automated |
 
-## 8. Testing
+## 8. Budgets, actuals and variance
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| Budget periods, eight kinds | Tested | Original, approved, revised, actual, current/prior forecast, business plan, reforecast |
+| Trial-balance import | Tested | Wide and long layouts, month parsing, sign conversion; dry run before anything is written |
+| Budget versus actual | Tested | Both sides named explicitly; never assumes one is "the" budget |
+| Budget versus forecast | Tested | Reads the model's monthly cash flow directly — no second data entry pass |
+| Favourable/unfavourable designation | Tested | From the sign of the variance; category is for grouping only |
+| Materiality thresholds | Tested | Amount and percent applied together; below either is neutral |
+| Approval freezes a budget | Tested | Entries and deletion refused afterwards |
+| Commentary with two-person approval | Tested | Self-approval refused; approved text recorded; rewriting withdraws approval |
+| Accounts on one side only | Tested | Reported rather than passing as a full variance |
+| Automatic reforecast carry-forward | Not started | A reforecast is a budget period like any other and must be loaded |
+
+## 9. Testing
 
 | Suite | Status | Count |
 | --- | --- | --- |
 | Engine regression fixtures | Tested | 15 fixtures, 164 assertions |
 | Calendar and metrics unit tests | Tested | 27 |
-| Import parsing | Tested | 30 |
+| Variance calculation | Tested | 18 |
+| Import parsing, rent roll | Tested | 30 |
+| Import parsing, trial balance | Tested | 21 |
 | API authorization and isolation | Tested | 23 |
+| Budgets, actuals and variance, API | Tested | 13 |
 | Vertical slice, end to end | Tested | 13 |
-| Browser end-to-end tests | Tested | 23, Chromium only |
-| Automated accessibility tests | Tested | 9 screens under `axe-core`; no screen-reader audit yet |
+| Browser end-to-end tests | Tested | 28, Chromium only |
+| Automated accessibility tests | Tested | 10 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
 | Performance tests | Not started | |
 | Load tests | Not started | |

@@ -167,3 +167,44 @@ export const diagnosticSeverityEnum = z.enum([
   'accepted_exception',
 ]);
 export type DiagnosticSeverity = z.infer<typeof diagnosticSeverityEnum>;
+
+/**
+ * What a budget or actuals line represents.
+ *
+ * Used for grouping and subtotals only. It deliberately plays no part in
+ * deciding whether a variance is favourable — see `budgetPeriodKindEnum` below
+ * and `docs/calculation-specification.md` §21 for why the sign convention makes
+ * that unnecessary.
+ */
+export const accountCategoryEnum = z.enum([
+  'revenue',
+  'operating_expense',
+  'capital',
+  'debt_service',
+  'other',
+]);
+export type AccountCategory = z.infer<typeof accountCategoryEnum>;
+
+/**
+ * Which version of the numbers a set of budget entries is.
+ *
+ * `actual` is what happened. Everything else is a plan of some kind, which is
+ * why a comparison has to name both sides rather than assuming one is "the"
+ * budget: comparing a reforecast against an original budget and comparing it
+ * against the approved budget are different questions with different answers.
+ */
+export const budgetPeriodKindEnum = z.enum([
+  'original_budget',
+  'approved_budget',
+  'revised_budget',
+  'actual',
+  'current_forecast',
+  'prior_forecast',
+  'business_plan',
+  'reforecast',
+]);
+export type BudgetPeriodKind = z.infer<typeof budgetPeriodKindEnum>;
+
+/** Whether a variance helped or hurt. */
+export const varianceDesignationEnum = z.enum(['favourable', 'unfavourable', 'neutral']);
+export type VarianceDesignation = z.infer<typeof varianceDesignationEnum>;

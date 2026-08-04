@@ -209,3 +209,80 @@ export interface PortfolioSummary {
   strategy: string | null;
   property_count: number;
 }
+
+export interface BudgetPeriod {
+  id: string;
+  property_id: string;
+  model_id: string | null;
+  kind: string;
+  fiscal_year: number;
+  label: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  entry_count?: number;
+}
+
+export interface BudgetEntry {
+  id: string;
+  account_code: string;
+  account_name: string;
+  account_category: string;
+  period_month: string;
+  amount: string;
+  department: string | null;
+  commentary: string | null;
+}
+
+export interface VarianceRow {
+  accountCode: string;
+  accountName: string;
+  category: string;
+  base: string;
+  comparison: string;
+  variance: string;
+  variancePercent: string | null;
+  designation: 'favourable' | 'unfavourable' | 'neutral';
+}
+
+export interface VarianceGroup {
+  category: string;
+  rows: VarianceRow[];
+  base: string;
+  comparison: string;
+  variance: string;
+  variancePercent: string | null;
+  designation: VarianceRow['designation'];
+}
+
+export interface VarianceReport {
+  fromMonth: string | null;
+  toMonth: string | null;
+  groups: VarianceGroup[];
+  rows: VarianceRow[];
+  totalBase: string;
+  totalComparison: string;
+  totalVariance: string;
+  totalVariancePercent: string | null;
+  totalDesignation: 'favourable' | 'unfavourable' | 'neutral';
+  unmatchedAccounts: string[];
+}
+
+export interface VarianceResponse {
+  base: { id: string; label: string };
+  comparison: { label: string };
+  report: VarianceReport;
+}
+
+export interface VarianceCommentary {
+  id: string;
+  property_id: string;
+  fiscal_year: number;
+  period_month: string;
+  account_code: string;
+  commentary: string;
+  approved_text: string | null;
+  author_id: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+}

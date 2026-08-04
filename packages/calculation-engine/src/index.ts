@@ -14,3 +14,5 @@ export * from './valuation.js';
 export * from './metrics.js';
 export * from './waterfall.js';
 export * from './portfolio.js';
+export * from './lease-options.js';
+export * from './variance.js';
