@@ -85,11 +85,23 @@ subtotal — visible — rather than reversing its own variance, which is not. S
 into a revised forecast automatically. Today a reforecast is a budget period
 like any other and has to be loaded.
 
-### 5. Spreadsheet-grade editing (phase 6)
+### 5. Spreadsheet-grade editing (phase 6) — partly done
 
-Copy and paste from Excel, multi-cell edit, fill-down, undo/redo, column
-hiding, saved views, a command palette. This is what makes the interface fast for
-someone who lives in it all day.
+**Done: paste from Excel.** Selecting rows in a spreadsheet and pasting them
+into the rent roll is how an analyst actually works, and asking them to save a
+CSV first was a step that existed only because the software could not be
+bothered. The clipboard hands over tab-separated text, and the existing import
+pipeline already detects its delimiter, finds the header row, matches columns
+and normalises values — so this is the same proven parser reached by a different
+door, not a second reader that would drift from the first. Nothing is written
+until the findings have been shown.
+
+**Done: a command palette.** Ctrl/Cmd + K anywhere, filtering properties,
+models and screens; arrow keys and Enter; `aria-activedescendant` so the
+highlight is announced rather than only shown.
+
+**Still to do:** multi-cell edit, fill-down, undo/redo, column hiding, and saved
+views (the `saved_views` table exists and is unused).
 
 ### 6. Collaboration (phase 32 of the brief)
 

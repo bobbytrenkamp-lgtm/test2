@@ -24,9 +24,9 @@ runs in CI; load testing and the screen-reader audit have not.
 Tests       309 passed  (164 engine regression, 27 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
                          13 vertical slice)
-Browser      28 passed  (3 sign-in, 2 underwriting, 2 lease editor,
+Browser      34 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
-                         9 accessibility)
+                         6 palette and paste, 9 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
@@ -164,15 +164,16 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Portfolio roll-up | Functional | |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
-| Keyboard shortcut, unsaved-change warning | Functional | Ctrl/Cmd+Enter recalculates |
+| Keyboard shortcuts, unsaved-change warning | Tested | Ctrl/Cmd+Enter recalculates; Ctrl/Cmd+K opens the command palette |
+| Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
+| Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
 | Automated UI tests | Functional | 23 Playwright tests in Chromium on the built bundle. The assumptions editor, scenarios, versions, reports and portfolio builder are not yet covered |
 | Accessibility, machine-checked | Tested | `axe-core` on nine screens, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
-**Not started in the interface:** copy/paste from Excel, multi-cell edit,
-fill-down, undo/redo, column hiding, saved views, command palette, configurable
-dashboard widgets, comments, tasks, notifications, budget entry, geographic
-maps, version side-by-side comparison.
+**Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
+hiding, saved views, configurable dashboard widgets, comments, tasks,
+notifications, geographic maps, version side-by-side comparison.
 
 ## 5. Reporting and imports
 
@@ -260,8 +261,8 @@ maps, version side-by-side comparison.
 | API authorization and isolation | Tested | 23 |
 | Budgets, actuals and variance, API | Tested | 13 |
 | Vertical slice, end to end | Tested | 13 |
-| Browser end-to-end tests | Tested | 28, Chromium only |
-| Automated accessibility tests | Tested | 10 screens under `axe-core`; no screen-reader audit yet |
+| Browser end-to-end tests | Tested | 34, Chromium only |
+| Automated accessibility tests | Tested | 11 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
 | Performance tests | Not started | |
 | Load tests | Not started | |
