@@ -33,8 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version` here on purpose: the action reads `packageManager` from
+      # package.json, and specifying both is an error. Keeping it in one place
+      # also means CI and a developer's machine cannot drift apart on the
+      # pnpm version.
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
 
       - uses: actions/setup-node@v4
         with:
