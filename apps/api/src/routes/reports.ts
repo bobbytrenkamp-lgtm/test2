@@ -60,7 +60,10 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       currency: latest.result.currency,
       areaUnit: latest.result.areaUnit,
       fiscalYears: query.fiscalYears
-        ? query.fiscalYears.split(',').map((value) => Number(value.trim())).filter(Number.isFinite)
+        ? query.fiscalYears
+            .split(',')
+            .map((value) => Number(value.trim()))
+            .filter(Number.isFinite)
         : undefined,
     });
 
@@ -127,7 +130,9 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
   app.get('/models/:id/export/json', async (request, reply) => {
     const context = requireCapability(request, 'export:run');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const query = z.object({ includeResult: z.coerce.boolean().default(true) }).parse(request.query);
+    const query = z
+      .object({ includeResult: z.coerce.boolean().default(true) })
+      .parse(request.query);
 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound();
@@ -143,5 +148,10 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
 }
 
 function slug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'model'
+  );
 }

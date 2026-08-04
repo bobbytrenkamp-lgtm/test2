@@ -71,9 +71,7 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/models', async (request, reply) => {
     const context = requireCapability(request, 'model:write');
-    const body = modelAssumptions
-      .extend({ propertyId: z.string().uuid() })
-      .parse(request.body);
+    const body = modelAssumptions.extend({ propertyId: z.string().uuid() }).parse(request.body);
 
     const property = await getProperty(request.db, context.organizationId, body.propertyId);
     if (!property) throw notFound('That property does not exist in this organization.');
@@ -296,10 +294,9 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
     upsertGrowthCurve(db, { ...body, modelId } as Parameters<typeof upsertGrowthCurve>[1]),
   );
   registerCollection(app, 'market-leasing', 'market_leasing_profiles', (db, modelId, body) =>
-    upsertMarketLeasingProfile(
-      db,
-      { ...body, modelId } as Parameters<typeof upsertMarketLeasingProfile>[1],
-    ),
+    upsertMarketLeasingProfile(db, { ...body, modelId } as Parameters<
+      typeof upsertMarketLeasingProfile
+    >[1]),
   );
 
   /* ---------------------------------------------------------------------- */

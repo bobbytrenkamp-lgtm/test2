@@ -128,9 +128,7 @@ export const rentRollReport: ReportDefinition = {
   build(result, context) {
     const contracts = result.leaseCashFlows.filter((lease) => lease.scenario === 'contract');
     const rows = contracts.map((lease) => {
-      const annualRent = lease.baseRent
-        .slice(0, 12)
-        .reduce((acc, value) => acc + Number(value), 0);
+      const annualRent = lease.baseRent.slice(0, 12).reduce((acc, value) => acc + Number(value), 0);
       const area = Number(lease.occupiedArea[0] ?? '0');
       return {
         tenant: lease.tenantName,
@@ -138,7 +136,10 @@ export const rentRollReport: ReportDefinition = {
         area: area.toFixed(0),
         annualRent: annualRent.toFixed(2),
         rentPerArea: area > 0 ? (annualRent / area).toFixed(2) : '0.00',
-        recoveries: lease.recoveries.slice(0, 12).reduce((acc, v) => acc + Number(v), 0).toFixed(2),
+        recoveries: lease.recoveries
+          .slice(0, 12)
+          .reduce((acc, v) => acc + Number(v), 0)
+          .toFixed(2),
       };
     });
 
@@ -154,7 +155,12 @@ export const rentRollReport: ReportDefinition = {
         { key: 'lease', label: 'Lease', align: 'left', format: 'text' },
         { key: 'area', label: 'Area', align: 'right', format: 'area' },
         { key: 'annualRent', label: 'Year 1 base rent', align: 'right', format: 'currency' },
-        { key: 'rentPerArea', label: `Rent per ${context.areaUnit}`, align: 'right', format: 'currency' },
+        {
+          key: 'rentPerArea',
+          label: `Rent per ${context.areaUnit}`,
+          align: 'right',
+          format: 'currency',
+        },
         { key: 'recoveries', label: 'Year 1 recoveries', align: 'right', format: 'currency' },
       ],
       rows,
@@ -327,7 +333,12 @@ export const recoveryDetailReport: ReportDefinition = {
         { key: 'denominatorArea', label: 'Denominator', align: 'right', format: 'area' },
         { key: 'proRataShare', label: 'Pro-rata share', align: 'right', format: 'percent' },
         { key: 'grossExpensePool', label: 'Expense pool', align: 'right', format: 'currency' },
-        { key: 'grossedUpExpensePool', label: 'Grossed-up pool', align: 'right', format: 'currency' },
+        {
+          key: 'grossedUpExpensePool',
+          label: 'Grossed-up pool',
+          align: 'right',
+          format: 'currency',
+        },
         { key: 'baseYearAmount', label: 'Base year', align: 'right', format: 'currency' },
         { key: 'expenseStopAmount', label: 'Stop', align: 'right', format: 'currency' },
         { key: 'adminFee', label: 'Admin fee', align: 'right', format: 'currency' },
@@ -339,9 +350,7 @@ export const recoveryDetailReport: ReportDefinition = {
         fiscalYear: String(row.fiscalYear),
         includedCategories: row.includedCategories.join(', '),
       })),
-      footnotes: [
-        `Amounts in ${context.currency}. Annualised where the fiscal year is partial.`,
-      ],
+      footnotes: [`Amounts in ${context.currency}. Annualised where the fiscal year is partial.`],
     };
   },
 };
@@ -389,7 +398,12 @@ export const debtScheduleReport: ReportDefinition = {
         { key: 'beginningBalance', label: 'Opening balance', align: 'right', format: 'currency' },
         { key: 'draws', label: 'Draws', align: 'right', format: 'currency' },
         { key: 'cashInterest', label: 'Cash interest', align: 'right', format: 'currency' },
-        { key: 'capitalizedInterest', label: 'Capitalized interest', align: 'right', format: 'currency' },
+        {
+          key: 'capitalizedInterest',
+          label: 'Capitalized interest',
+          align: 'right',
+          format: 'currency',
+        },
         { key: 'principal', label: 'Principal', align: 'right', format: 'currency' },
         { key: 'fees', label: 'Fees', align: 'right', format: 'currency' },
         { key: 'endingBalance', label: 'Closing balance', align: 'right', format: 'currency' },
@@ -401,7 +415,9 @@ export const debtScheduleReport: ReportDefinition = {
         'DSCR is computed on trailing twelve-month NOI against annualised debt service for the period.',
         ...result.debtSchedules.flatMap((schedule) =>
           schedule.covenantBreaches.length > 0
-            ? [`${schedule.facilityName}: ${schedule.covenantBreaches.length} covenant breach(es) detected.`]
+            ? [
+                `${schedule.facilityName}: ${schedule.covenantBreaches.length} covenant breach(es) detected.`,
+              ]
             : [],
         ),
       ],
@@ -457,8 +473,18 @@ export const occupancyReport: ReportDefinition = {
         { key: 'totalRentableArea', label: 'Rentable area', align: 'right', format: 'area' },
         { key: 'occupiedArea', label: 'Occupied', align: 'right', format: 'area' },
         { key: 'availableArea', label: 'Available', align: 'right', format: 'area' },
-        { key: 'physicalOccupancyPercent', label: 'Physical occupancy', align: 'right', format: 'percent' },
-        { key: 'economicOccupancyPercent', label: 'Economic occupancy', align: 'right', format: 'percent' },
+        {
+          key: 'physicalOccupancyPercent',
+          label: 'Physical occupancy',
+          align: 'right',
+          format: 'percent',
+        },
+        {
+          key: 'economicOccupancyPercent',
+          label: 'Economic occupancy',
+          align: 'right',
+          format: 'percent',
+        },
       ],
       rows: result.occupancy.map((row) => ({
         period: row.periodIndex,

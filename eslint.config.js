@@ -25,7 +25,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.test.ts', '**/__fixtures__/**', 'packages/database/src/seed.ts', 'apps/worker/**'],
+    files: [
+      '**/*.test.ts',
+      '**/__fixtures__/**',
+      'packages/database/src/seed.ts',
+      'apps/worker/**',
+    ],
     rules: { 'no-console': 'off' },
   },
 );

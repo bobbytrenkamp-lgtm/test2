@@ -98,7 +98,9 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
       const balances = accrued.get(tier.id) as Map<string, Decimal>;
       for (const partner of partners) {
         const unpaid = balances.get(partner.id) as Decimal;
-        const base = tier.compounding ? partner.unreturnedCapital.plus(unpaid) : partner.unreturnedCapital;
+        const base = tier.compounding
+          ? partner.unreturnedCapital.plus(unpaid)
+          : partner.unreturnedCapital;
         balances.set(partner.id, unpaid.plus(base.times(monthlyRate)));
       }
     }
@@ -242,7 +244,10 @@ function distributeBySplits(
     if (!share || share.isZero()) continue;
     const allocation = amount.times(share).dividedBy(shareTotal);
     creditPartner(partner, tierId, allocation, periodIndex);
-    profitDistributed.set(partner.id, (profitDistributed.get(partner.id) as Decimal).plus(allocation));
+    profitDistributed.set(
+      partner.id,
+      (profitDistributed.get(partner.id) as Decimal).plus(allocation),
+    );
   }
 }
 
@@ -279,7 +284,9 @@ export function computeSponsorFees(ctx: SponsorFeeContext): {
         break;
       case 'asset_management':
         for (let i = 0; i < n; i += 1) {
-          total[i] = (total[i] as Decimal).plus((ctx.effectiveGrossRevenue[i] ?? ZERO).times(percent));
+          total[i] = (total[i] as Decimal).plus(
+            (ctx.effectiveGrossRevenue[i] ?? ZERO).times(percent),
+          );
         }
         break;
       case 'disposition':

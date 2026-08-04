@@ -45,7 +45,11 @@ export function levelPayment(principal: Decimal, monthlyRate: Decimal, months: n
   return principal.times(monthlyRate).dividedBy(ONE.minus(factor));
 }
 
-export function computeDebt(facilities: DebtFacility[], ctx: DebtContext, recordTrace: boolean): DebtResult {
+export function computeDebt(
+  facilities: DebtFacility[],
+  ctx: DebtContext,
+  recordTrace: boolean,
+): DebtResult {
   const n = ctx.calendar.periods.length;
   const result: DebtResult = {
     schedules: [],
@@ -197,7 +201,11 @@ export function computeDebt(facilities: DebtFacility[], ctx: DebtContext, record
           limit: d(facility.maximumLtv).toString(),
         });
       }
-      if (facility.minimumDebtYield && debtYield && debtYield.lessThan(d(facility.minimumDebtYield))) {
+      if (
+        facility.minimumDebtYield &&
+        debtYield &&
+        debtYield.lessThan(d(facility.minimumDebtYield))
+      ) {
         breaches.push({
           periodIndex: i + 1,
           covenant: 'minimum_debt_yield',

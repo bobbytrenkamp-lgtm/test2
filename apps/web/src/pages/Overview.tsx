@@ -2,12 +2,21 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PortfolioSummary, Property } from '../api.js';
 import { BarChart, EmptyState, ErrorMessage, Loading, StatusBadge } from '../components.js';
-import { formatCurrency, formatDateTime, formatMultiple, formatNumber, formatPercent, titleCase } from '../format.js';
+import {
+  formatCurrency,
+  formatDateTime,
+  formatMultiple,
+  formatNumber,
+  formatPercent,
+  titleCase,
+} from '../format.js';
 import { useResource } from '../hooks.js';
 
 /** Organization dashboard. */
 export function DashboardPage(): JSX.Element {
-  const properties = useResource<{ properties: Property[]; total: number }>('/properties?limit=200');
+  const properties = useResource<{ properties: Property[]; total: number }>(
+    '/properties?limit=200',
+  );
   const portfolios = useResource<{ portfolios: PortfolioSummary[] }>('/portfolios');
 
   if (properties.loading) return <Loading label="Loading dashboard" />;
@@ -18,7 +27,10 @@ export function DashboardPage(): JSX.Element {
     byType.set(property.property_type, (byType.get(property.property_type) ?? 0) + 1);
   }
   const totalArea = rows.reduce((acc, property) => acc + Number(property.rentable_area ?? 0), 0);
-  const totalBasis = rows.reduce((acc, property) => acc + Number(property.acquisition_price ?? 0), 0);
+  const totalBasis = rows.reduce(
+    (acc, property) => acc + Number(property.acquisition_price ?? 0),
+    0,
+  );
 
   return (
     <>
@@ -133,7 +145,11 @@ interface AggregateResponse {
     byPropertyType: Array<{ key: string; value: string; share: string }>;
     byMarket: Array<{ key: string; value: string; share: string }>;
     tenantConcentration: Array<{ tenantName: string; annualRent: string; share: string }>;
-    leaseExpirationByYear: Array<{ fiscalYear: number; expiringArea: string; expiringRent: string }>;
+    leaseExpirationByYear: Array<{
+      fiscalYear: number;
+      expiringArea: string;
+      expiringRent: string;
+    }>;
     debtMaturityByYear: Array<{ fiscalYear: number; balance: string }>;
   };
   included: Array<{ propertyId: string; propertyName: string; ownershipPercent: string }>;
@@ -213,8 +229,13 @@ export function PortfoliosPage(): JSX.Element {
           {aggregate.error.message}
           {Array.isArray((aggregate.error.details as { excluded?: unknown[] })?.excluded) && (
             <ul>
-              {((aggregate.error.details as { excluded: Array<{ propertyName: string; reason: string }> })
-                .excluded ?? []).map((entry, index) => (
+              {(
+                (
+                  aggregate.error.details as {
+                    excluded: Array<{ propertyName: string; reason: string }>;
+                  }
+                ).excluded ?? []
+              ).map((entry, index) => (
                 <li key={index}>
                   {entry.propertyName}: {entry.reason}
                 </li>
@@ -231,16 +252,24 @@ export function PortfoliosPage(): JSX.Element {
             <dl className="metric-grid">
               <div className="metric">
                 <dt>Gross asset value</dt>
-                <dd>{formatCurrency(aggregate.data.aggregate.grossAssetValue, 'USD', { compact: true })}</dd>
+                <dd>
+                  {formatCurrency(aggregate.data.aggregate.grossAssetValue, 'USD', {
+                    compact: true,
+                  })}
+                </dd>
                 <div className="metric-note">{aggregate.data.aggregate.propertyCount} assets</div>
               </div>
               <div className="metric">
                 <dt>Net asset value</dt>
-                <dd>{formatCurrency(aggregate.data.aggregate.netAssetValue, 'USD', { compact: true })}</dd>
+                <dd>
+                  {formatCurrency(aggregate.data.aggregate.netAssetValue, 'USD', { compact: true })}
+                </dd>
               </div>
               <div className="metric">
                 <dt>Debt</dt>
-                <dd>{formatCurrency(aggregate.data.aggregate.totalDebt, 'USD', { compact: true })}</dd>
+                <dd>
+                  {formatCurrency(aggregate.data.aggregate.totalDebt, 'USD', { compact: true })}
+                </dd>
                 <div className="metric-note">
                   LTV {formatPercent(aggregate.data.aggregate.loanToValue)}
                 </div>
@@ -320,7 +349,9 @@ export function PortfoliosPage(): JSX.Element {
               <h2>Tenant concentration</h2>
               <div className="table-scroll" style={{ maxHeight: 320 }}>
                 <table>
-                  <caption className="visually-hidden">Tenant concentration by year-one rent</caption>
+                  <caption className="visually-hidden">
+                    Tenant concentration by year-one rent
+                  </caption>
                   <thead>
                     <tr>
                       <th scope="col">Tenant</th>

@@ -33,7 +33,8 @@ export async function createOrganization(
     const base = slugify(input.name) || 'organization';
     let slug = base;
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const clash = (await tx`SELECT 1 FROM organizations WHERE slug = ${slug}`) as unknown as unknown[];
+      const clash =
+        (await tx`SELECT 1 FROM organizations WHERE slug = ${slug}`) as unknown as unknown[];
       if (clash.length === 0) break;
       slug = `${base}-${randomBytes(3).toString('hex')}`;
     }
@@ -124,7 +125,13 @@ export async function removeMember(
 
 export async function createInvitation(
   sql: Sql,
-  input: { organizationId: string; email: string; role: Role; invitedBy: string; ttlHours?: number },
+  input: {
+    organizationId: string;
+    email: string;
+    role: Role;
+    invitedBy: string;
+    ttlHours?: number;
+  },
 ): Promise<{ token: string; id: string }> {
   const token = randomBytes(32).toString('base64url');
   const rows = (await sql`

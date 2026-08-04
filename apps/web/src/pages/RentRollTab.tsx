@@ -30,7 +30,9 @@ export function RentRollTab(): JSX.Element {
     property ? `/tenants?propertyId=${property.id}` : null,
   );
 
-  const editable = can('model:write') && !['approved', 'published', 'superseded', 'archived'].includes(model.status);
+  const editable =
+    can('model:write') &&
+    !['approved', 'published', 'superseded', 'archived'].includes(model.status);
 
   const totals = useMemo(() => {
     const rows = leases.data?.leases ?? [];
@@ -70,8 +72,8 @@ export function RentRollTab(): JSX.Element {
 
         {!editable && (
           <div className="message info">
-            This model is {titleCase(model.status).toLowerCase()}, so its leases are read-only. Clone
-            the model to continue working.
+            This model is {titleCase(model.status).toLowerCase()}, so its leases are read-only.
+            Clone the model to continue working.
           </div>
         )}
 
@@ -117,7 +119,9 @@ export function RentRollTab(): JSX.Element {
                     <td className="numeric">{formatNumber(lease.area, 0)}</td>
                     <td>{formatDate(lease.commencement_date)}</td>
                     <td>{formatDate(lease.expiration_date)}</td>
-                    <td className="numeric">{formatCurrency(lease.base_rent, model.currency, { decimals: 2 })}</td>
+                    <td className="numeric">
+                      {formatCurrency(lease.base_rent, model.currency, { decimals: 2 })}
+                    </td>
                     <td>{titleCase(lease.base_rent_basis)}</td>
                     <td className="numeric">{lease.rent_steps.length || '—'}</td>
                     {editable && (
@@ -289,7 +293,10 @@ function LeaseEditor({
         </Field>
 
         <Field label="Tenant">
-          <select value={form.tenantId} onChange={(event) => update('tenantId', event.target.value)}>
+          <select
+            value={form.tenantId}
+            onChange={(event) => update('tenantId', event.target.value)}
+          >
             <option value="">New tenant…</option>
             {tenants.map((tenant) => (
               <option key={tenant.id} value={tenant.id}>
@@ -310,7 +317,10 @@ function LeaseEditor({
         )}
 
         <Field label="Suite or space">
-          <select value={form.spaceCode} onChange={(event) => update('spaceCode', event.target.value)}>
+          <select
+            value={form.spaceCode}
+            onChange={(event) => update('spaceCode', event.target.value)}
+          >
             <option value="">Not assigned</option>
             {spaces.map((space) => (
               <option key={space.id} value={space.code}>
@@ -472,7 +482,12 @@ function LeaseEditor({
             <button
               type="button"
               className="danger"
-              onClick={() => update('steps', form.steps.filter((_, i) => i !== index))}
+              onClick={() =>
+                update(
+                  'steps',
+                  form.steps.filter((_, i) => i !== index),
+                )
+              }
             >
               Remove
             </button>

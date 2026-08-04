@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { buildServer } from '../apps/api/src/server.js';
 import { loadEnv } from '../apps/api/src/env.js';
-import { closeDatabase, createDatabase, migrate, type Sql } from '../packages/database/src/index.js';
+import {
+  closeDatabase,
+  createDatabase,
+  migrate,
+  type Sql,
+} from '../packages/database/src/index.js';
 
 /**
  * Integration-test harness.
@@ -25,7 +30,8 @@ export interface TestContext {
 }
 
 export async function createTestContext(): Promise<TestContext> {
-  if (!BASE_URL) throw new Error('TEST_DATABASE_URL or DATABASE_URL must be set to run these tests.');
+  if (!BASE_URL)
+    throw new Error('TEST_DATABASE_URL or DATABASE_URL must be set to run these tests.');
 
   const schema = `test_${randomBytes(6).toString('hex')}`;
   const admin = createDatabase({ connectionString: BASE_URL });

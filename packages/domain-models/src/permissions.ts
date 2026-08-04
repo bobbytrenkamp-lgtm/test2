@@ -126,7 +126,12 @@ export const APPROVAL_TRANSITIONS: Array<{
   decision: 'submitted' | 'approved' | 'rejected' | 'withdrawn';
 }> = [
   { from: 'draft', to: 'analyst_review', capability: 'model:submit', decision: 'submitted' },
-  { from: 'analyst_review', to: 'manager_review', capability: 'model:submit', decision: 'submitted' },
+  {
+    from: 'analyst_review',
+    to: 'manager_review',
+    capability: 'model:submit',
+    decision: 'submitted',
+  },
   { from: 'analyst_review', to: 'draft', capability: 'model:approve', decision: 'rejected' },
   { from: 'manager_review', to: 'approved', capability: 'model:approve', decision: 'approved' },
   { from: 'manager_review', to: 'draft', capability: 'model:approve', decision: 'rejected' },

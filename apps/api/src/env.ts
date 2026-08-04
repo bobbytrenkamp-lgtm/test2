@@ -16,7 +16,10 @@ const envSchema = z.object({
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   SESSION_SECRET: z
     .string()
-    .min(32, 'SESSION_SECRET must be at least 32 characters. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"'),
+    .min(
+      32,
+      "SESSION_SECRET must be at least 32 characters. Generate one with: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
+    ),
   SESSION_COOKIE_SECURE: z
     .enum(['true', 'false'])
     .default('false')

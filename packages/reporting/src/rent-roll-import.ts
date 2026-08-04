@@ -40,25 +40,158 @@ export interface FieldDefinition {
 }
 
 export const RENT_ROLL_FIELDS: FieldDefinition[] = [
-  { field: 'spaceCode', label: 'Suite / unit', required: true, kind: 'text', synonyms: ['suite', 'unit', 'space', 'premises', 'shop', 'bay'] },
-  { field: 'tenantName', label: 'Tenant', required: true, kind: 'text', synonyms: ['tenant', 'occupant', 'lessee', 'tenant name', 'trading name'] },
-  { field: 'leaseCode', label: 'Lease reference', required: false, kind: 'text', synonyms: ['lease id', 'lease ref', 'lease code', 'lease number', 'contract'] },
-  { field: 'propertyCode', label: 'Property', required: false, kind: 'text', synonyms: ['property', 'asset', 'site'] },
-  { field: 'buildingCode', label: 'Building', required: false, kind: 'text', synonyms: ['building', 'bldg', 'block'] },
-  { field: 'floor', label: 'Floor', required: false, kind: 'text', synonyms: ['floor', 'level', 'storey'] },
-  { field: 'status', label: 'Status', required: false, kind: 'enum', synonyms: ['status', 'lease status', 'occupancy'] },
-  { field: 'area', label: 'Area', required: true, kind: 'number', synonyms: ['area', 'sf', 'sq ft', 'sqft', 'square feet', 'nra', 'rentable', 'gla', 'sqm', 'size'] },
-  { field: 'unitCount', label: 'Units', required: false, kind: 'number', synonyms: ['units', 'unit count', 'no. of units'] },
-  { field: 'commencementDate', label: 'Commencement', required: true, kind: 'date', synonyms: ['commence', 'start', 'lease start', 'from', 'begin'] },
-  { field: 'rentStartDate', label: 'Rent start', required: false, kind: 'date', synonyms: ['rent start', 'rent commence', 'billing start'] },
-  { field: 'expirationDate', label: 'Expiration', required: true, kind: 'date', synonyms: ['expir', 'end', 'lease end', 'to', 'termination', 'expiry'] },
-  { field: 'baseRent', label: 'Base rent', required: true, kind: 'number', synonyms: ['rent', 'base rent', 'annual rent', 'monthly rent', 'rent psf', 'rate', 'passing rent'] },
-  { field: 'baseRentBasis', label: 'Rent basis', required: false, kind: 'enum', synonyms: ['rent basis', 'basis', 'per', 'frequency'] },
-  { field: 'recoveryMethod', label: 'Recovery structure', required: false, kind: 'enum', synonyms: ['recovery', 'reimbursement', 'lease type', 'cam type', 'expense'] },
-  { field: 'securityDeposit', label: 'Security deposit', required: false, kind: 'number', synonyms: ['deposit', 'security'] },
-  { field: 'tiPerArea', label: 'TI allowance', required: false, kind: 'number', synonyms: ['ti', 'tenant improvement', 'improvement allowance'] },
-  { field: 'lcPercent', label: 'Leasing commission', required: false, kind: 'number', synonyms: ['commission', 'lc', 'brokerage'] },
-  { field: 'notes', label: 'Notes', required: false, kind: 'text', synonyms: ['note', 'comment', 'remark'] },
+  {
+    field: 'spaceCode',
+    label: 'Suite / unit',
+    required: true,
+    kind: 'text',
+    synonyms: ['suite', 'unit', 'space', 'premises', 'shop', 'bay'],
+  },
+  {
+    field: 'tenantName',
+    label: 'Tenant',
+    required: true,
+    kind: 'text',
+    synonyms: ['tenant', 'occupant', 'lessee', 'tenant name', 'trading name'],
+  },
+  {
+    field: 'leaseCode',
+    label: 'Lease reference',
+    required: false,
+    kind: 'text',
+    synonyms: ['lease id', 'lease ref', 'lease code', 'lease number', 'contract'],
+  },
+  {
+    field: 'propertyCode',
+    label: 'Property',
+    required: false,
+    kind: 'text',
+    synonyms: ['property', 'asset', 'site'],
+  },
+  {
+    field: 'buildingCode',
+    label: 'Building',
+    required: false,
+    kind: 'text',
+    synonyms: ['building', 'bldg', 'block'],
+  },
+  {
+    field: 'floor',
+    label: 'Floor',
+    required: false,
+    kind: 'text',
+    synonyms: ['floor', 'level', 'storey'],
+  },
+  {
+    field: 'status',
+    label: 'Status',
+    required: false,
+    kind: 'enum',
+    synonyms: ['status', 'lease status', 'occupancy'],
+  },
+  {
+    field: 'area',
+    label: 'Area',
+    required: true,
+    kind: 'number',
+    synonyms: [
+      'area',
+      'sf',
+      'sq ft',
+      'sqft',
+      'square feet',
+      'nra',
+      'rentable',
+      'gla',
+      'sqm',
+      'size',
+    ],
+  },
+  {
+    field: 'unitCount',
+    label: 'Units',
+    required: false,
+    kind: 'number',
+    synonyms: ['units', 'unit count', 'no. of units'],
+  },
+  {
+    field: 'commencementDate',
+    label: 'Commencement',
+    required: true,
+    kind: 'date',
+    synonyms: ['commence', 'start', 'lease start', 'from', 'begin'],
+  },
+  {
+    field: 'rentStartDate',
+    label: 'Rent start',
+    required: false,
+    kind: 'date',
+    synonyms: ['rent start', 'rent commence', 'billing start'],
+  },
+  {
+    field: 'expirationDate',
+    label: 'Expiration',
+    required: true,
+    kind: 'date',
+    synonyms: ['expir', 'end', 'lease end', 'to', 'termination', 'expiry'],
+  },
+  {
+    field: 'baseRent',
+    label: 'Base rent',
+    required: true,
+    kind: 'number',
+    synonyms: [
+      'rent',
+      'base rent',
+      'annual rent',
+      'monthly rent',
+      'rent psf',
+      'rate',
+      'passing rent',
+    ],
+  },
+  {
+    field: 'baseRentBasis',
+    label: 'Rent basis',
+    required: false,
+    kind: 'enum',
+    synonyms: ['rent basis', 'basis', 'per', 'frequency'],
+  },
+  {
+    field: 'recoveryMethod',
+    label: 'Recovery structure',
+    required: false,
+    kind: 'enum',
+    synonyms: ['recovery', 'reimbursement', 'lease type', 'cam type', 'expense'],
+  },
+  {
+    field: 'securityDeposit',
+    label: 'Security deposit',
+    required: false,
+    kind: 'number',
+    synonyms: ['deposit', 'security'],
+  },
+  {
+    field: 'tiPerArea',
+    label: 'TI allowance',
+    required: false,
+    kind: 'number',
+    synonyms: ['ti', 'tenant improvement', 'improvement allowance'],
+  },
+  {
+    field: 'lcPercent',
+    label: 'Leasing commission',
+    required: false,
+    kind: 'number',
+    synonyms: ['commission', 'lc', 'brokerage'],
+  },
+  {
+    field: 'notes',
+    label: 'Notes',
+    required: false,
+    kind: 'text',
+    synonyms: ['note', 'comment', 'remark'],
+  },
 ];
 
 export interface SheetAnalysis {
@@ -110,7 +243,11 @@ export function analyzeSheet(rows: string[][], searchDepth = 25): SheetAnalysis 
 
 /** Best-guess field for a header, or null when nothing matches. */
 export function suggestField(header: string): RentRollField | null {
-  const normalized = header.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalized = header
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (normalized === '') return null;
 
   let best: { field: RentRollField; score: number } | null = null;
@@ -198,9 +335,7 @@ export function normalizeNumber(raw: string): string | null {
     const lastIndex = commaCount > 0 ? lastComma : lastDot;
     const trailingDigits = cleaned.length - lastIndex - 1;
     const isGrouping = count > 1 || trailingDigits === 3;
-    normalized = isGrouping
-      ? cleaned.split(separator).join('')
-      : cleaned.replace(separator, '.');
+    normalized = isGrouping ? cleaned.split(separator).join('') : cleaned.replace(separator, '.');
   }
   if (!/^\d*\.?\d*$/.test(normalized) || normalized === '' || normalized === '.') return null;
 
@@ -255,7 +390,20 @@ export function normalizeDate(
       : { value: format(year, first, second), ambiguous };
   }
 
-  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const MONTHS = [
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
+  ];
   const named = /^(\d{1,2})[\s-]*([a-zA-Z]{3,9})[\s-]*(\d{2,4})$/.exec(text);
   if (named) {
     const month = MONTHS.indexOf((named[2] as string).slice(0, 3).toLowerCase()) + 1;
@@ -280,11 +428,23 @@ function format(year: number, month: number, day: number): string | null {
 }
 
 const STATUS_MAP: Record<string, string> = {
-  occupied: 'occupied', current: 'occupied', active: 'occupied', leased: 'occupied',
-  vacant: 'vacant', available: 'vacant', empty: 'vacant',
-  future: 'future', pending: 'pending', proposed: 'proposed',
-  mtm: 'month_to_month', 'month to month': 'month_to_month', 'month-to-month': 'month_to_month',
-  holdover: 'holdover', expired: 'expired', terminated: 'terminated', sublease: 'sublease',
+  occupied: 'occupied',
+  current: 'occupied',
+  active: 'occupied',
+  leased: 'occupied',
+  vacant: 'vacant',
+  available: 'vacant',
+  empty: 'vacant',
+  future: 'future',
+  pending: 'pending',
+  proposed: 'proposed',
+  mtm: 'month_to_month',
+  'month to month': 'month_to_month',
+  'month-to-month': 'month_to_month',
+  holdover: 'holdover',
+  expired: 'expired',
+  terminated: 'terminated',
+  sublease: 'sublease',
 };
 
 export function normalizeStatus(raw: string): string {
@@ -394,43 +554,69 @@ export function mapRows(
     const leaseCode = cell(row, 'leaseCode') || `${spaceCode || 'SPACE'}-${rowIndex + 1}`;
 
     if (tenantName === '' && status !== 'vacant') {
-      issues.push({ rowIndex, field: 'tenantName', severity: 'error', message: 'Tenant name is blank.' });
+      issues.push({
+        rowIndex,
+        field: 'tenantName',
+        severity: 'error',
+        message: 'Tenant name is blank.',
+      });
     }
     if (area === null) {
       issues.push({
-        rowIndex, field: 'area', severity: 'error',
-        message: 'Area could not be read as a number.', rawValue: areaRaw,
+        rowIndex,
+        field: 'area',
+        severity: 'error',
+        message: 'Area could not be read as a number.',
+        rawValue: areaRaw,
       });
     } else if (Number(area) < 0) {
-      issues.push({ rowIndex, field: 'area', severity: 'error', message: 'Area is negative.', rawValue: areaRaw });
+      issues.push({
+        rowIndex,
+        field: 'area',
+        severity: 'error',
+        message: 'Area is negative.',
+        rawValue: areaRaw,
+      });
     }
     if (rent === null) {
       issues.push({
-        rowIndex, field: 'baseRent', severity: 'error',
-        message: 'Base rent could not be read as a number.', rawValue: rentRaw,
+        rowIndex,
+        field: 'baseRent',
+        severity: 'error',
+        message: 'Base rent could not be read as a number.',
+        rawValue: rentRaw,
       });
     }
     if (!commencement.value) {
       issues.push({
-        rowIndex, field: 'commencementDate', severity: 'error',
-        message: 'Commencement date could not be read.', rawValue: cell(row, 'commencementDate'),
+        rowIndex,
+        field: 'commencementDate',
+        severity: 'error',
+        message: 'Commencement date could not be read.',
+        rawValue: cell(row, 'commencementDate'),
       });
     }
     if (!expiration.value) {
       issues.push({
-        rowIndex, field: 'expirationDate', severity: 'error',
-        message: 'Expiration date could not be read.', rawValue: cell(row, 'expirationDate'),
+        rowIndex,
+        field: 'expirationDate',
+        severity: 'error',
+        message: 'Expiration date could not be read.',
+        rawValue: cell(row, 'expirationDate'),
       });
     }
     if (commencement.ambiguous || expiration.ambiguous || rentStart.ambiguous) {
       issues.push({
-        rowIndex, severity: 'warning',
+        rowIndex,
+        severity: 'warning',
         message: `A date on this row is ambiguous and was read as ${options.datePreference === 'dmy' ? 'day/month/year' : 'month/day/year'}. Confirm the order before importing.`,
       });
     }
     if (commencement.value && expiration.value && expiration.value < commencement.value) {
       issues.push({
-        rowIndex, field: 'expirationDate', severity: 'error',
+        rowIndex,
+        field: 'expirationDate',
+        severity: 'error',
         message: 'The lease expires before it commences.',
       });
     }
@@ -456,7 +642,12 @@ export function mapRows(
       rentStartDate: rentStart.value,
       expirationDate: expiration.value,
       baseRent: rent,
-      baseRentBasis: inferRentBasis(cell(row, 'baseRentBasis'), options.defaultRentBasis, rent, area),
+      baseRentBasis: inferRentBasis(
+        cell(row, 'baseRentBasis'),
+        options.defaultRentBasis,
+        rent,
+        area,
+      ),
       recoveryMethod: normalizeRecoveryMethod(cell(row, 'recoveryMethod')),
       securityDeposit: normalizeNumber(cell(row, 'securityDeposit')),
       tiPerArea: normalizeNumber(cell(row, 'tiPerArea')),
@@ -492,7 +683,8 @@ function inferRentBasis(
   area: string,
 ): string {
   const text = stated.toLowerCase();
-  if (/annual|year|yr|pa|p\.a\./.test(text) && /sf|sq|psf|area/.test(text)) return 'per_area_per_year';
+  if (/annual|year|yr|pa|p\.a\./.test(text) && /sf|sq|psf|area/.test(text))
+    return 'per_area_per_year';
   if (/month|mo/.test(text) && /sf|sq|psf|area/.test(text)) return 'per_area_per_month';
   if (/annual|year|yr/.test(text)) return 'annual_amount';
   if (/month|mo/.test(text)) return 'monthly_amount';

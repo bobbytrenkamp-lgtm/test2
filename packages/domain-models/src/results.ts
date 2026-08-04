@@ -134,7 +134,12 @@ export interface ValuationResult {
   value: string;
   detail: Record<string, string>;
   /** Per-period present value detail, DCF only. */
-  presentValueByPeriod?: Array<{ periodIndex: number; cashFlow: string; discountFactor: string; presentValue: string }>;
+  presentValueByPeriod?: Array<{
+    periodIndex: number;
+    cashFlow: string;
+    discountFactor: string;
+    presentValue: string;
+  }>;
 }
 
 export interface ReturnMetrics {

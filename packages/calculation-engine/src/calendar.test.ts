@@ -72,9 +72,18 @@ describe('forecast calendar', () => {
   });
 
   it('labels a July fiscal year by the year it ends in', () => {
-    expect(fiscalPosition(parseDate('2026-07-01'), 7)).toEqual({ fiscalYear: 2027, fiscalPeriod: 1 });
-    expect(fiscalPosition(parseDate('2027-06-30'), 7)).toEqual({ fiscalYear: 2027, fiscalPeriod: 12 });
-    expect(fiscalPosition(parseDate('2026-06-01'), 7)).toEqual({ fiscalYear: 2026, fiscalPeriod: 12 });
+    expect(fiscalPosition(parseDate('2026-07-01'), 7)).toEqual({
+      fiscalYear: 2027,
+      fiscalPeriod: 1,
+    });
+    expect(fiscalPosition(parseDate('2027-06-30'), 7)).toEqual({
+      fiscalYear: 2027,
+      fiscalPeriod: 12,
+    });
+    expect(fiscalPosition(parseDate('2026-06-01'), 7)).toEqual({
+      fiscalYear: 2026,
+      fiscalPeriod: 12,
+    });
   });
 });
 
@@ -90,7 +99,12 @@ describe('period coverage', () => {
 
   it('returns 1 for a period fully inside the interval', () => {
     expect(
-      periodCoverage(january, parseDate('2025-01-01'), parseDate('2027-01-01'), 'actual_days').toString(),
+      periodCoverage(
+        january,
+        parseDate('2025-01-01'),
+        parseDate('2027-01-01'),
+        'actual_days',
+      ).toString(),
     ).toBe('1');
   });
 
@@ -112,7 +126,9 @@ describe('period coverage', () => {
   });
 
   it('returns 0 when the interval misses the period', () => {
-    expect(periodCoverage(february, null, parseDate('2026-01-31'), 'actual_days').toString()).toBe('0');
+    expect(periodCoverage(february, null, parseDate('2026-01-31'), 'actual_days').toString()).toBe(
+      '0',
+    );
   });
 
   it('handles a leap-February correctly', () => {

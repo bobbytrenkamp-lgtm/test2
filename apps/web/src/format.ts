@@ -23,10 +23,7 @@ export function formatCurrency(
   }).format(numeric);
 }
 
-export function formatPercent(
-  value: string | number | null | undefined,
-  decimals = 2,
-): string {
+export function formatPercent(value: string | number | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
@@ -37,10 +34,7 @@ export function formatPercent(
   }).format(numeric);
 }
 
-export function formatNumber(
-  value: string | number | null | undefined,
-  decimals = 0,
-): string {
+export function formatNumber(value: string | number | null | undefined, decimals = 0): string {
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
@@ -87,7 +81,9 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    date,
+  );
 }
 
 export function titleCase(value: string): string {

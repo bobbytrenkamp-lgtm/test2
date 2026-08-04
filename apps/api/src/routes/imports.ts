@@ -152,7 +152,11 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
 
     // Tenants are matched by name inside the property before a new one is
     // created, so re-importing an updated rent roll does not duplicate them.
-    const existingTenants = await listTenants(request.db, context.organizationId, model.property_id);
+    const existingTenants = await listTenants(
+      request.db,
+      context.organizationId,
+      model.property_id,
+    );
     const tenantsByName = new Map(
       existingTenants.map((tenant) => [tenant.name.trim().toLowerCase(), tenant.id]),
     );

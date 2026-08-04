@@ -56,7 +56,10 @@ export async function createUser(
   return rows[0] as UserRecord;
 }
 
-export async function findUserByEmail(sql: Sql, email: string): Promise<(UserRecord & { password_hash: string | null }) | null> {
+export async function findUserByEmail(
+  sql: Sql,
+  email: string,
+): Promise<(UserRecord & { password_hash: string | null }) | null> {
   const rows = (await sql`
     SELECT id, email, name, is_active, mfa_enrolled, last_login_at, password_hash
     FROM users
@@ -123,7 +126,10 @@ export async function createSession(
   return { token, session: rows[0] as SessionRecord };
 }
 
-export async function resolveSession(sql: Sql, token: string): Promise<AuthenticatedContext | null> {
+export async function resolveSession(
+  sql: Sql,
+  token: string,
+): Promise<AuthenticatedContext | null> {
   const rows = (await sql`
     SELECT
       s.id            AS session_id,

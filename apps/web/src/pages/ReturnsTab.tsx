@@ -1,5 +1,11 @@
 import { EmptyState, Loading } from '../components.js';
-import { formatCurrency, formatMonth, formatMultiple, formatPercent, titleCase } from '../format.js';
+import {
+  formatCurrency,
+  formatMonth,
+  formatMultiple,
+  formatPercent,
+  titleCase,
+} from '../format.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /**
@@ -16,7 +22,12 @@ export function ReturnsTab(): JSX.Element {
       <EmptyState
         title="Not calculated yet"
         action={
-          <button type="button" className="primary" onClick={() => void calculate(true)} disabled={calculating}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void calculate(true)}
+            disabled={calculating}
+          >
             Run the calculation
           </button>
         }
@@ -34,8 +45,16 @@ export function ReturnsTab(): JSX.Element {
       <div className="card">
         <h2>Return metrics</h2>
         <dl className="metric-grid">
-          <Metric label="Unlevered IRR" value={formatPercent(returns.unleveredIrr)} note="Annual effective" />
-          <Metric label="Levered IRR" value={formatPercent(returns.leveredIrr)} note="Annual effective" />
+          <Metric
+            label="Unlevered IRR"
+            value={formatPercent(returns.unleveredIrr)}
+            note="Annual effective"
+          />
+          <Metric
+            label="Levered IRR"
+            value={formatPercent(returns.leveredIrr)}
+            note="Annual effective"
+          />
           <Metric label="Equity multiple" value={formatMultiple(returns.equityMultiple)} />
           <Metric
             label="Net present value"
@@ -47,7 +66,11 @@ export function ReturnsTab(): JSX.Element {
           <Metric label="Yield on cost" value={formatPercent(returns.yieldOnCost)} />
           <Metric label="Minimum DSCR" value={formatFixed(returns.minimumDscr)} />
           <Metric label="Year 1 debt yield" value={formatPercent(returns.debtYieldYear1)} />
-          <Metric label="Loan to value" value={formatPercent(returns.loanToValue)} note="At closing" />
+          <Metric
+            label="Loan to value"
+            value={formatPercent(returns.loanToValue)}
+            note="At closing"
+          />
           <Metric label="Breakeven occupancy" value={formatPercent(returns.breakevenOccupancy)} />
           <Metric
             label={`Value per ${areaUnit}`}
@@ -75,9 +98,7 @@ export function ReturnsTab(): JSX.Element {
                 <h3 style={{ margin: 0 }}>
                   {valuation.method === 'dcf' ? 'Discounted cash flow' : 'Direct capitalization'}
                 </h3>
-                <span className="badge accent">
-                  {formatCurrency(valuation.value, currency)}
-                </span>
+                <span className="badge accent">{formatCurrency(valuation.value, currency)}</span>
               </div>
               <div className="table-scroll" style={{ maxHeight: 320 }}>
                 <table>
@@ -142,15 +163,33 @@ export function ReturnsTab(): JSX.Element {
                     <thead>
                       <tr>
                         <th scope="col">Month</th>
-                        <th scope="col" className="numeric">Opening</th>
-                        <th scope="col" className="numeric">Draws</th>
-                        <th scope="col" className="numeric">Cash interest</th>
-                        <th scope="col" className="numeric">Capitalized</th>
-                        <th scope="col" className="numeric">Principal</th>
-                        <th scope="col" className="numeric">Fees</th>
-                        <th scope="col" className="numeric">Closing</th>
-                        <th scope="col" className="numeric">Rate</th>
-                        <th scope="col" className="numeric">DSCR</th>
+                        <th scope="col" className="numeric">
+                          Opening
+                        </th>
+                        <th scope="col" className="numeric">
+                          Draws
+                        </th>
+                        <th scope="col" className="numeric">
+                          Cash interest
+                        </th>
+                        <th scope="col" className="numeric">
+                          Capitalized
+                        </th>
+                        <th scope="col" className="numeric">
+                          Principal
+                        </th>
+                        <th scope="col" className="numeric">
+                          Fees
+                        </th>
+                        <th scope="col" className="numeric">
+                          Closing
+                        </th>
+                        <th scope="col" className="numeric">
+                          Rate
+                        </th>
+                        <th scope="col" className="numeric">
+                          DSCR
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -159,10 +198,14 @@ export function ReturnsTab(): JSX.Element {
                           <th scope="row">
                             {formatMonth(cashFlow.periods[row.periodIndex - 1]?.startDate)}
                           </th>
-                          <td className="numeric">{formatCurrency(row.beginningBalance, currency)}</td>
+                          <td className="numeric">
+                            {formatCurrency(row.beginningBalance, currency)}
+                          </td>
                           <td className="numeric">{formatCurrency(row.draws, currency)}</td>
                           <td className="numeric">{formatCurrency(row.cashInterest, currency)}</td>
-                          <td className="numeric">{formatCurrency(row.capitalizedInterest, currency)}</td>
+                          <td className="numeric">
+                            {formatCurrency(row.capitalizedInterest, currency)}
+                          </td>
                           <td className="numeric">{formatCurrency(row.principal, currency)}</td>
                           <td className="numeric">{formatCurrency(row.fees, currency)}</td>
                           <td className="numeric">{formatCurrency(row.endingBalance, currency)}</td>
@@ -193,11 +236,21 @@ export function ReturnsTab(): JSX.Element {
               <thead>
                 <tr>
                   <th scope="col">Partner</th>
-                  <th scope="col" className="numeric">Contributions</th>
-                  <th scope="col" className="numeric">Distributions</th>
-                  <th scope="col" className="numeric">Profit</th>
-                  <th scope="col" className="numeric">IRR</th>
-                  <th scope="col" className="numeric">Multiple</th>
+                  <th scope="col" className="numeric">
+                    Contributions
+                  </th>
+                  <th scope="col" className="numeric">
+                    Distributions
+                  </th>
+                  <th scope="col" className="numeric">
+                    Profit
+                  </th>
+                  <th scope="col" className="numeric">
+                    IRR
+                  </th>
+                  <th scope="col" className="numeric">
+                    Multiple
+                  </th>
                   {waterfall[0]?.byTier.map((tier) => (
                     <th key={tier.tierId} scope="col" className="numeric">
                       {tier.tierName}
@@ -253,7 +306,13 @@ function Metric({
   return (
     <div className="metric">
       <dt>{label}</dt>
-      <dd>{value === '—' ? <span style={{ fontSize: 14, fontWeight: 500 }}>Not available</span> : value}</dd>
+      <dd>
+        {value === '—' ? (
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Not available</span>
+        ) : (
+          value
+        )}
+      </dd>
       {note && <div className="metric-note">{note}</div>}
     </div>
   );

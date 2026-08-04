@@ -6,7 +6,12 @@ import {
   type JobRow,
   type Sql,
 } from '@cre/database';
-import { ENGINE_VERSION, aggregatePortfolio, calculate, type PortfolioMember } from '@cre/calculation-engine';
+import {
+  ENGINE_VERSION,
+  aggregatePortfolio,
+  calculate,
+  type PortfolioMember,
+} from '@cre/calculation-engine';
 import { REPORTS, reportToWorkbook } from '@cre/reporting';
 import type { ModelInput } from '@cre/domain-models';
 

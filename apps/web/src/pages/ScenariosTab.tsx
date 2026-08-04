@@ -211,7 +211,9 @@ export function ScenariosTab(): JSX.Element {
               {result.rows.values.length * (result.columns?.values.length ?? 1)} full engine runs,
               engine {result.engineVersion}. Column headers are the{' '}
               {result.columns
-                ? (VARIABLES.find((v) => v.value === result.columns?.variable)?.label ?? '').toLowerCase()
+                ? (
+                    VARIABLES.find((v) => v.value === result.columns?.variable)?.label ?? ''
+                  ).toLowerCase()
                 : 'single'}{' '}
               values tested.
             </p>
@@ -250,7 +252,11 @@ function CloneForm({
           disabled={disabled}
         />
       </div>
-      <button type="submit" disabled={disabled || pending || !name.trim()} style={{ marginTop: 18 }}>
+      <button
+        type="submit"
+        disabled={disabled || pending || !name.trim()}
+        style={{ marginTop: 18 }}
+      >
         {pending ? 'Cloning…' : 'Clone'}
       </button>
     </form>

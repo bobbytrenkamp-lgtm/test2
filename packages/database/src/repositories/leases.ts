@@ -82,11 +82,18 @@ export interface LeaseRow {
   notes: string | null;
 }
 
-export async function listLeases(sql: Sql, modelId: string): Promise<Array<LeaseRow & {
-  tenant_name: string;
-  space_codes: string[];
-  rent_steps: Array<{ startDate: string; amount: string; basis: string }>;
-}>> {
+export async function listLeases(
+  sql: Sql,
+  modelId: string,
+): Promise<
+  Array<
+    LeaseRow & {
+      tenant_name: string;
+      space_codes: string[];
+      rent_steps: Array<{ startDate: string; amount: string; basis: string }>;
+    }
+  >
+> {
   return (await sql`
     SELECT
       l.*,

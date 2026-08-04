@@ -116,9 +116,7 @@ export function computeRecoveries(
         ? d(config.grossUpPercent).clamp(0, 2)
         : null;
 
-    const denominator = config.proRataShareOverride
-      ? null
-      : ctx.denominatorArea;
+    const denominator = config.proRataShareOverride ? null : ctx.denominatorArea;
     let proRataShare: Decimal;
     if (config.proRataShareOverride) {
       proRataShare = d(config.proRataShareOverride);

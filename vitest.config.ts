@@ -9,8 +9,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@cre/domain-models': new URL('./packages/domain-models/src/index.ts', import.meta.url).pathname,
-      '@cre/calculation-engine': new URL('./packages/calculation-engine/src/index.ts', import.meta.url).pathname,
+      '@cre/domain-models': new URL('./packages/domain-models/src/index.ts', import.meta.url)
+        .pathname,
+      '@cre/calculation-engine': new URL(
+        './packages/calculation-engine/src/index.ts',
+        import.meta.url,
+      ).pathname,
       '@cre/database': new URL('./packages/database/src/index.ts', import.meta.url).pathname,
     },
   },

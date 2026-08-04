@@ -87,13 +87,13 @@ export function computeSale(ctx: ValuationContext): SaleResult | null {
   }
 
   // Annualise if the window ran short at the start of the forecast.
-  const windowMonths =
-    basis === 'forward_12' ? 12 : Math.min(12, saleIndex + 1);
+  const windowMonths = basis === 'forward_12' ? 12 : Math.min(12, saleIndex + 1);
   if (windowMonths < 12 && windowMonths > 0) {
     terminalNoi = terminalNoi.times(TWELVE).dividedBy(windowMonths);
   }
 
-  const grossSalePrice = override ?? (capRate && !capRate.isZero() ? terminalNoi.dividedBy(capRate) : ZERO);
+  const grossSalePrice =
+    override ?? (capRate && !capRate.isZero() ? terminalNoi.dividedBy(capRate) : ZERO);
   if (!override && capRate && capRate.isZero()) {
     ctx.trace.error(
       'ZERO_EXIT_CAP_RATE',

@@ -21,7 +21,8 @@ export function PropertyDetailPage(): JSX.Element {
 
   if (property.loading) return <Loading label="Loading property" />;
   if (property.error) return <ErrorMessage error={property.error} />;
-  if (!property.data) return <EmptyState title="Not found">That property does not exist.</EmptyState>;
+  if (!property.data)
+    return <EmptyState title="Not found">That property does not exist.</EmptyState>;
 
   const { property: record, spaces } = property.data;
   const spaceArea = spaces
@@ -36,7 +37,9 @@ export function PropertyDetailPage(): JSX.Element {
           <p>
             {titleCase(record.property_type)}
             {record.property_subtype ? ` · ${record.property_subtype}` : ''}
-            {record.city ? ` · ${record.city}${record.state_region ? `, ${record.state_region}` : ''}` : ''}
+            {record.city
+              ? ` · ${record.city}${record.state_region ? `, ${record.state_region}` : ''}`
+              : ''}
           </p>
         </div>
         {can('model:write') && (
@@ -128,7 +131,9 @@ export function PropertyDetailPage(): JSX.Element {
                     <td>{formatDate(model.valuation_date)}</td>
                     <td className="numeric">{model.forecast_months} mo</td>
                     <td className="numeric">
-                      {model.discount_rate ? `${(Number(model.discount_rate) * 100).toFixed(2)}%` : '—'}
+                      {model.discount_rate
+                        ? `${(Number(model.discount_rate) * 100).toFixed(2)}%`
+                        : '—'}
                     </td>
                     <td className="numeric">
                       {model.terminal_cap_rate

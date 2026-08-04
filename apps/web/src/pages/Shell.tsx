@@ -51,7 +51,9 @@ export function Shell(): JSX.Element {
               </select>
             </>
           )}
-          {organization && <span className="badge accent">{organization.role.replace(/_/g, ' ')}</span>}
+          {organization && (
+            <span className="badge accent">{organization.role.replace(/_/g, ' ')}</span>
+          )}
         </div>
 
         <div className="row">

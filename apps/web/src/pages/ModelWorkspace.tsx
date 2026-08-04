@@ -1,6 +1,12 @@
 import { useCallback, useState } from 'react';
 import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
-import { api, type CalculateResponse, type CashFlowResponse, type Model, type Property } from '../api.js';
+import {
+  api,
+  type CalculateResponse,
+  type CashFlowResponse,
+  type Model,
+  type Property,
+} from '../api.js';
 import { EmptyState, ErrorMessage, Loading, StatusBadge } from '../components.js';
 import { formatDate, titleCase } from '../format.js';
 import { useMutation, useResource, useShortcut } from '../hooks.js';
@@ -70,7 +76,8 @@ export function ModelWorkspace(): JSX.Element {
 
   if (modelResource.loading) return <Loading label="Loading model" />;
   if (modelResource.error) return <ErrorMessage error={modelResource.error} />;
-  if (!modelResource.data) return <EmptyState title="Not found">That model does not exist.</EmptyState>;
+  if (!modelResource.data)
+    return <EmptyState title="Not found">That model does not exist.</EmptyState>;
 
   const { model, property } = modelResource.data;
 

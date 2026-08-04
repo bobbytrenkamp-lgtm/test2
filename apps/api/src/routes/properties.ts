@@ -37,7 +37,10 @@ const propertyBody = z.object({
   parkingCount: z.number().int().min(0).default(0),
   buildingCount: z.number().int().min(1).default(1),
   ownershipPercent: decimalString.default('1'),
-  acquisitionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  acquisitionDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullish(),
   acquisitionPrice: decimalString.nullish(),
   tags: z.array(z.string().max(60)).default([]),
 });
@@ -56,7 +59,12 @@ export async function registerPropertyRoutes(app: FastifyInstance): Promise<void
       .parse(request.query);
 
     const result = await listProperties(request.db, context.organizationId, query);
-    return { properties: result.rows, total: result.total, limit: query.limit, offset: query.offset };
+    return {
+      properties: result.rows,
+      total: result.total,
+      limit: query.limit,
+      offset: query.offset,
+    };
   });
 
   app.post('/properties', async (request, reply) => {

@@ -62,11 +62,17 @@ export interface PortfolioAggregate {
 function dcfValue(result: ModelResult): Decimal {
   const dcf = result.valuations.find((valuation) => valuation.method === 'dcf');
   if (dcf) return d(dcf.value);
-  const direct = result.valuations.find((valuation) => valuation.method === 'direct_capitalization');
+  const direct = result.valuations.find(
+    (valuation) => valuation.method === 'direct_capitalization',
+  );
   return direct ? d(direct.value) : ZERO;
 }
 
-function annualLine(result: ModelResult, index: number, line: keyof ModelResult['annual'][number]['lines']): Decimal {
+function annualLine(
+  result: ModelResult,
+  index: number,
+  line: keyof ModelResult['annual'][number]['lines'],
+): Decimal {
   return d(result.annual[index]?.lines[line] ?? '0');
 }
 
@@ -124,7 +130,9 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     // capital actually is.
     const dcf = result.valuations.find((valuation) => valuation.method === 'dcf');
     if (dcf) {
-      discountRateWeighted = discountRateWeighted.plus(d(dcf.detail.discountRate ?? '0').times(value));
+      discountRateWeighted = discountRateWeighted.plus(
+        d(dcf.detail.discountRate ?? '0').times(value),
+      );
       valueWeightBasis = valueWeightBasis.plus(value);
     }
     if (result.returns.exitCapRate) {
@@ -143,9 +151,7 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
       );
     }
     const basis = d(result.returns.valuePerArea ?? '0').times(area);
-    initialUnlevered = initialUnlevered.minus(
-      (dcf ? dcfValue(result) : basis).times(share),
-    );
+    initialUnlevered = initialUnlevered.minus((dcf ? dcfValue(result) : basis).times(share));
     initialEquity = initialEquity.minus(dcfValue(result).minus(debtAtStart).times(share));
 
     accumulate(byType, member.propertyType, value);
@@ -210,8 +216,7 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     loanToValue: toStringOrNull(safeDivide(totalDebt, grossAssetValue)),
     portfolioUnleveredIrr: toStringOrNull(irrMonthly(unleveredFlows, initialUnlevered)),
     portfolioLeveredIrr: toStringOrNull(irrMonthly(leveredFlows, initialEquity)),
-    portfolioEquityMultiple:
-      toStringOrNull(equityMultiple([initialEquity, ...leveredFlows])),
+    portfolioEquityMultiple: toStringOrNull(equityMultiple([initialEquity, ...leveredFlows])),
     horizonMonths,
     byPropertyType: shares(byType, grossAssetValue),
     byMarket: shares(byMarket, grossAssetValue),
@@ -228,7 +233,10 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
       })),
     debtMaturityByYear: [...debtMaturity.entries()]
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([fiscalYear, balance]) => ({ fiscalYear: Number(fiscalYear), balance: balance.toFixed(2) })),
+      .map(([fiscalYear, balance]) => ({
+        fiscalYear: Number(fiscalYear),
+        balance: balance.toFixed(2),
+      })),
   };
 }
 

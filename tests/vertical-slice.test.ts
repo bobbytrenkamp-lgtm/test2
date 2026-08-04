@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authed, createTestContext, hasDatabase, registerActor, type Actor, type TestContext } from './helpers.js';
+import {
+  authed,
+  createTestContext,
+  hasDatabase,
+  registerActor,
+  type Actor,
+  type TestContext,
+} from './helpers.js';
 
 /**
  * The first vertical slice, exercised end to end against a real database and
@@ -241,7 +248,12 @@ describe.skipIf(!hasDatabase)('vertical slice', () => {
     });
     expect(response.statusCode).toBe(200);
     const body = response.json() as {
-      entries: Array<{ formula: string; sources: string[]; inputs: Record<string, string>; result: string }>;
+      entries: Array<{
+        formula: string;
+        sources: string[];
+        inputs: Record<string, string>;
+        result: string;
+      }>;
     };
     const rent = body.entries.find((entry) => entry.formula === 'lease.baseRent');
     expect(rent).toBeDefined();
@@ -257,8 +269,9 @@ describe.skipIf(!hasDatabase)('vertical slice', () => {
       headers: authed(analyst.cookie),
     });
     expect(response.statusCode).toBe(200);
-    const entries = (response.json() as { entries: Array<{ formula: string; inputs: Record<string, string> }> })
-      .entries;
+    const entries = (
+      response.json() as { entries: Array<{ formula: string; inputs: Record<string, string> }> }
+    ).entries;
 
     const terminal = entries.find((entry) => entry.formula === 'valuation.terminalValue');
     expect(terminal).toBeDefined();
@@ -287,10 +300,12 @@ describe.skipIf(!hasDatabase)('vertical slice', () => {
       headers: authed(analyst.cookie),
     });
     expect(recalculated.statusCode).toBe(200);
-    const body = recalculated.json() as { annual: Array<{ fiscalYear: number; lines: Record<string, string> }> };
-    expect(
-      body.annual.find((row) => row.fiscalYear === 2028)?.lines.scheduledBaseRent,
-    ).toBe('1200000.00');
+    const body = recalculated.json() as {
+      annual: Array<{ fiscalYear: number; lines: Record<string, string> }>;
+    };
+    expect(body.annual.find((row) => row.fiscalYear === 2028)?.lines.scheduledBaseRent).toBe(
+      '1200000.00',
+    );
   });
 
   it('12. freezes an approved model against further edits', async () => {

@@ -82,7 +82,10 @@ export function rentAnchorAt(spec: RentScheduleSpec, date: CalendarDate): RentAn
     source: 'base',
   };
   spec.steps.forEach((step, index) => {
-    if (compareDates(step.startDate, date) <= 0 && compareDates(step.startDate, anchor.effective) >= 0) {
+    if (
+      compareDates(step.startDate, date) <= 0 &&
+      compareDates(step.startDate, anchor.effective) >= 0
+    ) {
       anchor = {
         amount: step.amount,
         basis: step.basis,
@@ -117,7 +120,8 @@ export function escalationDatesBetween(
 
 function clampRate(rate: Decimal, esc: Escalation): Decimal {
   let result = rate;
-  if (esc.floorRate !== null && esc.floorRate !== undefined) result = maxOf(result, d(esc.floorRate));
+  if (esc.floorRate !== null && esc.floorRate !== undefined)
+    result = maxOf(result, d(esc.floorRate));
   if (esc.capRate !== null && esc.capRate !== undefined) result = minOf(result, d(esc.capRate));
   return result;
 }
@@ -157,7 +161,9 @@ export function rateAt(
     for (const event of events) {
       const forecastYear = Math.floor(monthDifference(forecastStart, event) / 12) + 1;
       const indexRate = clampRate(curves.rateForYear(esc.indexCurveId, forecastYear), esc);
-      rate = esc.compounding ? rate.times(ONE.plus(indexRate)) : rate.plus(anchor.amount.times(indexRate));
+      rate = esc.compounding
+        ? rate.times(ONE.plus(indexRate))
+        : rate.plus(anchor.amount.times(indexRate));
     }
   } else if (esc.type === 'market_reset' && spec.marketRentAt) {
     const lastEvent = events[events.length - 1];
@@ -187,7 +193,10 @@ export function rateAt(
 function rateChangeDatesInPeriod(spec: RentScheduleSpec, period: ForecastPeriod): CalendarDate[] {
   const dates: CalendarDate[] = [];
   for (const step of spec.steps) {
-    if (compareDates(step.startDate, period.start) > 0 && compareDates(step.startDate, period.end) <= 0) {
+    if (
+      compareDates(step.startDate, period.start) > 0 &&
+      compareDates(step.startDate, period.end) <= 0
+    ) {
       dates.push(step.startDate);
     }
   }
@@ -245,9 +254,7 @@ export function rentForPeriod(
     const from = uniqueStarts[i] as CalendarDate;
     if (compareDates(from, periodEndForLease) > 0) continue;
     const nextStart = uniqueStarts[i + 1];
-    const to = nextStart
-      ? minDate(addDays(nextStart, -1), periodEndForLease)
-      : periodEndForLease;
+    const to = nextStart ? minDate(addDays(nextStart, -1), periodEndForLease) : periodEndForLease;
     if (compareDates(from, to) > 0) continue;
 
     const coverage = periodCoverage(period, from, to, calendar.proration);
@@ -278,7 +285,10 @@ function minDate(a: CalendarDate, b: CalendarDate): CalendarDate {
  * Resolves a free-rent record expressed in months into an inclusive date range.
  * Fractional months are converted to whole days of the month they land in.
  */
-export function freeRentRange(start: CalendarDate, months: number): { from: CalendarDate; to: CalendarDate } {
+export function freeRentRange(
+  start: CalendarDate,
+  months: number,
+): { from: CalendarDate; to: CalendarDate } {
   const wholeMonths = Math.floor(months);
   const fraction = months - wholeMonths;
   let endExclusive = addMonths(start, wholeMonths);

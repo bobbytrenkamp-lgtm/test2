@@ -205,7 +205,10 @@ function NewPropertyForm({ onCreated }: { onCreated: () => void }): JSX.Element 
           </select>
         </Field>
         <Field label="City">
-          <input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} />
+          <input
+            value={form.city}
+            onChange={(event) => setForm({ ...form, city: event.target.value })}
+          />
         </Field>
         <Field label="State or region">
           <input

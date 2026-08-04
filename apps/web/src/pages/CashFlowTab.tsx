@@ -58,14 +58,21 @@ export function CashFlowTab(): JSX.Element {
     'cre.cashflow.granularity',
     'annual',
   );
-  const [inspect, setInspect] = useState<{ line: string; period: number; label: string } | null>(null);
+  const [inspect, setInspect] = useState<{ line: string; period: number; label: string } | null>(
+    null,
+  );
 
   if (cashFlowError) {
     return (
       <EmptyState
         title="Not calculated yet"
         action={
-          <button type="button" className="primary" onClick={() => void calculate(true)} disabled={calculating}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void calculate(true)}
+            disabled={calculating}
+          >
             {calculating ? 'Calculating…' : 'Run the calculation'}
           </button>
         }
@@ -89,7 +96,9 @@ export function CashFlowTab(): JSX.Element {
       }));
 
   const valueAt = (line: CashFlowLine, index: number): string =>
-    isAnnual ? (cashFlow.annual[index]?.lines[line] ?? '0') : (cashFlow.monthly[line]?.[index] ?? '0');
+    isAnnual
+      ? (cashFlow.annual[index]?.lines[line] ?? '0')
+      : (cashFlow.monthly[line]?.[index] ?? '0');
 
   const noiByYear = cashFlow.annual.map((row) => Number(row.lines.netOperatingIncome));
   const occupancyByYear = cashFlow.annual.map((row) => {
@@ -128,8 +137,8 @@ export function CashFlowTab(): JSX.Element {
           </div>
           <div className="spacer" />
           <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-            Engine {cashFlow.engineVersion} · {columns.length} periods · select any figure to see how
-            it was calculated
+            Engine {cashFlow.engineVersion} · {columns.length} periods · select any figure to see
+            how it was calculated
           </span>
         </div>
 

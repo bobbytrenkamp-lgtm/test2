@@ -169,7 +169,15 @@ describe('header detection', () => {
 });
 
 describe('row mapping', () => {
-  const headers = ['Suite', 'Tenant Name', 'Square Feet', 'Lease Start', 'Lease End', 'Annual Rent', 'Type'];
+  const headers = [
+    'Suite',
+    'Tenant Name',
+    'Square Feet',
+    'Lease Start',
+    'Lease End',
+    'Annual Rent',
+    'Type',
+  ];
   const mapping = suggestMapping(headers);
 
   it('maps a clean rent roll', () => {
@@ -229,7 +237,10 @@ describe('row mapping', () => {
 
   it('reports a required field that was never mapped', () => {
     const { area: _area, ...withoutArea } = mapping;
-    const result = mapRows([['501', 'No Area Co', '', '2026-01-01', '2031-12-31', '1', '']], withoutArea);
+    const result = mapRows(
+      [['501', 'No Area Co', '', '2026-01-01', '2031-12-31', '1', '']],
+      withoutArea,
+    );
     const error = result.issues.find((issue) => issue.field === 'area' && issue.rowIndex === -1);
     expect(error?.severity).toBe('error');
     expect(error?.message).toMatch(/required/i);

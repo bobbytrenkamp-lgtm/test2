@@ -261,8 +261,8 @@ describe('Fixture 11: amortizing loan replaced by a refinancing', () => {
     expect(Number(original?.rows[23]?.beginningBalance)).toBeCloseTo(afterPayments(23), 2);
     // The balloon repays whatever is left after the twenty-fourth payment.
     expect(Number(original?.rows[23]?.endingBalance)).toBe(0);
-    const payoff = Number(original?.rows[23]?.beginningBalance) -
-      Number(original?.rows[23]?.principal);
+    const payoff =
+      Number(original?.rows[23]?.beginningBalance) - Number(original?.rows[23]?.principal);
     expect(payoff).toBeCloseTo(afterPayments(24), 2);
   });
 

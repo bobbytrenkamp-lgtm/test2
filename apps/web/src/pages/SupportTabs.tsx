@@ -15,7 +15,12 @@ export function ValidationTab(): JSX.Element {
       <EmptyState
         title="Not calculated yet"
         action={
-          <button type="button" className="primary" onClick={() => void calculate(true)} disabled={calculating}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void calculate(true)}
+            disabled={calculating}
+          >
             Run the calculation
           </button>
         }
@@ -76,22 +81,44 @@ export function ValidationTab(): JSX.Element {
           <h2>Expense recovery workings</h2>
           <div className="table-scroll" style={{ maxHeight: 420 }}>
             <table>
-              <caption className="visually-hidden">Recovery detail by lease and fiscal year</caption>
+              <caption className="visually-hidden">
+                Recovery detail by lease and fiscal year
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Lease</th>
                   <th scope="col">Year</th>
                   <th scope="col">Structure</th>
-                  <th scope="col" className="numeric">Tenant area</th>
-                  <th scope="col" className="numeric">Denominator</th>
-                  <th scope="col" className="numeric">Pro-rata</th>
-                  <th scope="col" className="numeric">Pool</th>
-                  <th scope="col" className="numeric">Grossed up</th>
-                  <th scope="col" className="numeric">Base year</th>
-                  <th scope="col" className="numeric">Stop</th>
-                  <th scope="col" className="numeric">Admin fee</th>
-                  <th scope="col" className="numeric">Cap adjustment</th>
-                  <th scope="col" className="numeric">Recovery</th>
+                  <th scope="col" className="numeric">
+                    Tenant area
+                  </th>
+                  <th scope="col" className="numeric">
+                    Denominator
+                  </th>
+                  <th scope="col" className="numeric">
+                    Pro-rata
+                  </th>
+                  <th scope="col" className="numeric">
+                    Pool
+                  </th>
+                  <th scope="col" className="numeric">
+                    Grossed up
+                  </th>
+                  <th scope="col" className="numeric">
+                    Base year
+                  </th>
+                  <th scope="col" className="numeric">
+                    Stop
+                  </th>
+                  <th scope="col" className="numeric">
+                    Admin fee
+                  </th>
+                  <th scope="col" className="numeric">
+                    Cap adjustment
+                  </th>
+                  <th scope="col" className="numeric">
+                    Recovery
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -147,7 +174,8 @@ export function ReportsTab(): JSX.Element {
     return <EmptyState title="Not calculated yet">{cashFlowError}</EmptyState>;
   }
 
-  const propertyReports = reports.data?.reports.filter((report) => report.category === 'property') ?? [];
+  const propertyReports =
+    reports.data?.reports.filter((report) => report.category === 'property') ?? [];
 
   return (
     <>
@@ -662,7 +690,9 @@ export function ImportsTab(): JSX.Element {
                     <tr key={index}>
                       <td>{issue.rowIndex >= 0 ? issue.rowIndex + 1 : 'File'}</td>
                       <td>
-                        <span className={`badge ${issue.severity === 'error' ? 'negative' : 'warning'}`}>
+                        <span
+                          className={`badge ${issue.severity === 'error' ? 'negative' : 'warning'}`}
+                        >
                           {titleCase(issue.severity)}
                         </span>
                       </td>

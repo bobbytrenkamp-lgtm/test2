@@ -42,7 +42,9 @@ async function request<T>(
     let message = `Request failed (${response.status}).`;
     let details: unknown;
     try {
-      const payload = (await response.json()) as { error?: { code: string; message: string; details?: unknown } };
+      const payload = (await response.json()) as {
+        error?: { code: string; message: string; details?: unknown };
+      };
       if (payload.error) {
         code = payload.error.code;
         message = payload.error.message;

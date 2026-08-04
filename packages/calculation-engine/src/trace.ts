@@ -88,7 +88,9 @@ export class TraceRecorder {
 }
 
 /** Convenience for building the `inputs` map of a trace entry. */
-export function traceInputs(values: Record<string, DecimalInput | string | number>): Record<string, string> {
+export function traceInputs(
+  values: Record<string, DecimalInput | string | number>,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     if (value === null || value === undefined) {

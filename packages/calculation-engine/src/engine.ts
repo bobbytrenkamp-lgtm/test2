@@ -156,7 +156,12 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
 
   for (const space of revenueSpaces) {
     const occupancy = spaceOccupancy.get(space.id) ?? zeros(n);
-    const profile = resolveProfile(rolloverCtx, space.marketLeasingProfileId, [space.id], `space:${space.id}`);
+    const profile = resolveProfile(
+      rolloverCtx,
+      space.marketLeasingProfileId,
+      [space.id],
+      `space:${space.id}`,
+    );
     for (let i = 0; i < n; i += 1) {
       const period = calendar.periods[i];
       if (!period) continue;
@@ -221,32 +226,44 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
   /* --------------------------------------------------------------------- */
 
   let effectiveGrossRevenue = zeros(n);
-  let expenseSeries = computeExpenseSeries(input.expenses, {
-    calendar,
-    curves,
-    trace,
-    rentableArea: totalRentableArea,
-    unitCount,
-    occupancy: physicalOccupancy,
-    effectiveGrossRevenue,
-    baseRent: scheduledBaseRent,
-  }, false);
-  let recoveries = computeRecoveries(occurrenceSeries, {
-    calendar,
-    expenses: expenseSeries,
-    denominatorArea: totalRentableArea,
-    occupancy: physicalOccupancy,
-    trace,
-  }, false);
-  let otherPropertyRevenue = computeOtherPropertyRevenue(input.otherRevenue, {
-    calendar,
-    curves,
-    rentableArea: totalRentableArea,
-    unitCount,
-    occupancy: physicalOccupancy,
-    baseRent: scheduledBaseRent,
-    trace,
-  }, false);
+  let expenseSeries = computeExpenseSeries(
+    input.expenses,
+    {
+      calendar,
+      curves,
+      trace,
+      rentableArea: totalRentableArea,
+      unitCount,
+      occupancy: physicalOccupancy,
+      effectiveGrossRevenue,
+      baseRent: scheduledBaseRent,
+    },
+    false,
+  );
+  let recoveries = computeRecoveries(
+    occurrenceSeries,
+    {
+      calendar,
+      expenses: expenseSeries,
+      denominatorArea: totalRentableArea,
+      occupancy: physicalOccupancy,
+      trace,
+    },
+    false,
+  );
+  let otherPropertyRevenue = computeOtherPropertyRevenue(
+    input.otherRevenue,
+    {
+      calendar,
+      curves,
+      rentableArea: totalRentableArea,
+      unitCount,
+      occupancy: physicalOccupancy,
+      baseRent: scheduledBaseRent,
+      trace,
+    },
+    false,
+  );
 
   let grossPotentialRevenue = zeros(n);
   let generalVacancy = zeros(n);
@@ -285,32 +302,44 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     effectiveGrossRevenue = nextEgr;
 
     const isFinalPass = delta.lessThan(SOLVER_TOLERANCE);
-    expenseSeries = computeExpenseSeries(input.expenses, {
-      calendar,
-      curves,
-      trace,
-      rentableArea: totalRentableArea,
-      unitCount,
-      occupancy: physicalOccupancy,
-      effectiveGrossRevenue,
-      baseRent: scheduledBaseRent,
-    }, recordTrace && isFinalPass);
-    recoveries = computeRecoveries(occurrenceSeries, {
-      calendar,
-      expenses: expenseSeries,
-      denominatorArea: totalRentableArea,
-      occupancy: physicalOccupancy,
-      trace,
-    }, recordTrace && isFinalPass);
-    otherPropertyRevenue = computeOtherPropertyRevenue(input.otherRevenue, {
-      calendar,
-      curves,
-      rentableArea: totalRentableArea,
-      unitCount,
-      occupancy: physicalOccupancy,
-      baseRent: scheduledBaseRent,
-      trace,
-    }, recordTrace && isFinalPass);
+    expenseSeries = computeExpenseSeries(
+      input.expenses,
+      {
+        calendar,
+        curves,
+        trace,
+        rentableArea: totalRentableArea,
+        unitCount,
+        occupancy: physicalOccupancy,
+        effectiveGrossRevenue,
+        baseRent: scheduledBaseRent,
+      },
+      recordTrace && isFinalPass,
+    );
+    recoveries = computeRecoveries(
+      occurrenceSeries,
+      {
+        calendar,
+        expenses: expenseSeries,
+        denominatorArea: totalRentableArea,
+        occupancy: physicalOccupancy,
+        trace,
+      },
+      recordTrace && isFinalPass,
+    );
+    otherPropertyRevenue = computeOtherPropertyRevenue(
+      input.otherRevenue,
+      {
+        calendar,
+        curves,
+        rentableArea: totalRentableArea,
+        unitCount,
+        occupancy: physicalOccupancy,
+        baseRent: scheduledBaseRent,
+        trace,
+      },
+      recordTrace && isFinalPass,
+    );
 
     if (isFinalPass) {
       converged = true;
@@ -360,13 +389,17 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
   /* Capital and unlevered cash flow                                       */
   /* --------------------------------------------------------------------- */
 
-  const capital = computeCapital(input.capital, {
-    calendar,
-    curves,
-    rentableArea: totalRentableArea,
-    unitCount,
-    trace,
-  }, recordTrace);
+  const capital = computeCapital(
+    input.capital,
+    {
+      calendar,
+      curves,
+      rentableArea: totalRentableArea,
+      unitCount,
+      trace,
+    },
+    recordTrace,
+  );
   const capitalizedExpenses = totalExpenses(expenseSeries, n, true);
   const capitalExpenditures = capital.total.map((value, i) =>
     value.plus(capitalizedExpenses[i] as Decimal),
@@ -404,23 +437,27 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     ? d(input.valuation.acquisitionPrice)
     : concludedValue;
   const acquisitionCosts = d(input.valuation.acquisitionCosts);
-  const totalCost = acquisitionBasis.plus(acquisitionCosts).plus(
-    capital.total.reduce((acc, v) => acc.plus(v), ZERO),
-  );
+  const totalCost = acquisitionBasis
+    .plus(acquisitionCosts)
+    .plus(capital.total.reduce((acc, v) => acc.plus(v), ZERO));
 
   /* --------------------------------------------------------------------- */
   /* Debt                                                                  */
   /* --------------------------------------------------------------------- */
 
-  const debt = computeDebt(input.debt, {
-    calendar,
-    curves,
-    trace,
-    noi: netOperatingIncome,
-    propertyValue: concludedValue,
-    totalCost,
-    saleIndex: sale?.saleIndex ?? null,
-  }, recordTrace);
+  const debt = computeDebt(
+    input.debt,
+    {
+      calendar,
+      curves,
+      trace,
+      noi: netOperatingIncome,
+      propertyValue: concludedValue,
+      totalCost,
+      saleIndex: sale?.saleIndex ?? null,
+    },
+    recordTrace,
+  );
 
   const grossSaleProceeds = zeros(n);
   const sellingCosts = zeros(n);
@@ -466,7 +503,9 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     ZERO,
   );
   const equityCashFlow = leveredCashFlow.map((cf, i) =>
-    i === 0 ? cf.minus(closingDebt).minus(sponsorFees.total[i] as Decimal) : cf.minus(sponsorFees.total[i] as Decimal),
+    i === 0
+      ? cf.minus(closingDebt).minus(sponsorFees.total[i] as Decimal)
+      : cf.minus(sponsorFees.total[i] as Decimal),
   );
 
   const waterfall = computeWaterfall({
@@ -547,7 +586,9 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
       availableArea: vacant.toFixed(4),
       physicalVacantArea: vacant.toFixed(4),
       physicalOccupancyPercent: (physicalOccupancy[i] as Decimal).toFixed(8),
-      economicOccupancyPercent: potential.isZero() ? '0.00000000' : egr.dividedBy(potential).toFixed(8),
+      economicOccupancyPercent: potential.isZero()
+        ? '0.00000000'
+        : egr.dividedBy(potential).toFixed(8),
     };
   });
 
@@ -720,18 +761,21 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
   const horizon = saleIndex + 1;
   const initialOutflow = acquisitionBasis.plus(acquisitionCosts).negated();
 
-  const unleveredFlows = unleveredCashFlow.slice(0, horizon).map((cf, i) =>
-    sale && i === sale.saleIndex ? cf.plus(sale.netSaleProceeds) : cf,
-  );
-  const leveredFlows = leveredCashFlow.slice(0, horizon).map((cf, i) =>
-    i === 0 ? cf.minus(closingDebt) : cf,
-  );
+  const unleveredFlows = unleveredCashFlow
+    .slice(0, horizon)
+    .map((cf, i) => (sale && i === sale.saleIndex ? cf.plus(sale.netSaleProceeds) : cf));
+  const leveredFlows = leveredCashFlow
+    .slice(0, horizon)
+    .map((cf, i) => (i === 0 ? cf.minus(closingDebt) : cf));
 
   const unleveredIrr = irrMonthly(unleveredFlows, initialOutflow);
   const leveredIrr = irrMonthly(leveredFlows, initialEquity.negated());
 
   const datedUnlevered = [
-    { date: calendar.periods[0]?.start ?? { year: 2000, month: 1, day: 1 }, amount: initialOutflow },
+    {
+      date: calendar.periods[0]?.start ?? { year: 2000, month: 1, day: 1 },
+      amount: initialOutflow,
+    },
     ...unleveredFlows.map((amount, i) => ({
       date: calendar.periods[i]?.end ?? { year: 2000, month: 1, day: 1 },
       amount,
@@ -811,9 +855,7 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
     debtYieldYear1: toStringOrNull(safeDivide(year1Noi, debtBalanceYear1)),
     loanToValue: toStringOrNull(safeDivide(closingDebt, concludedValue)),
     loanToCost: toStringOrNull(safeDivide(closingDebt, totalCost)),
-    breakevenOccupancy: toStringOrNull(
-      breakevenOccupancy(year1Gpr, year1Opex, year1DebtService),
-    ),
+    breakevenOccupancy: toStringOrNull(breakevenOccupancy(year1Gpr, year1Opex, year1DebtService)),
     valuePerArea: toStringOrNull(safeDivide(concludedValue, totalRentableArea)),
     valuePerUnit: unitCount === 0 ? null : concludedValue.dividedBy(unitCount).toString(),
   };
@@ -861,7 +903,10 @@ function detectOverlaps(
     if (entries.length < 2) continue;
     const periods = entries[0]?.occupancyFraction.length ?? 0;
     for (let i = 0; i < periods; i += 1) {
-      const total = entries.reduce((acc, entry) => acc.plus(entry.occupancyFraction[i] ?? ZERO), ZERO);
+      const total = entries.reduce(
+        (acc, entry) => acc.plus(entry.occupancyFraction[i] ?? ZERO),
+        ZERO,
+      );
       if (total.greaterThan('1.0001')) {
         trace.error(
           'SPACE_DOUBLE_LET',

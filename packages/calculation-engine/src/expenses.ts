@@ -127,7 +127,11 @@ export function computeExpenseSeries(
 }
 
 /** Sums an expense series into one total per period. */
-export function totalExpenses(series: ExpenseSeries[], periods: number, includeCapitalized: boolean): Decimal[] {
+export function totalExpenses(
+  series: ExpenseSeries[],
+  periods: number,
+  includeCapitalized: boolean,
+): Decimal[] {
   const total = zeros(periods);
   for (const item of series) {
     if (!includeCapitalized && item.expense.isCapitalized) continue;

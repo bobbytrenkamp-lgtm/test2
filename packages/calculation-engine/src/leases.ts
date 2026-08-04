@@ -51,7 +51,12 @@ export interface LeaseOccurrence {
   freeRent: Array<{ from: CalendarDate; to: CalendarDate; share: Decimal; appliesTo: string[] }>;
   percentageRent: Lease['percentageRent'] | null;
   recovery: RecoveryConfig;
-  otherRevenue: Array<{ id: string; name: string; monthlyAmount: Decimal; growthCurveId?: string | null }>;
+  otherRevenue: Array<{
+    id: string;
+    name: string;
+    monthlyAmount: Decimal;
+    growthCurveId?: string | null;
+  }>;
   /** Tenant improvement cost, already weighted, with its payment date. */
   tiCost: Decimal;
   lcCost: Decimal;
@@ -202,7 +207,11 @@ export function resolveProfile(
   }
   if (ctx.defaultProfileId && ctx.profiles.has(ctx.defaultProfileId)) {
     const profile = ctx.profiles.get(ctx.defaultProfileId) as MarketLeasingProfile;
-    candidates.push({ id: ctx.defaultProfileId, source: 'model_default', precedence: profile.precedence });
+    candidates.push({
+      id: ctx.defaultProfileId,
+      source: 'model_default',
+      precedence: profile.precedence,
+    });
   }
   if (candidates.length === 0) {
     ctx.trace.warn(
@@ -377,14 +386,20 @@ function rolloverBranches(
     const market = marketRentAt(profile, spec.start, ctx);
     const id = `${parent.id}>${spec.scenario}@${formatDate(spec.start)}`;
 
-    const monthlyRent = monthlyRentFromBasis(market.amount, market.basis, parent.area, parent.unitCount);
+    const monthlyRent = monthlyRentFromBasis(
+      market.amount,
+      market.basis,
+      parent.area,
+      parent.unitCount,
+    );
     const lcCost = spec.lcPercent.times(monthlyRent).times(spec.termMonths);
 
     branches.push({
       id,
       sourceLeaseId: parent.sourceLeaseId,
       tenantId: spec.scenario === 'renewal' ? parent.tenantId : `market:${profile.id}`,
-      tenantName: spec.scenario === 'renewal' ? parent.tenantName : `Market tenant (${profile.name})`,
+      tenantName:
+        spec.scenario === 'renewal' ? parent.tenantName : `Market tenant (${profile.name})`,
       scenario: spec.scenario,
       weight: spec.weight,
       generation: parent.generation + 1,
@@ -646,7 +661,10 @@ export function computeOccurrenceSeries(
           weight: occurrence.weight,
           coverage: rent.coverage,
           segments: rent.segments
-            .map((s) => `${s.from}..${s.to} @ ${s.monthlyAmount}/mo x ${s.coverage} (${s.anchorSource}, ${s.escalationCount} escalations)`)
+            .map(
+              (s) =>
+                `${s.from}..${s.to} @ ${s.monthlyAmount}/mo x ${s.coverage} (${s.anchorSource}, ${s.escalationCount} escalations)`,
+            )
             .join(' | '),
         }),
         result: (baseRent[i] as Decimal).toString(),

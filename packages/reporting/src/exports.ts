@@ -61,7 +61,9 @@ export async function reportToWorkbook(tables: ReportTable[]): Promise<Buffer> {
     }
 
     if (table.totals) {
-      const values = table.columns.map((column) => coerce(table.totals?.[column.key], column.format));
+      const values = table.columns.map((column) =>
+        coerce(table.totals?.[column.key], column.format),
+      );
       const totalsRow = sheet.addRow(values);
       totalsRow.font = { bold: true };
       totalsRow.border = { top: { style: 'thin' } };

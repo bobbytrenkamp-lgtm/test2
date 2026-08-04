@@ -139,10 +139,7 @@ export function buildCalendar(forecast: Forecast): ForecastCalendar {
   for (let i = 0; i < forecast.months; i += 1) {
     const periodStart = addMonths(start, i);
     const periodEnd = lastOfMonth(periodStart);
-    const { fiscalYear, fiscalPeriod } = fiscalPosition(
-      periodStart,
-      forecast.fiscalYearStartMonth,
-    );
+    const { fiscalYear, fiscalPeriod } = fiscalPosition(periodStart, forecast.fiscalYearStartMonth);
     periods.push({
       index: i + 1,
       startDate: formatDate(periodStart),
@@ -180,7 +177,12 @@ export function fiscalPosition(
   fiscalYearStartMonth: number,
 ): { fiscalYear: number; fiscalPeriod: number } {
   const offset = (date.month - fiscalYearStartMonth + 12) % 12;
-  const fiscalYear = fiscalYearStartMonth === 1 ? date.year : date.month >= fiscalYearStartMonth ? date.year + 1 : date.year;
+  const fiscalYear =
+    fiscalYearStartMonth === 1
+      ? date.year
+      : date.month >= fiscalYearStartMonth
+        ? date.year + 1
+        : date.year;
   return { fiscalYear, fiscalPeriod: offset + 1 };
 }
 

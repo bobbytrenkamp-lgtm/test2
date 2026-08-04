@@ -25,7 +25,9 @@ export function npvMonthly(
 ): Decimal {
   let total = initial;
   for (let i = 0; i < cashFlows.length; i += 1) {
-    total = total.plus((cashFlows[i] as Decimal).times(discountFactor(annualRate, i + 1, convention)));
+    total = total.plus(
+      (cashFlows[i] as Decimal).times(discountFactor(annualRate, i + 1, convention)),
+    );
   }
   return total;
 }
@@ -35,7 +37,8 @@ export function discountFactor(
   periodIndex: number,
   convention: 'end_of_period' | 'mid_period' = 'end_of_period',
 ): Decimal {
-  const exponent = convention === 'mid_period' ? new Decimal(periodIndex).minus('0.5') : new Decimal(periodIndex);
+  const exponent =
+    convention === 'mid_period' ? new Decimal(periodIndex).minus('0.5') : new Decimal(periodIndex);
   const base = ONE.plus(annualRate);
   if (base.lessThanOrEqualTo(0)) return ZERO;
   return base.pow(exponent.dividedBy(12).negated());
@@ -52,10 +55,7 @@ const IRR_MAX_ITERATIONS = 200;
  *
  * Returns null when the cash flows never change sign, since no rate solves it.
  */
-export function irrMonthly(
-  cashFlows: Decimal[],
-  initial: Decimal = ZERO,
-): Decimal | null {
+export function irrMonthly(cashFlows: Decimal[], initial: Decimal = ZERO): Decimal | null {
   const all = [initial, ...cashFlows];
   const hasPositive = all.some((v) => v.greaterThan(0));
   const hasNegative = all.some((v) => v.lessThan(0));

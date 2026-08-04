@@ -15,7 +15,8 @@ export function AssumptionsTab(): JSX.Element {
   const { model, reloadCashFlow } = useModelContext();
   const { can } = useSession();
   const editable =
-    can('model:write') && !['approved', 'published', 'superseded', 'archived'].includes(model.status);
+    can('model:write') &&
+    !['approved', 'published', 'superseded', 'archived'].includes(model.status);
 
   return (
     <>
@@ -109,7 +110,12 @@ export function AssumptionsTab(): JSX.Element {
           { key: 'code', label: 'Code' },
           { key: 'name', label: 'Name' },
           { key: 'market_rent', label: 'Market rent', numeric: true },
-          { key: 'renewal_probability', label: 'Renewal probability', numeric: true, percent: true },
+          {
+            key: 'renewal_probability',
+            label: 'Renewal probability',
+            numeric: true,
+            percent: true,
+          },
           { key: 'downtime_months', label: 'Downtime', numeric: true },
           { key: 'new_free_rent_months', label: 'New free rent', numeric: true },
           { key: 'new_ti_per_area', label: 'New TI', numeric: true },
@@ -349,8 +355,13 @@ function Collection({
   function beginEdit(row: Record<string, unknown> | null): void {
     setParseError(null);
     if (row) {
-      const { id: _id, model_id: _modelId, created_at: _createdAt, updated_at: _updatedAt, ...rest } =
-        row as Record<string, unknown>;
+      const {
+        id: _id,
+        model_id: _modelId,
+        created_at: _createdAt,
+        updated_at: _updatedAt,
+        ...rest
+      } = row as Record<string, unknown>;
       setEditing(String(row.code));
       setDraft(JSON.stringify(toCamel(rest), null, 2));
     } else {
@@ -370,7 +381,9 @@ function Collection({
     }
     const code = String(body.code ?? editing ?? '');
     if (!code) {
-      setParseError('A "code" is required. It is the stable identifier used in traces and reports.');
+      setParseError(
+        'A "code" is required. It is the stable identifier used in traces and reports.',
+      );
       return;
     }
     if (await save.run(code, body)) {

@@ -1,0 +1,140 @@
+# Import specification
+
+## Principles
+
+**Deterministic first.** Every rule is pattern matching and normalisation a user
+can see and correct. Nothing is inferred by a model.
+
+**Nothing leaves the deployment.** Uploaded financial documents are parsed
+in-process and contact no external service. Any future AI-assisted mapping is a
+separate, explicitly enabled, provider-abstracted path — never the default.
+
+**Never guess silently.** An ambiguous date is imported *and flagged*. An
+unreadable number is an error, not a zero.
+
+## The pipeline
+
+```
+upload → analyse → map → validate → commit → audit
+```
+
+Each step is a separate API call, so a mapping can be corrected before anything
+is written.
+
+### 1. Analyse — `POST /models/:id/imports/analyze`
+
+Parses the file, locates the header row, and proposes a mapping.
+
+**Delimiter detection** scores `,` `;` tab `|` on which produces the most
+consistent column count across the first 20 lines.
+
+**Header detection** scores each of the first 25 rows on `recognisedColumns × 3
++ filledCells`. Rent rolls routinely carry a title block, a logo row and a date
+stamp above the real headers, so the first row is rarely the header.
+
+**Mapping suggestion** matches each header against field synonyms — exact match
+scores 100, prefix 70+, substring 40+ — and never assigns one column to two
+fields.
+
+### 2. Validate — `POST /models/:id/imports/validate`
+
+Normalises every row and returns findings. Writes nothing.
+
+### 3. Commit — `POST /models/:id/imports/commit`
+
+Imports in one transaction. Rows with error-level findings are **never
+imported**; the caller must fix them or explicitly pass `skipRowsWithErrors`.
+Tenants are matched by name within the property before a new one is created, so
+re-importing an updated rent roll does not duplicate them. Leases upsert by
+code, so re-import updates rather than duplicating.
+
+## Recognised fields
+
+Required: suite/space, tenant, area, commencement, expiration, base rent.
+Optional: lease reference, property, building, floor, status, units, rent start,
+rent basis, recovery structure, security deposit, TI allowance, leasing
+commission, notes.
+
+Synonyms cover the vocabulary these files actually use — `SF`, `Sq Ft`, `NRA`,
+`GLA`, `Rentable`, `Size` for area; `Expir`, `End`, `Lease End`, `Termination`,
+`Expiry` for expiration; `Passing Rent`, `Rent PSF`, `Annual Rent` for base rent.
+
+## Normalisation rules
+
+### Numbers
+
+Handles currency symbols, thousands separators, trailing units and parenthesised
+negatives.
+
+**Separator disambiguation:**
+
+- Both `,` and `.` present → the **last** one is the decimal separator.
+  `1.234,50` → 1234.50; `1,234.50` → 1234.50.
+- Only one present, appearing more than once → thousands separator.
+- Only one present, appearing once, followed by **exactly three digits** →
+  thousands separator. `12,500` → 12500; `1.500` → 1500.
+- Otherwise → decimal separator. `1234.50` → 1234.50.
+
+> The three-digit rule is a documented judgement call. `1.500` on a rent roll is
+> far more likely to be fifteen hundred than one and a half. A file that means
+> 1.5 must write `1.50`.
+
+`N/A`, `none`, `-`, `—`, `TBD` and blanks return null — a missing value, not
+zero.
+
+### Dates
+
+| Input | Reading |
+| --- | --- |
+| `2026-03-04` | ISO, unambiguous |
+| `45658` | Excel serial (1899-12-30 epoch), unambiguous |
+| `1 Mar 2026`, `March 15, 2026`, `15-Jun-27` | Named month, unambiguous |
+| `25/12/2026` | Day > 12, so unambiguous |
+| `03/04/2026` | **Ambiguous** — resolved by the caller's `datePreference`, and flagged |
+
+Two-digit years below 70 map to 2000s, otherwise 1900s.
+
+### Vocabulary
+
+Status: `current`/`active`/`leased` → occupied; `available`/`empty` → vacant;
+`MTM`/`month to month` → month_to_month; and the direct matches.
+
+Recovery: `NNN`/`triple net` → triple_net; `base year` → base_year; `stop` →
+expense_stop; `full service`/`FSG`/`gross` → full_service_gross; unrecognised →
+none.
+
+### Rent basis
+
+Taken from a basis column when present. Otherwise inferred from magnitude: a
+rent **smaller than the area** is a per-area rate, larger is a total. The
+inference is surfaced for confirmation, never applied silently.
+
+## Findings
+
+| Severity | Blocks import | Examples |
+| --- | --- | --- |
+| Error | Yes | Required field unmapped; unreadable area or rent; unreadable date; expiration before commencement; duplicate lease reference; blank tenant on a non-vacant row |
+| Warning | No | Ambiguous date resolved by preference |
+
+A row that raises **any** error is excluded from the importable set, even when
+its individual values parsed — an inverted lease term is unusable however clean
+its dates.
+
+Rows blank in both suite and tenant are skipped silently: spacer rows are normal
+in these files and are not findings.
+
+## Audit
+
+Every batch records the file name, header row, detected columns, mapping, row
+count, imported count, errors and warnings in `import_batches`, and writes an
+audit entry with the imported and skipped counts.
+
+## Limitations
+
+- **Only CSV is parsed.** Excel `.xlsx` import is **not implemented**; exceljs is
+  present for writing, not wired for reading. Users must export to CSV first.
+- No rollback after commit. The import is transactional, so it fully applies or
+  fully fails, but there is no undo afterwards.
+- One sheet at a time.
+- Rent steps, options and recovery detail are not imported — only the fields
+  above.

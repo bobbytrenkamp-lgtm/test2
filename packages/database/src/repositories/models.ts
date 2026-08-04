@@ -57,7 +57,11 @@ function toIsoDate(value: string | Date | null): string | null {
   return value.slice(0, 10);
 }
 
-export async function getModel(sql: Sql, organizationId: string, modelId: string): Promise<ModelRow | null> {
+export async function getModel(
+  sql: Sql,
+  organizationId: string,
+  modelId: string,
+): Promise<ModelRow | null> {
   const rows = (await sql`
     SELECT * FROM models
     WHERE id = ${modelId} AND organization_id = ${organizationId} AND deleted_at IS NULL
@@ -135,9 +139,7 @@ export async function buildModelInput(
   const profiles = (await sql`
     SELECT * FROM market_leasing_profiles WHERE model_id = ${modelId} ORDER BY code
   `) as unknown as Array<Record<string, unknown>>;
-  const profileCodeById = new Map(
-    profiles.map((row) => [row.id as string, row.code as string]),
-  );
+  const profileCodeById = new Map(profiles.map((row) => [row.id as string, row.code as string]));
 
   const curves = (await sql`
     SELECT code, name, default_rate, by_year FROM growth_curves WHERE model_id = ${modelId} ORDER BY code

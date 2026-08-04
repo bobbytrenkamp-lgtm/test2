@@ -132,9 +132,9 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     }
     const status = (error as { statusCode?: number }).statusCode;
     if (status === 429) {
-      return reply
-        .status(429)
-        .send({ error: { code: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' } });
+      return reply.status(429).send({
+        error: { code: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' },
+      });
     }
 
     // A client error raised by the framework itself (a malformed body, an

@@ -57,9 +57,7 @@ export const growthCurveSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   defaultRate: decimalString.default('0'),
-  byYear: z
-    .array(z.object({ year: z.number().int().min(1), rate: decimalString }))
-    .default([]),
+  byYear: z.array(z.object({ year: z.number().int().min(1), rate: decimalString })).default([]),
 });
 export type GrowthCurve = z.infer<typeof growthCurveSchema>;
 
@@ -173,15 +171,7 @@ export type RecoveryConfig = z.infer<typeof recoveryConfigSchema>;
 
 export const leaseOptionSchema = z.object({
   id: z.string().min(1),
-  type: z.enum([
-    'renewal',
-    'expansion',
-    'contraction',
-    'termination',
-    'purchase',
-    'rofr',
-    'rofo',
-  ]),
+  type: z.enum(['renewal', 'expansion', 'contraction', 'termination', 'purchase', 'rofr', 'rofo']),
   exerciseDate: isoDate,
   noticeDate: isoDate.nullish(),
   /** Probability the option is exercised, "0".."1". */
@@ -448,7 +438,13 @@ export type DebtFacility = z.infer<typeof debtFacilitySchema>;
 export const waterfallTierSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(['preferred_return', 'return_of_capital', 'catch_up', 'residual_split', 'irr_hurdle']),
+  type: z.enum([
+    'preferred_return',
+    'return_of_capital',
+    'catch_up',
+    'residual_split',
+    'irr_hurdle',
+  ]),
   /** Annual hurdle rate for preferred_return / irr_hurdle tiers. */
   hurdleRate: decimalString.nullish(),
   compounding: z.boolean().default(true),
@@ -479,7 +475,13 @@ export const equityStructureSchema = z.object({
       z.object({
         id: z.string().min(1),
         name: z.string().min(1),
-        type: z.enum(['acquisition', 'asset_management', 'development', 'disposition', 'refinance']),
+        type: z.enum([
+          'acquisition',
+          'asset_management',
+          'development',
+          'disposition',
+          'refinance',
+        ]),
         /** Fraction of the fee basis. */
         percent: decimalString,
         recipientPartnerId: z.string().nullish(),

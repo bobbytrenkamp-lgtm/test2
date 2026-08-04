@@ -28,7 +28,12 @@ export function baseModel(overrides: Partial<ModelInputDraft> = {}): ModelInput 
     modelName: 'Fixture model',
     currency: 'USD',
     areaUnit: 'sqft',
-    forecast: { startDate: '2026-01-01', months: 12, fiscalYearStartMonth: 1, proration: 'actual_days' },
+    forecast: {
+      startDate: '2026-01-01',
+      months: 12,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
     property: {
       id: 'P1',
       name: 'Fixture Property',
@@ -37,7 +42,12 @@ export function baseModel(overrides: Partial<ModelInputDraft> = {}): ModelInput 
       unitCount: 0,
       ownershipPercent: '1',
     },
-    valuation: { discountRate: '0.08', saleCostPercent: '0', directCapAdjustments: '0', acquisitionCosts: '0' },
+    valuation: {
+      discountRate: '0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+    },
     ...overrides,
   });
 }

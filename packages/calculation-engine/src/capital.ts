@@ -49,7 +49,11 @@ export function computeCapital(
 
       if (item.method === 'one_time') {
         // A one-time cost lands in the period containing its start date.
-        if (start && compareDates(start, period.start) >= 0 && compareDates(start, period.end) <= 0) {
+        if (
+          start &&
+          compareDates(start, period.start) >= 0 &&
+          compareDates(start, period.end) <= 0
+        ) {
           series[i] = d(item.amount).times(growth);
         }
         continue;

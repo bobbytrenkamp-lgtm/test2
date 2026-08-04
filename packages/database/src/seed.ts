@@ -179,15 +179,64 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
     expirationDate: '2029-03-31',
     baseRent: '7.10',
     baseRentBasis: 'per_area_per_year',
-    escalation: { type: 'fixed_percent', rate: '0.03', frequencyMonths: 12, firstEscalationDate: '2026-04-01' },
+    escalation: {
+      type: 'fixed_percent',
+      rate: '0.03',
+      frequencyMonths: 12,
+      firstEscalationDate: '2026-04-01',
+    },
     recovery: { method: 'triple_net', adminFeePercent: '0.03' },
   });
 
-  await upsertExpense(sql, { modelId: industrialModel, code: 'TAX', name: 'Property taxes', category: 'taxes', method: 'per_area_per_year', amount: '0.72', growthCurve: 'CPI', recoverableShare: '1' });
-  await upsertExpense(sql, { modelId: industrialModel, code: 'INS', name: 'Insurance', category: 'insurance', method: 'per_area_per_year', amount: '0.16', growthCurve: 'CPI', recoverableShare: '1' });
-  await upsertExpense(sql, { modelId: industrialModel, code: 'CAM', name: 'Common area maintenance', category: 'cam', method: 'per_area_per_year', amount: '0.38', growthCurve: 'CPI', recoverableShare: '1', variableShare: '0.25' });
-  await upsertExpense(sql, { modelId: industrialModel, code: 'MGT', name: 'Management fee', category: 'management', method: 'percent_of_effective_gross_revenue', amount: '0.025', recoverableShare: '1' });
-  await upsertCapitalItem(sql, { modelId: industrialModel, code: 'RESERVE', name: 'Replacement reserve', category: 'replacement_reserve', method: 'per_area_per_year', amount: '0.12', growthCurve: 'CPI' });
+  await upsertExpense(sql, {
+    modelId: industrialModel,
+    code: 'TAX',
+    name: 'Property taxes',
+    category: 'taxes',
+    method: 'per_area_per_year',
+    amount: '0.72',
+    growthCurve: 'CPI',
+    recoverableShare: '1',
+  });
+  await upsertExpense(sql, {
+    modelId: industrialModel,
+    code: 'INS',
+    name: 'Insurance',
+    category: 'insurance',
+    method: 'per_area_per_year',
+    amount: '0.16',
+    growthCurve: 'CPI',
+    recoverableShare: '1',
+  });
+  await upsertExpense(sql, {
+    modelId: industrialModel,
+    code: 'CAM',
+    name: 'Common area maintenance',
+    category: 'cam',
+    method: 'per_area_per_year',
+    amount: '0.38',
+    growthCurve: 'CPI',
+    recoverableShare: '1',
+    variableShare: '0.25',
+  });
+  await upsertExpense(sql, {
+    modelId: industrialModel,
+    code: 'MGT',
+    name: 'Management fee',
+    category: 'management',
+    method: 'percent_of_effective_gross_revenue',
+    amount: '0.025',
+    recoverableShare: '1',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: industrialModel,
+    code: 'RESERVE',
+    name: 'Replacement reserve',
+    category: 'replacement_reserve',
+    method: 'per_area_per_year',
+    amount: '0.12',
+    growthCurve: 'CPI',
+  });
   await upsertDebtFacility(sql, {
     modelId: industrialModel,
     code: 'SENIOR',
@@ -269,8 +318,22 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   });
   modelIds.office = officeModel;
 
-  await upsertGrowthCurve(sql, { modelId: officeModel, code: 'CPI', name: 'Inflation', defaultRate: '0.025' });
-  await upsertGrowthCurve(sql, { modelId: officeModel, code: 'MKT-OFF', name: 'Office market rent growth', defaultRate: '0.03', byYear: [{ year: 2, rate: '0.01' }, { year: 3, rate: '0.02' }] });
+  await upsertGrowthCurve(sql, {
+    modelId: officeModel,
+    code: 'CPI',
+    name: 'Inflation',
+    defaultRate: '0.025',
+  });
+  await upsertGrowthCurve(sql, {
+    modelId: officeModel,
+    code: 'MKT-OFF',
+    name: 'Office market rent growth',
+    defaultRate: '0.03',
+    byYear: [
+      { year: 2, rate: '0.01' },
+      { year: 3, rate: '0.02' },
+    ],
+  });
   await upsertMarketLeasingProfile(sql, {
     modelId: officeModel,
     code: 'MLA-OFF',
@@ -298,9 +361,36 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   `;
 
   const officeTenants = [
-    { name: 'Meridian Actuarial Group', industry: 'Insurance', space: 'SUITE-1200', area: '42500', start: '2021-07-01', end: '2028-06-30', rent: '33.75', recovery: { method: 'base_year', baseYear: 2026, grossUpPercent: '0.95' } },
-    { name: 'Bellweather Design Partners', industry: 'Professional services', space: 'SUITE-1400', area: '38200', start: '2023-01-01', end: '2032-12-31', rent: '35.00', recovery: { method: 'expense_stop', expenseStopPerArea: '11.25' } },
-    { name: 'Kestrel Analytics', industry: 'Technology', space: 'SUITE-1600', area: '51300', start: '2024-09-01', end: '2031-08-31', rent: '37.25', recovery: { method: 'base_year', baseYear: 2026 } },
+    {
+      name: 'Meridian Actuarial Group',
+      industry: 'Insurance',
+      space: 'SUITE-1200',
+      area: '42500',
+      start: '2021-07-01',
+      end: '2028-06-30',
+      rent: '33.75',
+      recovery: { method: 'base_year', baseYear: 2026, grossUpPercent: '0.95' },
+    },
+    {
+      name: 'Bellweather Design Partners',
+      industry: 'Professional services',
+      space: 'SUITE-1400',
+      area: '38200',
+      start: '2023-01-01',
+      end: '2032-12-31',
+      rent: '35.00',
+      recovery: { method: 'expense_stop', expenseStopPerArea: '11.25' },
+    },
+    {
+      name: 'Kestrel Analytics',
+      industry: 'Technology',
+      space: 'SUITE-1600',
+      area: '51300',
+      start: '2024-09-01',
+      end: '2031-08-31',
+      rent: '37.25',
+      recovery: { method: 'base_year', baseYear: 2026 },
+    },
   ];
   for (const tenant of officeTenants) {
     const record = await createTenant(sql, {
@@ -348,11 +438,52 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
       variableShare: expense[5] as string,
     });
   }
-  await upsertExpense(sql, { modelId: officeModel, code: 'MGT', name: 'Management fee', category: 'management', method: 'percent_of_effective_gross_revenue', amount: '0.03', recoverableShare: '1' });
-  await upsertOtherRevenue(sql, { modelId: officeModel, code: 'PARK', name: 'Parking income', category: 'parking', method: 'fixed_annual', amount: '612000', growthCurve: 'CPI', varyWithOccupancy: true });
-  await upsertOtherRevenue(sql, { modelId: officeModel, code: 'ANT', name: 'Rooftop antenna licences', category: 'antenna', method: 'fixed_annual', amount: '48000', growthCurve: 'CPI' });
-  await upsertCapitalItem(sql, { modelId: officeModel, code: 'RESERVE', name: 'Replacement reserve', category: 'replacement_reserve', method: 'per_area_per_year', amount: '0.30', growthCurve: 'CPI' });
-  await upsertCapitalItem(sql, { modelId: officeModel, code: 'LOBBY', name: 'Lobby and amenity repositioning', category: 'major_project', method: 'custom_monthly_schedule', amount: '1', monthlySchedule: Array.from({ length: 120 }, (_, i) => (i >= 2 && i < 10 ? '325000' : '0')) });
+  await upsertExpense(sql, {
+    modelId: officeModel,
+    code: 'MGT',
+    name: 'Management fee',
+    category: 'management',
+    method: 'percent_of_effective_gross_revenue',
+    amount: '0.03',
+    recoverableShare: '1',
+  });
+  await upsertOtherRevenue(sql, {
+    modelId: officeModel,
+    code: 'PARK',
+    name: 'Parking income',
+    category: 'parking',
+    method: 'fixed_annual',
+    amount: '612000',
+    growthCurve: 'CPI',
+    varyWithOccupancy: true,
+  });
+  await upsertOtherRevenue(sql, {
+    modelId: officeModel,
+    code: 'ANT',
+    name: 'Rooftop antenna licences',
+    category: 'antenna',
+    method: 'fixed_annual',
+    amount: '48000',
+    growthCurve: 'CPI',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: officeModel,
+    code: 'RESERVE',
+    name: 'Replacement reserve',
+    category: 'replacement_reserve',
+    method: 'per_area_per_year',
+    amount: '0.30',
+    growthCurve: 'CPI',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: officeModel,
+    code: 'LOBBY',
+    name: 'Lobby and amenity repositioning',
+    category: 'major_project',
+    method: 'custom_monthly_schedule',
+    amount: '1',
+    monthlySchedule: Array.from({ length: 120 }, (_, i) => (i >= 2 && i < 10 ? '325000' : '0')),
+  });
   await upsertDebtFacility(sql, {
     modelId: officeModel,
     code: 'SENIOR',
@@ -443,8 +574,18 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   });
   modelIds.retail = retailModel;
 
-  await upsertGrowthCurve(sql, { modelId: retailModel, code: 'CPI', name: 'Inflation', defaultRate: '0.025' });
-  await upsertGrowthCurve(sql, { modelId: retailModel, code: 'SALES', name: 'Tenant sales growth', defaultRate: '0.022' });
+  await upsertGrowthCurve(sql, {
+    modelId: retailModel,
+    code: 'CPI',
+    name: 'Inflation',
+    defaultRate: '0.025',
+  });
+  await upsertGrowthCurve(sql, {
+    modelId: retailModel,
+    code: 'SALES',
+    name: 'Tenant sales growth',
+    defaultRate: '0.022',
+  });
   await upsertMarketLeasingProfile(sql, {
     modelId: retailModel,
     code: 'MLA-INLINE',
@@ -495,9 +636,30 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   });
 
   for (const shop of [
-    { code: 'SHOP-101', name: 'Creekside Pharmacy', area: '18500', rent: '24.00', start: '2023-03-01', end: '2028-02-29' },
-    { code: 'SHOP-102', name: 'Two Rivers Cafe', area: '22000', rent: '28.50', start: '2025-06-01', end: '2032-05-31' },
-    { code: 'PAD-A', name: 'Brightwater Bank', area: '21500', rent: '31.00', start: '2022-01-01', end: '2027-12-31' },
+    {
+      code: 'SHOP-101',
+      name: 'Creekside Pharmacy',
+      area: '18500',
+      rent: '24.00',
+      start: '2023-03-01',
+      end: '2028-02-29',
+    },
+    {
+      code: 'SHOP-102',
+      name: 'Two Rivers Cafe',
+      area: '22000',
+      rent: '28.50',
+      start: '2025-06-01',
+      end: '2032-05-31',
+    },
+    {
+      code: 'PAD-A',
+      name: 'Brightwater Bank',
+      area: '21500',
+      rent: '31.00',
+      start: '2022-01-01',
+      end: '2027-12-31',
+    },
   ]) {
     const record = await createTenant(sql, {
       organizationId: organization.id,
@@ -538,7 +700,15 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
       variableShare: expense[5] as string,
     });
   }
-  await upsertExpense(sql, { modelId: retailModel, code: 'MGT', name: 'Management fee', category: 'management', method: 'percent_of_effective_gross_revenue', amount: '0.04', recoverableShare: '0' });
+  await upsertExpense(sql, {
+    modelId: retailModel,
+    code: 'MGT',
+    name: 'Management fee',
+    category: 'management',
+    method: 'percent_of_effective_gross_revenue',
+    amount: '0.04',
+    recoverableShare: '0',
+  });
 
   /* ---------------------------------------------------------------------- */
   /* 4. Multifamily                                                         */
@@ -593,8 +763,18 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   });
   modelIds.multifamily = multifamilyModel;
 
-  await upsertGrowthCurve(sql, { modelId: multifamilyModel, code: 'CPI', name: 'Inflation', defaultRate: '0.03' });
-  await upsertGrowthCurve(sql, { modelId: multifamilyModel, code: 'RENT', name: 'Residential rent growth', defaultRate: '0.034' });
+  await upsertGrowthCurve(sql, {
+    modelId: multifamilyModel,
+    code: 'CPI',
+    name: 'Inflation',
+    defaultRate: '0.03',
+  });
+  await upsertGrowthCurve(sql, {
+    modelId: multifamilyModel,
+    code: 'RENT',
+    name: 'Residential rent growth',
+    defaultRate: '0.034',
+  });
   const residents = await createTenant(sql, {
     organizationId: organization.id,
     propertyId: multifamily.id,
@@ -652,8 +832,23 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
       variableShare: expense[4] as string,
     });
   }
-  await upsertExpense(sql, { modelId: multifamilyModel, code: 'MGT', name: 'Management fee', category: 'management', method: 'percent_of_effective_gross_revenue', amount: '0.03' });
-  await upsertCapitalItem(sql, { modelId: multifamilyModel, code: 'RESERVE', name: 'Replacement reserve', category: 'replacement_reserve', method: 'per_unit_per_year', amount: '325', growthCurve: 'CPI' });
+  await upsertExpense(sql, {
+    modelId: multifamilyModel,
+    code: 'MGT',
+    name: 'Management fee',
+    category: 'management',
+    method: 'percent_of_effective_gross_revenue',
+    amount: '0.03',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: multifamilyModel,
+    code: 'RESERVE',
+    name: 'Replacement reserve',
+    category: 'replacement_reserve',
+    method: 'per_unit_per_year',
+    amount: '325',
+    growthCurve: 'CPI',
+  });
 
   /* ---------------------------------------------------------------------- */
   /* 5. Development project                                                 */
@@ -700,8 +895,22 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   });
   modelIds.development = developmentModel;
 
-  await upsertGrowthCurve(sql, { modelId: developmentModel, code: 'MKT-IND', name: 'Industrial market rent growth', defaultRate: '0.035' });
-  await upsertGrowthCurve(sql, { modelId: developmentModel, code: 'SOFR', name: 'Forward index path', defaultRate: '0.033', byYear: [{ year: 1, rate: '0.043' }, { year: 2, rate: '0.038' }] });
+  await upsertGrowthCurve(sql, {
+    modelId: developmentModel,
+    code: 'MKT-IND',
+    name: 'Industrial market rent growth',
+    defaultRate: '0.035',
+  });
+  await upsertGrowthCurve(sql, {
+    modelId: developmentModel,
+    code: 'SOFR',
+    name: 'Forward index path',
+    defaultRate: '0.033',
+    byYear: [
+      { year: 1, rate: '0.043' },
+      { year: 2, rate: '0.038' },
+    ],
+  });
   await upsertMarketLeasingProfile(sql, {
     modelId: developmentModel,
     code: 'MLA-DEV',
@@ -735,16 +944,59 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
     baseRent: '10.75',
     baseRentBasis: 'per_area_per_year',
     escalation: { type: 'fixed_percent', rate: '0.03', frequencyMonths: 12 },
-    freeRent: [{ startDate: '2027-10-01', months: 6, abatementShare: '1', appliesTo: ['base_rent'] }],
+    freeRent: [
+      { startDate: '2027-10-01', months: 6, abatementShare: '1', appliesTo: ['base_rent'] },
+    ],
     leasingCosts: { tiPerArea: '5.00', lcPercentOfRent: '0' },
     recovery: { method: 'triple_net' },
     excludeFromRollover: true,
   });
-  await upsertExpense(sql, { modelId: developmentModel, code: 'TAX', name: 'Property taxes', category: 'taxes', method: 'per_area_per_year', amount: '0.70', recoverableShare: '1' });
-  await upsertExpense(sql, { modelId: developmentModel, code: 'CAM', name: 'Common area maintenance', category: 'cam', method: 'per_area_per_year', amount: '0.45', recoverableShare: '1', variableShare: '0.3' });
-  await upsertCapitalItem(sql, { modelId: developmentModel, code: 'LAND', name: 'Land acquisition', category: 'development_hard_cost', method: 'one_time', amount: '5100000', startDate: '2026-01-01' });
-  await upsertCapitalItem(sql, { modelId: developmentModel, code: 'HARD', name: 'Hard costs', category: 'development_hard_cost', method: 'custom_monthly_schedule', amount: '1', monthlySchedule: Array.from({ length: 84 }, (_, i) => (i >= 4 && i < 22 ? '850000' : '0')) });
-  await upsertCapitalItem(sql, { modelId: developmentModel, code: 'SOFT', name: 'Soft costs and fees', category: 'development_soft_cost', method: 'one_time', amount: '2600000', startDate: '2026-04-01' });
+  await upsertExpense(sql, {
+    modelId: developmentModel,
+    code: 'TAX',
+    name: 'Property taxes',
+    category: 'taxes',
+    method: 'per_area_per_year',
+    amount: '0.70',
+    recoverableShare: '1',
+  });
+  await upsertExpense(sql, {
+    modelId: developmentModel,
+    code: 'CAM',
+    name: 'Common area maintenance',
+    category: 'cam',
+    method: 'per_area_per_year',
+    amount: '0.45',
+    recoverableShare: '1',
+    variableShare: '0.3',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: developmentModel,
+    code: 'LAND',
+    name: 'Land acquisition',
+    category: 'development_hard_cost',
+    method: 'one_time',
+    amount: '5100000',
+    startDate: '2026-01-01',
+  });
+  await upsertCapitalItem(sql, {
+    modelId: developmentModel,
+    code: 'HARD',
+    name: 'Hard costs',
+    category: 'development_hard_cost',
+    method: 'custom_monthly_schedule',
+    amount: '1',
+    monthlySchedule: Array.from({ length: 84 }, (_, i) => (i >= 4 && i < 22 ? '850000' : '0')),
+  });
+  await upsertCapitalItem(sql, {
+    modelId: developmentModel,
+    code: 'SOFT',
+    name: 'Soft costs and fees',
+    category: 'development_soft_cost',
+    method: 'one_time',
+    amount: '2600000',
+    startDate: '2026-04-01',
+  });
   await upsertDebtFacility(sql, {
     modelId: developmentModel,
     code: 'CONSTRUCTION',
