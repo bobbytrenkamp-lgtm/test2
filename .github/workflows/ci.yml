@@ -1,27 +1,59 @@
 name: CI
 
+# ---------------------------------------------------------------------------
+# Zero-cost policy (see docs/zero-cost-operation.md).
+#
+# This repository is public, and GitHub Actions is free without limit on
+# GitHub-hosted standard runners for public repositories. The settings below
+# are nonetheless written so that this workflow stays inside the free
+# allowance if the repository is ever made private, where minutes are metered:
+#
+#   * `push` is limited to the default branch. Work on a feature branch is
+#     verified once, by the pull_request trigger. Previously this ran on every
+#     branch AND on pull requests, which double-billed every push to an open PR.
+#   * `concurrency` cancels superseded runs, so a rapid series of pushes costs
+#     one run rather than one per push.
+#   * `timeout-minutes` caps a hung job. Without it the default ceiling is six
+#     hours, which is the single largest way a metered account leaks minutes.
+#   * Only `ubuntu-latest` is used. Windows bills at 2x and macOS at 10x.
+#   * Only free, official container images are used.
+#
+# Do not add a scheduled (`cron`) trigger. A schedule bills whether or not
+# anything changed, and is the other common way a free allowance is consumed.
+# ---------------------------------------------------------------------------
+
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+  # Allows a manual run without adding a recurring scheduled cost.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: this workflow only reads the repository.
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # A full run takes roughly two minutes; 20 is generous headroom and still
+    # bounds the cost of a hang.
+    timeout-minutes: 20
+
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: cre
           POSTGRES_PASSWORD: cre
           POSTGRES_DB: cre_platform_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U cre"
+          --health-cmd "pg_isready -U cre -d cre_platform_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -63,3 +95,9 @@ jobs:
       # docs/feature-status.md.
       - name: Dependency audit
         run: pnpm audit --audit-level=high || true
+
+      # Fails the build if a dependency arrives under a licence that would
+      # require a commercial licence for this project's use. Runs offline
+      # against the installed tree; it contacts no external service.
+      - name: Licence check
+        run: node scripts/check-licences.mjs

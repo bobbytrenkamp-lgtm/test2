@@ -31,8 +31,14 @@ Open http://localhost:5173. The seed prints sign-in credentials. **All seeded
 data is fictional** — no real property, tenant, address or transaction appears
 anywhere in it.
 
-Requires Node 20.11+ (built on 22), PostgreSQL 16+, pnpm 9. No paid service,
-external API or proprietary component is needed.
+Requires Node 20.11+ (built on 22), PostgreSQL 16+, pnpm 9.
+
+**Nothing in this project costs money.** No paid service, external API, hosted
+dependency or commercially licensed component is used; everything runs locally
+on open-source components. `pnpm licences` fails the build if a dependency ever
+arrives under a paid or copyleft licence, and it runs in CI. The full audit —
+including GitHub Actions exposure and what was deferred rather than paid for —
+is in [`docs/zero-cost-operation.md`](docs/zero-cost-operation.md).
 
 ---
 
@@ -106,6 +112,7 @@ described in [`docs/testing-strategy.md`](docs/testing-strategy.md).
 | [`deployment-guide.md`](docs/deployment-guide.md) | Running it, backing it up, rolling it back |
 | [`implementation-roadmap.md`](docs/implementation-roadmap.md) | What to build next, in order |
 | [`feature-status.md`](docs/feature-status.md) | **What actually exists** |
+| [`zero-cost-operation.md`](docs/zero-cost-operation.md) | **Why nothing here can bill you** |
 | [`decisions/`](docs/decisions/) | Architecture decision records |
 
 ## Status, honestly
