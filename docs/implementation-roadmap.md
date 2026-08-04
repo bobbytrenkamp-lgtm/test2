@@ -16,7 +16,7 @@
 | 9. Budgets and asset management | **Not started.** Tables are migrated; no API, no interface. |
 | 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation, concentration analysis. Fund-level cash flows and investor reporting are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Not started.** No load test, no accessibility audit, no restore drill. |
+| 12. Production hardening | **Started.** Restore drill written, executed and running in CI. Machine-checked accessibility on nine screens. Still missing: load test, screen-reader audit, error monitoring, deployment automation. |
 
 ## What to do next, in order
 
@@ -36,11 +36,22 @@ import wizard wrote rows without saying so, and concurrent migrations raced on
 **What remains here:** the assumptions editor, scenarios, versions, reports and
 the portfolio builder are not covered, and the suite runs in Chromium only.
 
-### 2. Verify what is written but unproven
+### 2. Verify what is written but unproven — half done
 
-Run Docker Compose. Run a backup and a restore. Both are documented and neither
-has been executed — the environment had no Docker daemon. Until they are run,
-treat both as untested.
+**Backup and restore: drilled.** `pnpm drill:restore` takes a real `pg_dump`,
+restores into a scratch database, and confirms that a stored valuation still
+reproduces from the restored data — not merely that the row counts match. It
+runs on every CI build. It found that the seed never froze a model version, so
+the demonstration data had an empty Versions tab and there was no stored
+valuation to reproduce; the seed now calculates against a frozen version.
+
+**Docker images: still not built.** The Compose file validates and several real
+defects in the Dockerfiles are fixed (a fallback that silently defeated
+`--frozen-lockfile`, a missing workspace manifest, a missing `.dockerignore`),
+but the base images cannot be pulled where this was developed — the network
+policy blocks Docker Hub's blob CDN. A review is not a build. Anyone with
+registry access should run `docker compose build && docker compose up` and
+report what breaks.
 
 ### 3. Close the engine's honest gaps
 
@@ -78,8 +89,9 @@ contributions, distributions, unfunded commitments, investor reporting.
 
 Load test at the stated scale (thousands of properties, hundreds of thousands of
 lease steps). Grid virtualisation and cursor pagination once profiling says
-where. Accessibility audit with a real screen reader. Error monitoring. Backup
-and restore drill. Deployment automation with a rollback path.
+where. Accessibility audit with a real screen reader. Error monitoring.
+Deployment automation with a rollback path. ~~Backup and restore drill~~ — done,
+see item 2.
 
 ### 9. Optional extras, only if wanted
 

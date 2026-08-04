@@ -1,0 +1,34 @@
+# Build context exclusions.
+#
+# Without this the whole workspace — including several hundred megabytes of
+# node_modules and the entire git history — is uploaded to the daemon on every
+# build, and `COPY packages ./packages` then writes host-built node_modules over
+# the ones installed inside the image. Those were built for the host's platform
+# and libc; on Alpine they are the wrong binaries.
+node_modules
+**/node_modules
+.git
+.github
+
+# Build output. The image builds its own.
+dist
+**/dist
+*.tsbuildinfo
+
+# Test and tooling artefacts.
+coverage
+test-results
+playwright-report
+blob-report
+e2e/.auth
+.turbo
+
+# Local environment and data. A committed secret is bad; a secret baked into an
+# image layer is worse, because it survives deletion of the file.
+.env
+.env.*
+!.env.example
+.pgdata
+uploads
+*.log
+*.dump

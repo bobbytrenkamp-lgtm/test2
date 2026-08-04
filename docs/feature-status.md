@@ -13,7 +13,8 @@ Status values: `Not started` · `Designed` · `In development` · `Functional` �
 Nothing is yet marked **Production ready**. That designation is reserved for
 features that have also passed the production-hardening pass in
 `docs/implementation-roadmap.md` — load testing, an accessibility audit against
-a real screen reader, and a restore drill. None of those has been run.
+a real screen reader, and a restore drill. The restore drill has now been run and
+runs in CI; load testing and the screen-reader audit have not.
 
 ---
 
@@ -28,7 +29,8 @@ Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (327 kB, 93 kB gzipped)
 Migrations  4 applied against PostgreSQL 16
-Seed        5 properties, 1 portfolio, all models calculated
+Seed        5 properties, 1 portfolio, 5 frozen versions, all models calculated
+Drill       20 checks passed (dump, restore, 5 valuations reproduced)
 Licences    340 packages, none requiring payment or a commercial licence
 ```
 
@@ -204,7 +206,7 @@ maps, version side-by-side comparison.
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
 | Malware scanning of uploads | Designed | Column exists; no scanner |
 | Upload size and type verification | Partial | Body limit enforced; no upload endpoint yet |
-| Database backup and restore | Designed | Documented; **never executed** |
+| Database backup and restore | Tested | `pnpm drill:restore`: real dump, real restore, 20 checks including that a stored valuation reproduces. Runs in CI |
 
 ## 7. Operations
 
@@ -216,7 +218,7 @@ maps, version side-by-side comparison.
 | Background worker | Functional | Not covered by automated tests |
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Functional | |
-| Docker Compose | **Designed, unverified** | Written but never run — no Docker daemon was available |
+| Docker Compose | **Designed, unverified** | `docker compose config` validates; images still never built — the registry is unreachable from the build environment |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Not started | No provider wired |
@@ -256,6 +258,11 @@ automatically.
 dashboard configuration, documents, portfolio reports, Excel import, PDF
 rendering, MFA, malware scanning.
 
-**Unverified.** Docker Compose, backup and restore. Both are written down; the
-environment this was built in had no Docker daemon, and no restore drill has
-been run. They should be exercised before anyone relies on them.
+**Unverified.** The Docker images have never been built. The Compose file
+validates and several defects found by reading the Dockerfiles are fixed, but
+the base images cannot be pulled where this was developed — the network policy
+blocks Docker Hub's blob CDN. A review is not a build.
+
+Backup and restore is no longer in this category: `pnpm drill:restore` dumps,
+restores and confirms a stored valuation reproduces from the restored data, and
+runs on every CI build.

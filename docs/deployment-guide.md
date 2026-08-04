@@ -3,12 +3,23 @@
 ## Status of this document
 
 Local development on a directly installed PostgreSQL 16 is **verified**:
-migrations, seed, the full test suite and the web build were all run
-successfully.
+migrations, seed, the full test suite, the browser suite and the web build were
+all run successfully.
 
-The Docker Compose files are **written but never executed** — the build
-environment had no Docker daemon. Backup and restore procedures are documented
-but have **not been drilled**. Treat both as untested until someone runs them.
+Backup and restore is now **drilled** — `pnpm drill:restore` runs a real dump,
+a real restore, and confirms a stored valuation reproduces from the restored
+data. It runs on every CI build.
+
+The Docker images are **still never built**. The Compose file itself is
+validated (`docker compose config` passes), and several defects found by reading
+the Dockerfiles have been fixed — a lockfile fallback that silently defeated
+`--frozen-lockfile`, a missing workspace manifest that made the frozen install
+fail in the first place, and a missing `.dockerignore` that would have copied
+host-built `node_modules` over the Alpine ones. But **a review is not a build**.
+The environment this was developed in reaches the Docker daemon and its network
+policy blocks Docker Hub's blob CDN, so the base images cannot be pulled. Treat
+the images as untested until someone runs `docker compose build` where the
+registry is reachable.
 
 ## Requirements
 
@@ -115,27 +126,57 @@ which would contain tenant data.
 No error-monitoring provider is wired. `docs/architecture.md` describes where it
 would attach.
 
-## Backup and restore (documented, not drilled)
+## Backup and restore (drilled, and drilled in CI)
 
 ```bash
-# Backup
-pg_dump --format=custom --file=cre-$(date +%F).dump "$DATABASE_URL"
-
-# Restore into a clean database
-createdb cre_restore
-pg_restore --dbname="postgres://…/cre_restore" --clean --if-exists cre-2026-08-04.dump
-
-# Verify
-psql "$RESTORE_URL" -c "SELECT count(*) FROM calculation_runs;"
-psql "$RESTORE_URL" -c "SELECT name, checksum FROM schema_migrations ORDER BY name;"
+pnpm drill:restore                    # against $DATABASE_URL
+DATABASE_URL=… pnpm drill:restore     # against a specific database
 ```
+
+`scripts/restore-drill.ts` takes a real `pg_dump`, restores it into a scratch
+database, runs 20 checks, and drops the scratch database again — including after
+a failure. It runs on every CI build, so the procedure cannot rot unnoticed.
+
+What it checks, in order of what it actually proves:
+
+1. The dump is non-empty and `pg_restore` completes.
+2. The migration chain and every checksum match the source exactly.
+3. Row counts match across twelve tables, including `audit_log`.
+4. **A stored valuation reproduces.** For every `model_versions` row with a
+   succeeded run, the drill reads the stored engine input *out of the restored
+   database*, runs it through the engine, and compares the output against the
+   `calculation_runs.result` recorded before the dump was taken.
+
+Point 4 is the reason the script exists. Row counts prove the rows travelled;
+they do not prove the backup preserved enough to defend a number. The expected
+value is not produced by the drill — it was produced by a different process at
+an earlier time and merely had to survive.
+
+The comparison is made on a canonical serialisation with object keys sorted.
+PostgreSQL's `jsonb` does not preserve key insertion order, so a result that has
+been through the database is textually reordered relative to a freshly computed
+one. Comparing raw JSON would report a difference on every record and prove
+nothing. Array order is left alone: in a cash flow, the order of periods is the
+meaning.
 
 Everything needed to reproduce a valuation is in the database: `model_versions`
 holds the exact engine input and `calculation_runs` holds the result.
 
-**Recommended before relying on this:** a restore drill into a scratch database,
-confirming a stored version recalculates to its stored result. This has not been
-done.
+### What the drill found
+
+The seed calculated its models but never froze a version, so `model_versions`
+was empty: the demonstration data did not demonstrate versioning, the Versions
+tab was blank, and the drill had no stored valuation to reproduce. The seed now
+freezes a version per model and calculates against it, which is how the platform
+is meant to be used.
+
+## Manual backup and restore
+
+```bash
+pg_dump --format=custom --file=cre-$(date +%F).dump "$DATABASE_URL"
+createdb cre_restore
+pg_restore --dbname="postgres://…/cre_restore" --no-owner --no-privileges cre-2026-08-04.dump
+```
 
 ## Rollback
 

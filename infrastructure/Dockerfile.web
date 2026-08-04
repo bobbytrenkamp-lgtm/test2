@@ -1,15 +1,22 @@
-# syntax=docker/dockerfile:1
-#
 # Web image. Builds the static bundle, then serves it from nginx with the API
 # proxied under the same origin so the session cookie stays first-party.
 FROM node:22-alpine AS build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* tsconfig.base.json ./
+# The full set of workspace manifests, for the same reason as Dockerfile.api:
+# --frozen-lockfile checks the lockfile against every importer.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/domain-models/package.json packages/domain-models/
+COPY packages/calculation-engine/package.json packages/calculation-engine/
+COPY packages/database/package.json packages/database/
+COPY packages/reporting/package.json packages/reporting/
+COPY apps/api/package.json apps/api/
+COPY apps/worker/package.json apps/worker/
+COPY apps/web/package.json apps/web/
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY packages ./packages
 COPY apps/web ./apps/web
-RUN pnpm install --ignore-scripts
 RUN pnpm --filter @cre/web run build
 
 FROM nginx:1.27-alpine AS runtime
