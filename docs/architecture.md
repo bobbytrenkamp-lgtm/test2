@@ -310,10 +310,31 @@ six upserts, so it cannot drift between them and a seventh collection inherits
 it. A test still walks all six, since "it is shared code" is an argument, not
 evidence.
 
-Still outstanding: grid virtualisation for very large rent rolls, and cursor
-pagination on the audit log (offset paging is measured fine at this scale but
-degrades deep into a large table). These are recorded in
-`docs/feature-status.md` rather than claimed.
+### The cash-flow grid
+
+A monthly view of a ten-year forecast is 121 columns across 27 line items, and
+every figure is a button so it can be opened in the calculation inspector —
+3,240 interactive elements. `pnpm profile:grid` measured switching into that
+view at a median of **429 ms**, against 163 ms for the annual view's 270 cells.
+A hundred milliseconds is roughly where an interaction stops feeling immediate,
+so this was well past it.
+
+Only the columns near the viewport are now rendered; the rest are represented
+by a spacer of the width they would have occupied, so the scrollbar and the
+frozen first column behave exactly as before. Below 24 columns nothing is
+virtualised at all, which leaves the annual view and every small model on
+precisely the path they were on.
+
+That took the monthly switch to **212 ms** and 594 interactive cells. Better,
+and still above the line: the remaining time is the 27 rows and the re-layout
+of a sticky-first-column table rather than the column count, so row
+virtualisation or a cheaper cell is where to look next. The script says so in
+its own output rather than leaving it to be rediscovered.
+
+The risk in rendering part of a table is telling assistive technology the
+forecast is shorter than it is. The table carries `aria-colcount` for its true
+width and every rendered cell its true `aria-colindex`, and three browser tests
+assert the reported dimensions alongside the rendered ones.
 
 ## Deliberately not distributed
 

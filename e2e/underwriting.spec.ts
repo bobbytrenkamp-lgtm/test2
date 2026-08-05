@@ -107,3 +107,93 @@ test('the cash flow can be read monthly as well as annually', async ({ page }) =
     .poll(async () => cashFlow.locator('thead th').count())
     .toBeGreaterThan(annualColumns);
 });
+
+/**
+ * Column virtualisation on the monthly view.
+ *
+ * A ten-year monthly forecast is 121 columns across 27 line items, and every
+ * figure is a button. `pnpm profile:grid` measured that at 3,240 interactive
+ * cells and a median of 429 ms to switch into — past the point an interaction
+ * feels immediate. Only the columns near the viewport are now in the DOM.
+ *
+ * The risk in doing that is telling assistive technology the forecast is
+ * shorter than it is, so these assert the reported dimensions as well as the
+ * rendered ones.
+ */
+test.describe('the monthly grid at scale', () => {
+  test('renders far fewer cells than the forecast has, while reporting its true width', async ({
+    page,
+  }) => {
+    await page.goto('/properties');
+    await page.getByRole('link', { name: SEED.office.property }).click();
+    await page.getByRole('link', { name: SEED.office.model }).click();
+    await page.getByRole('button', { name: 'Calculate' }).click();
+    await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+      'Calculated with engine',
+      { timeout: 60_000 },
+    );
+
+    await page.getByRole('button', { name: 'Monthly', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Monthly', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    const table = page.locator('table.freeze-first');
+    // A 120-month forecast: the line-item column plus every period.
+    await expect(table).toHaveAttribute('aria-colcount', '121');
+
+    // But nothing like that many are drawn.
+    await expect
+      .poll(async () => table.locator('thead th[aria-colindex]').count())
+      .toBeLessThan(60);
+  });
+
+  test('reveals later months as the grid is scrolled', async ({ page }) => {
+    // The whole point of the technique is that the missing columns are missing
+    // only until they are needed. If they never arrive, the forecast is
+    // unreadable past the first screen.
+    await page.goto('/properties');
+    await page.getByRole('link', { name: SEED.office.property }).click();
+    await page.getByRole('link', { name: SEED.office.model }).click();
+    await page.getByRole('button', { name: 'Calculate' }).click();
+    await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+      'Calculated with engine',
+      { timeout: 60_000 },
+    );
+    await page.getByRole('button', { name: 'Monthly', exact: true }).click();
+
+    const table = page.locator('table.freeze-first');
+    const firstHeaders = await table.locator('thead th[aria-colindex]').allTextContents();
+
+    const scroller = page.locator('.table-scroll').first();
+    await scroller.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+
+    await expect
+      .poll(async () => {
+        const headers = await table.locator('thead th[aria-colindex]').allTextContents();
+        return headers.some((header) => !firstHeaders.includes(header));
+      })
+      .toBe(true);
+  });
+
+  test('leaves the annual view alone, which needs no virtualisation', async ({ page }) => {
+    await page.goto('/properties');
+    await page.getByRole('link', { name: SEED.office.property }).click();
+    await page.getByRole('link', { name: SEED.office.model }).click();
+    await page.getByRole('button', { name: 'Calculate' }).click();
+    await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+      'Calculated with engine',
+      { timeout: 60_000 },
+    );
+    await page.getByRole('button', { name: 'Annual', exact: true }).click();
+
+    const table = page.locator('table.freeze-first');
+    const reported = Number(await table.getAttribute('aria-colcount'));
+    const drawn = await table.locator('thead th[aria-colindex]').count();
+    // Ten fiscal years plus the line-item column: every one is drawn.
+    expect(drawn).toBe(reported);
+  });
+});
