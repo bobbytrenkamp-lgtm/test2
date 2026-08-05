@@ -191,9 +191,22 @@ test.describe('the monthly grid at scale', () => {
     await page.getByRole('button', { name: 'Annual', exact: true }).click();
 
     const table = page.locator('table.freeze-first');
-    const reported = Number(await table.getAttribute('aria-colcount'));
-    const drawn = await table.locator('thead th[aria-colindex]').count();
-    // Ten fiscal years plus the line-item column: every one is drawn.
-    expect(drawn).toBe(reported);
+    /*
+     * Polled rather than read once. Switching granularity re-renders the grid,
+     * and reading the reported width and the drawn count in the same instant
+     * can catch the table mid-transition — the old `aria-colcount` against the
+     * new columns. The sibling test above already polls for this reason; the
+     * reports suite lost the same race on CI after passing locally.
+     */
+    await expect
+      .poll(
+        async () => {
+          const reported = Number(await table.getAttribute('aria-colcount'));
+          const drawn = await table.locator('thead th[aria-colindex]').count();
+          return drawn === reported && reported > 0;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
   });
 });

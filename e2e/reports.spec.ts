@@ -145,6 +145,17 @@ test('every report definition is reachable and renders', async ({ page }) => {
 
   const definitions = page.getByRole('table', { name: 'Available property reports' });
   const views = definitions.getByRole('button', { name: 'View' });
+
+  /*
+   * Waited for before counting. `locator.count()` does not auto-wait — it
+   * answers immediately with whatever is in the DOM at that instant — so
+   * counting straight after a navigation races the fetch that fills the table.
+   * This passed three consecutive local runs and failed on CI, twice, with
+   * `Received: 0`: the runner is slower, and the race is only ever lost on the
+   * slower machine.
+   */
+  await expect(views.first()).toBeVisible({ timeout: 60_000 });
+
   const count = await views.count();
   // The feature is described as nine property reports; asserting the count
   // would pin a number that is allowed to grow, so this asserts there are
