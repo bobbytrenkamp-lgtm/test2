@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { getModel, createTenant, listTenants, upsertLease, writeAudit } from '@cre/database';
 import {
   analyzeSheet,
+  isWorkbookFilename,
+  pickRentRollSheet,
+  readWorkbook,
   mapRows,
   parseCsv,
   suggestMapping,
@@ -22,7 +25,51 @@ import { badRequest, notFound, requireCapability } from '../context.js';
  * deterministic; no AI provider is contacted at any point.
  */
 export async function registerImportRoutes(app: FastifyInstance): Promise<void> {
-  /** Step 1: inspect an uploaded CSV and propose a mapping. */
+  /**
+   * The rows of an upload, whichever format it arrived in.
+   *
+   * One function rather than a dispatch in each of the three routes below: they
+   * must agree about what a file contains, and analysing a CSV then committing it
+   * as a workbook — or picking a different sheet at each step — would import
+   * something nobody previewed.
+   *
+   * A workbook arrives base64-encoded because it is binary; a CSV arrives as
+   * text. The sheet is chosen by the caller when it knows, and suggested when it
+   * does not, so the same sheet is used at every step of the wizard.
+   */
+  async function rowsFromUpload(
+    filename: string,
+    content: string,
+    sheetIndex?: number,
+  ): Promise<{ rows: string[][]; sheetNames: string[]; sheetIndex: number }> {
+    if (!isWorkbookFilename(filename)) {
+      return { rows: parseCsv(content), sheetNames: [], sheetIndex: 0 };
+    }
+
+    let sheets;
+    try {
+      sheets = await readWorkbook(Buffer.from(content, 'base64'));
+    } catch {
+      // A corrupt or password-protected workbook is the caller's problem to fix,
+      // and saying so beats a 500 that reads like the server broke.
+      throw badRequest(
+        'That spreadsheet could not be read. If it is password protected, or saved in the older .xls format, save it as .xlsx and try again.',
+      );
+    }
+    if (sheets.length === 0) throw badRequest('That workbook has no sheets.');
+
+    const chosen = sheetIndex ?? pickRentRollSheet(sheets);
+    if (chosen < 0 || chosen >= sheets.length) {
+      throw badRequest(`That workbook has ${sheets.length} sheet(s); sheet ${chosen} is not one.`);
+    }
+    return {
+      rows: sheets[chosen]?.rows ?? [],
+      sheetNames: sheets.map((sheet) => sheet.name),
+      sheetIndex: chosen,
+    };
+  }
+
+  /** Step 1: inspect an uploaded file and propose a mapping. */
   app.post('/models/:id/imports/analyze', async (request) => {
     const context = requireCapability(request, 'import:run');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
@@ -30,6 +77,8 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       .object({
         filename: z.string().max(300),
         content: z.string().max(20 * 1024 * 1024),
+        /** Which worksheet, for a workbook. Suggested when absent. */
+        sheetIndex: z.number().int().min(0).max(200).optional(),
         previewRows: z.number().int().min(1).max(200).default(25),
       })
       .parse(request.body);
@@ -37,7 +86,8 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound('That model does not exist in this organization.');
 
-    const rows = parseCsv(body.content);
+    const upload = await rowsFromUpload(body.filename, body.content, body.sheetIndex);
+    const rows = upload.rows;
     if (rows.length === 0) throw badRequest('That file contains no rows.');
 
     const analysis = analyzeSheet(rows);
@@ -63,6 +113,14 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       suggestedMapping: mapping,
       rowCount: analysis.dataRows.length,
       preview: analysis.dataRows.slice(0, body.previewRows),
+      /*
+       * Which sheet was read, and what else the workbook holds. Empty for a
+       * CSV. Returned so the wizard can show the choice rather than making it
+       * invisibly — a workbook with a cover sheet first is the common case, and
+       * importing the cover is the mistake worth making visible.
+       */
+      sheetNames: upload.sheetNames,
+      sheetIndex: upload.sheetIndex,
     };
   });
 
@@ -73,6 +131,14 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const body = z
       .object({
         batchId: z.string().uuid().optional(),
+        /*
+         * Optional, and absent means CSV — which is what every existing caller
+         * sends. The dispatcher needs the name to know whether the content is
+         * text or a base64 workbook, and defaulting to text keeps a client
+         * written before this change working unchanged.
+         */
+        filename: z.string().max(300).default(''),
+        sheetIndex: z.number().int().min(0).max(200).optional(),
         content: z.string().max(20 * 1024 * 1024),
         mapping: z.record(z.number().int().min(0)),
         datePreference: z.enum(['mdy', 'dmy']).default('mdy'),
@@ -83,7 +149,9 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound();
 
-    const analysis = analyzeSheet(parseCsv(body.content));
+    const analysis = analyzeSheet(
+      (await rowsFromUpload(body.filename, body.content, body.sheetIndex)).rows,
+    );
     const result = mapRows(analysis.dataRows, body.mapping as ColumnMapping, {
       datePreference: body.datePreference,
       defaultRentBasis: body.defaultRentBasis,
@@ -118,6 +186,14 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const body = z
       .object({
         batchId: z.string().uuid().optional(),
+        /*
+         * Optional, and absent means CSV — which is what every existing caller
+         * sends. The dispatcher needs the name to know whether the content is
+         * text or a base64 workbook, and defaulting to text keeps a client
+         * written before this change working unchanged.
+         */
+        filename: z.string().max(300).default(''),
+        sheetIndex: z.number().int().min(0).max(200).optional(),
         content: z.string().max(20 * 1024 * 1024),
         mapping: z.record(z.number().int().min(0)),
         datePreference: z.enum(['mdy', 'dmy']).default('mdy'),
@@ -133,7 +209,9 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       throw badRequest(`This model is ${model.status} and cannot be imported into.`);
     }
 
-    const analysis = analyzeSheet(parseCsv(body.content));
+    const analysis = analyzeSheet(
+      (await rowsFromUpload(body.filename, body.content, body.sheetIndex)).rows,
+    );
     const result = mapRows(analysis.dataRows, body.mapping as ColumnMapping, {
       datePreference: body.datePreference,
       defaultRentBasis: body.defaultRentBasis,

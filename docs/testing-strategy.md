@@ -43,6 +43,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
+| Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
@@ -59,9 +60,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
+| Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**572 tests in total.**
+**589 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -88,7 +90,7 @@ built bundle:
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 
-**67 browser tests in total**, for 639 across the whole repository.
+**67 browser tests in total**, for 656 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

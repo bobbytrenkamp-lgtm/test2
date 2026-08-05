@@ -11,7 +11,7 @@
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
-| 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Excel *import* and server-side PDF are not built. |
+| 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built, and the wizard does not yet expose the sheet picker. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
@@ -530,6 +530,57 @@ rather than registered with Fastify, so nothing can see them from outside;
 emitting a spec with empty schemas would look like a contract and describe
 nothing. A real one means lifting those schemas onto the route definitions,
 which is a change to every route and a decision rather than a script.
+
+### 8d. Spreadsheet import — done
+
+A rent roll arrives as `.xlsx` far more often than as `.csv`, and the answer was
+"save it as CSV first" — a step that existed only because the software could not
+be bothered. `exceljs` was already a dependency, used for export.
+
+The reader produces `string[][]`, exactly what `parseCsv` produces, so header
+detection, column mapping, number and date normalisation, validation and
+duplicate detection are reached unchanged. Same door as the clipboard paste: a
+different reader in front of the same proven pipeline, not a second pipeline
+that would drift from the first.
+
+**Converting a cell is not `String(value)`.** Every interesting failure here is a
+cell that converts without complaining and means something else afterwards, so
+each is handled and tested against real `.xlsx` bytes rather than against
+hand-made objects that merely resemble what the library returns:
+
+- **Dates.** Excel holds them as serials and exceljs returns a `Date`.
+  `toISOString()` shifts across midnight for anyone west of UTC, turning a lease
+  that expires on the 1st into one that expires on the 31st. Taken in UTC,
+  date-only.
+- **Formulas.** `{ formula, result }` — the result, never the formula's text.
+  A cached-result-free formula imports as empty rather than as `=B2*12`.
+- **Rich text.** `{ richText: [...] }` stringifies to `[object Object]`, which
+  flows into a tenant name without ever looking like an error.
+- **Error cells.** `#REF!` becomes empty and then fails validation like any
+  other missing field, rather than becoming a tenant called `#REF!`.
+- **Blank columns.** exceljs's `eachCell` skips empty cells, which shifts every
+  value after a gap one column left — expiry dates land in the rent column,
+  silently, every row looking plausible. Read by position instead.
+
+Two of those were confirmed to bite by reverting to the naive implementation and
+watching three tests fail.
+
+**One dispatcher, not three.** Analyse, validate and commit all read through the
+same function, because they must agree about what a file contains; picking a
+different sheet at each step would import something nobody previewed. The sheet
+list and the chosen index come back from `analyze` so the wizard can show the
+choice — a workbook with a cover sheet first is the common case, and importing
+the cover is the mistake worth making visible.
+
+The change is additive: `filename` defaults to empty, and an empty filename
+reads as CSV, so a client written before this keeps its exact behaviour. A test
+asserts that by sending no filename at all.
+
+`.xls`, the old binary format, is **not** supported — exceljs cannot read it, and
+the error says to save as `.xlsx` rather than failing at parse time.
+
+**Still to do here:** the import wizard does not yet offer the sheet picker the
+API now returns; a workbook still imports whichever sheet is suggested.
 
 ### 9. Optional extras, only if wanted
 

@@ -22,7 +22,7 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       572 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -30,6 +30,7 @@ Tests       572 passed  (229 engine regression, 31 engine unit, 16 fund,
                          7 version comparison via the API, 10 error monitoring,
                          5 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
+                         12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice)
 Browser      67 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
@@ -222,7 +223,7 @@ have since shipped; the rows above are the current state.)
 | Reusable mapping templates | Functional | |
 | Nine report definitions | Functional | |
 | CSV, XLSX, print HTML, JSON output | Functional | |
-| **Excel (.xlsx) file import** | **Not started** | Only CSV is parsed today; exceljs can read, it is not wired |
+| Excel (.xlsx) file import | Tested | Read into the same rows the CSV pipeline takes, so mapping, validation and duplicate detection are reached unchanged. Multi-sheet with the rent roll suggested; dates, formulas, rich text, error cells and blank columns each covered. `.xls` is not supported and says so |
 | Server-side PDF rendering | Deferred | Print HTML works via the browser; needs a headless browser in the worker |
 | Import rollback | Not started | Import is transactional; no undo after commit |
 | Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
