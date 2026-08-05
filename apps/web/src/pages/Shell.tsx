@@ -9,7 +9,8 @@ const NAV = [
   { to: '/properties', label: 'Properties' },
   { to: '/portfolios', label: 'Portfolios' },
   { to: '/funds', label: 'Funds' },
-  { to: '/jobs', label: 'Tasks and jobs' },
+  { to: '/tasks', label: 'Tasks' },
+  { to: '/jobs', label: 'Background jobs' },
   { to: '/audit', label: 'Audit history' },
 ];
 

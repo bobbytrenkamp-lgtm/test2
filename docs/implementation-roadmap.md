@@ -13,10 +13,10 @@
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
-| 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, interface and tests. |
+| 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI. Machine-checked accessibility on eleven screens. Local error monitoring. Still missing: a screen-reader audit and deployment automation with a rollback path. |
+| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI, and every migration is gated on leaving the previous release able to run. Machine-checked accessibility. Local error monitoring. Still missing: a screen-reader audit, and the deploy automation itself — the procedure is documented but not scripted. |
 
 ## What to do next, in order
 
@@ -139,7 +139,7 @@ highlight is announced rather than only shown.
 **Still to do:** multi-cell edit, fill-down, undo/redo, column hiding, and saved
 views (the `saved_views` table exists and is unused).
 
-### 6. Collaboration (phase 32 of the brief) — comments done
+### 6. Collaboration (phase 32 of the brief) — comments and tasks done
 
 **Done: comments.** The approval workflow could move a model from review back to
 draft and record that it happened, but not why — so an analyst learned that
@@ -170,8 +170,46 @@ Four browser tests drive it across two roles, including the one the whole
 feature rests on: the analyst who was criticised can read and answer the
 objection but is offered no way to dismiss it.
 
-**Still to do:** tasks (the table is migrated and unused), notifications, and an
-activity feed.
+**Done: tasks.** A model says what a building is expected to do; nothing said
+what anyone was supposed to *do about it*. That work lived in inboxes, where
+nobody outside the thread can see what is outstanding and nothing connects it to
+the asset it concerns. A task is deliberately small — title, state, optionally a
+due date, an assignee, and the property or model it is against. It is not a
+project plan: no dependencies, no sub-tasks, no estimates, because a half-built
+one of those is worse than none.
+
+Three decisions are worth recording.
+
+**Nothing here decides what day it is.** `due_date` is a calendar date with no
+timezone, and the server's date is not the reader's — an asset manager in
+Auckland and one in Los Angeles disagree about "today" for twenty-one hours out
+of every twenty-four. So the overdue filter takes the caller's date as a
+parameter, and the browser supplies its own. On a screen whose entire purpose is
+telling you what is late, being a day out is not a small error.
+
+**`completed_at` is derived, never accepted, and recomputed on every write.**
+Set-on-close is the obvious implementation and is wrong: reopen a finished task
+and the column becomes a record of the last time somebody *thought* it was done,
+while still reading like a completion date. Reopening clears it; editing a
+closed task keeps the date it was actually closed on.
+
+**An absent key leaves a column alone; an explicit `null` clears it.**
+`COALESCE(new, old)` looks like the tidy way to write that and cannot tell the
+two apart, so a due date could be set and never removed. Both halves are
+asserted, and both assertions were checked against a deliberately broken
+implementation to confirm they fail when they should.
+
+The board links each task to the property or model it is against, hides finished
+work by default and can show it again — "done" must not mean "destroyed". Twelve
+API tests and four browser tests cover it, including the `axe-core` gate.
+
+The `/jobs` screen was labelled "Tasks and jobs" and is now "Background jobs":
+with a real task board in the product, calling a queue of calculations "tasks"
+made the navigation lie.
+
+**Still to do:** notifications and an activity feed. A mention is recorded on the
+comment and shown in the thread, but nobody is told out of band, and there is no
+single place to see what changed across an organization.
 
 ### 7. Portfolio reporting and funds (phase 10) — funds done
 

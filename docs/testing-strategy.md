@@ -40,10 +40,11 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 10 | Yes |
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
+| Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**502 tests in total.**
+**514 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -64,8 +65,9 @@ built bundle:
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
+| Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 
-**50 browser tests in total**, for 552 across the whole repository.
+**54 browser tests in total**, for 568 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

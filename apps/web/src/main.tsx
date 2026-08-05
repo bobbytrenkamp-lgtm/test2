@@ -6,6 +6,7 @@ import { SessionProvider } from './session.js';
 import { Shell } from './pages/Shell.js';
 import { DashboardPage, AuditPage, JobsPage, PortfoliosPage } from './pages/Overview.js';
 import { FundsPage } from './pages/Funds.js';
+import { TasksPage } from './pages/Tasks.js';
 import { PropertiesPage } from './pages/Properties.js';
 import { PropertyDetailPage } from './pages/PropertyDetail.js';
 import { ModelWorkspace } from './pages/ModelWorkspace.js';
@@ -37,6 +38,7 @@ createRoot(container).render(
             <Route path="properties/:propertyId" element={<PropertyDetailPage />} />
             <Route path="portfolios" element={<PortfoliosPage />} />
             <Route path="funds" element={<FundsPage />} />
+            <Route path="tasks" element={<TasksPage />} />
             <Route path="jobs" element={<JobsPage />} />
             <Route path="audit" element={<AuditPage />} />
             <Route path="models/:modelId" element={<ModelWorkspace />}>

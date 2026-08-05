@@ -132,7 +132,9 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Audit log | Tested | Append-only by convention; no DB-level grant yet |
 | Jobs | Functional | Claim, complete, fail with backoff, reap stalled |
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
-| Documents, comments, tasks, dashboards | Designed | Tables exist and are migrated; no API |
+| Comments | Tested | Anchored to a model, property or budget period; API and interface |
+| Tasks | Tested | Asset-management work items against a property or model; API and interface |
+| Documents, dashboards | Designed | Tables exist and are migrated; no API |
 
 ## 3. API
 
@@ -185,7 +187,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Rent-roll import wizard | Tested | Browser test imports a part-invalid file and checks what reached the rent roll |
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
 | Comments on a model, property or budget | Tested | Review tab on the model workspace; author-or-approver resolution, mentions restricted to organization members. Four browser tests across two roles |
-| Tasks, mentions notifications, activity feed | Not started | `tasks` table migrated and unused |
+| Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
+| Mention notifications, activity feed | Not started | A mention is recorded on the comment and shown in the thread; nobody is told out of band |
 | Portfolio roll-up | Functional | |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
@@ -193,12 +196,13 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 43 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
-| Accessibility, machine-checked | Tested | `axe-core` on nine screens, WCAG 2.0/2.1 A and AA, any violation fails the build |
+| Automated UI tests | Tested | 54 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
+| Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
-hiding, saved views, configurable dashboard widgets, comments, tasks,
-notifications, geographic maps, version side-by-side comparison.
+hiding, saved views, configurable dashboard widgets, notifications, geographic
+maps. (Comments, tasks and side-by-side version comparison were on this list and
+have since shipped; the rows above are the current state.)
 
 ## 5. Reporting and imports
 

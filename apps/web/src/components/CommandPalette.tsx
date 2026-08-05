@@ -81,7 +81,9 @@ export function CommandPalette(): JSX.Element | null {
       { id: 'nav-dashboard', label: 'Dashboard', group: 'Go to', run: go('/') },
       { id: 'nav-properties', label: 'Properties', group: 'Go to', run: go('/properties') },
       { id: 'nav-portfolios', label: 'Portfolios', group: 'Go to', run: go('/portfolios') },
-      { id: 'nav-jobs', label: 'Tasks and jobs', group: 'Go to', run: go('/jobs') },
+      { id: 'nav-funds', label: 'Funds', group: 'Go to', run: go('/funds') },
+      { id: 'nav-tasks', label: 'Tasks', group: 'Go to', run: go('/tasks') },
+      { id: 'nav-jobs', label: 'Background jobs', group: 'Go to', run: go('/jobs') },
       { id: 'nav-audit', label: 'Audit history', group: 'Go to', run: go('/audit') },
     ];
 
