@@ -133,10 +133,31 @@ highlight is announced rather than only shown.
 **Still to do:** multi-cell edit, fill-down, undo/redo, column hiding, and saved
 views (the `saved_views` table exists and is unused).
 
-### 6. Collaboration (phase 32 of the brief)
+### 6. Collaboration (phase 32 of the brief) — comments done
 
-Comments, mentions, tasks, review requests, notifications, activity feed. Tables
-are migrated.
+**Done: comments.** The approval workflow could move a model from review back to
+draft and record that it happened, but not why — so an analyst learned that
+someone disagreed, not what to change.
+
+A comment is anchored to a model, a property or a budget period, so it sits
+where the disagreement is. `comments` has no foreign key to the thing it names,
+because the thing varies, so the route checks the anchor exists in the caller's
+organization before anything is read or written against it.
+
+Two rules carry the rest. **Only the author or someone who can approve may
+resolve**: if anyone could close anything, the fastest way past a reviewer's
+objection would be to dismiss it, and the review would be decorative. And a
+**mention must name a member of the organization** — accepting an arbitrary
+identifier would claim to have drawn in someone who will never be told, and
+would confirm to a stranger that a guessed user exists.
+
+Comments are not the audit log, and the audit entry deliberately records that a
+comment happened without copying what it said. An append-only copy of every word
+would make resolving one cosmetic.
+
+**Still to do:** tasks (the table is migrated and unused), notifications, an
+activity feed, and a comment thread in the interface — the API is complete and
+tested but nothing renders it yet.
 
 ### 7. Portfolio reporting and funds (phase 10) — funds done
 

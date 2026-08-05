@@ -10,7 +10,7 @@ import {
   reportToWorkbook,
   toPortableDocument,
 } from '@cre/reporting';
-import { notFound, requireCapability, unprocessable } from '../context.js';
+import { notFound, queryBoolean, requireCapability, unprocessable } from '../context.js';
 
 export async function registerReportRoutes(app: FastifyInstance): Promise<void> {
   app.get('/reports', async (request) => {
@@ -130,9 +130,7 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
   app.get('/models/:id/export/json', async (request, reply) => {
     const context = requireCapability(request, 'export:run');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const query = z
-      .object({ includeResult: z.coerce.boolean().default(true) })
-      .parse(request.query);
+    const query = z.object({ includeResult: queryBoolean(true) }).parse(request.query);
 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound();

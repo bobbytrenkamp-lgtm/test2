@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Capability, Role } from '@cre/domain-models';
+import { z } from 'zod';
 import { roleHasCapability } from '@cre/domain-models';
 import type { AuthenticatedContext, Sql } from '@cre/database';
 
@@ -132,3 +133,17 @@ export function setSessionCookie(reply: FastifyReply, token: string, secure: boo
 export function clearSessionCookie(reply: FastifyReply): void {
   reply.clearCookie(SESSION_COOKIE, { path: '/' });
 }
+
+/**
+ * A boolean from a query string.
+ *
+ * `z.coerce.boolean()` is the obvious choice and is wrong here: it applies
+ * JavaScript truthiness, so the string "false" becomes `true` and the flag can
+ * only ever be turned on. Query values arrive as strings, so the two spellings
+ * have to be read explicitly.
+ */
+export const queryBoolean = (fallback: boolean) =>
+  z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((value) => (value === undefined ? fallback : value === 'true' || value === '1'));
