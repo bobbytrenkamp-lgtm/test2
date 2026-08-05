@@ -7,14 +7,14 @@
 | 0. Audit and preservation | **Complete.** Repository was empty; see `docs/repository-assessment.md`. |
 | 1. Foundation | **Complete.** Monorepo, environment validation, PostgreSQL, migrations, authentication, organizations, permissions, design system, CI, tests, seed data. |
 | 2. Property and lease domain | **Complete.** Properties, buildings, spaces, tenants, leases, rent steps, market leasing assumptions, validation. |
-| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 18 regression fixtures. |
+| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 19 regression fixtures. |
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
-| 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
+| 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, interface and tests. |
-| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, and fund-level commitments, capital calls, distributions, unfunded capital and investor returns. Fund-level waterfalls and recallable distributions are not built. |
+| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI. Machine-checked accessibility on eleven screens. Local error monitoring. Still missing: a screen-reader audit and deployment automation with a rollback path. |
 
@@ -197,8 +197,29 @@ or recording a call. The demonstration seed creates a fund that is half called,
 deliberately — a fund shown fully drawn hides the unfunded figure, which is the
 one an investor relations team is asked about most often.
 
-**Still to do:** portfolio-level `ReportDefinition`s, and an investor statement
-that can be sent out rather than read on screen.
+**Done: portfolio reports and an investor statement.** Three portfolio reports
+— summary, concentration and the lease expiration schedule — and two fund
+reports, the investor statement and the capital account.
+
+Portfolio and fund reports take different inputs from a property report, so they
+are separate definitions rather than a `ModelResult` report with a
+portfolio-shaped hole in it. Both are built from the same roll-up and the same
+position the screens show, through the same extracted functions, because a
+statement that disagrees with the screen it was printed from is the worst kind
+of report: both look authoritative and only one can be right.
+
+Every rate on the portfolio summary carries its basis in a column, because a
+portfolio capitalisation rate that looks like an average of property rates — and
+is not — will be misread unless the report says otherwise.
+
+The investor statement is the one that leaves the building, so it states its own
+limits on its face: where the unrealised value came from, how each multiple is
+built, that the net IRR is solved from dated flows rather than annualised from a
+multiple, and that recallable distributions, fund-level carried interest and
+management fee mechanics are not modelled. A statement that omits its limits
+invites the reader to assume it has none.
+
+**Still to do:** nothing in phase 10 beyond what phase 12 covers.
 
 ### 8. Production hardening (phase 12)
 

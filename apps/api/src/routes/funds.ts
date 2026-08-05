@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '@cre/database';
 import { computeFund, type FundInvestor, type FundTransaction } from '@cre/calculation-engine';
+import { FUND_REPORTS } from '@cre/reporting';
 import { HttpError, badRequest, notFound, requireCapability } from '../context.js';
 import { aggregateForPortfolio } from './portfolios.js';
 
@@ -228,6 +229,54 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /* ---------------------------------------------------------------------- */
+  /* Reports                                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  app.get('/funds/reports', async (request) => {
+    requireCapability(request, 'report:read');
+    return {
+      reports: FUND_REPORTS.map((report) => ({
+        id: report.id,
+        title: report.title,
+        description: report.description,
+      })),
+    };
+  });
+
+  /**
+   * A fund report, rendered from the same summary the screen shows.
+   *
+   * The investor statement is the one that leaves the building, so it carries
+   * its own footnotes: where the unrealised value came from, how each multiple
+   * is built, and what a partnership agreement may provide for that this does
+   * not model. A statement that omits its own limits invites the reader to
+   * assume it has none.
+   */
+  app.get('/funds/:id/reports/:reportId', async (request) => {
+    const context = requireCapability(request, 'report:read');
+    const params = z
+      .object({ id: z.string().uuid(), reportId: z.string().max(60) })
+      .parse(request.params);
+    const query = z.object({ valuationDate: isoDate.optional() }).parse(request.query);
+
+    const definition = FUND_REPORTS.find((report) => report.id === params.reportId);
+    if (!definition) throw notFound('That report does not exist.');
+
+    const position = await fundPosition(request, context.organizationId, params.id, {
+      valuationDate: query.valuationDate,
+    });
+
+    return {
+      report: definition.build(position.summary, {
+        fundName: position.fund.name as string,
+        currency: (position.fund.currency as string) ?? 'USD',
+        valuationDate: position.valuationDate,
+        residualBasis: position.residualBasis,
+      }),
+    };
+  });
+
+  /* ---------------------------------------------------------------------- */
   /* The roll-up                                                             */
   /* ---------------------------------------------------------------------- */
 
@@ -248,91 +297,115 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
         modelClassification: z.string().max(60).optional(),
       })
       .parse(request.query);
-    const fund = await requireFund(request, context.organizationId, id);
-
-    const investorRows = (await request.db`
-      SELECT id, code, name, investor_class, commitment
-      FROM fund_investors WHERE fund_id = ${id} ORDER BY code
-    `) as unknown as Array<{
-      id: string;
-      code: string;
-      name: string;
-      investor_class: string;
-      commitment: string;
-    }>;
-
-    const transactionRows = (await request.db`
-      SELECT investor_id, to_char(transaction_date, 'YYYY-MM-DD') AS date, type, amount
-      FROM fund_transactions WHERE fund_id = ${id}
-      ORDER BY transaction_date
-    `) as unknown as Array<{ investor_id: string; date: string; type: string; amount: string }>;
-
-    /*
-     * Residual value from the fund's portfolio, using the same roll-up the
-     * portfolio screen shows.
-     *
-     * A fund with no portfolio, or one whose properties have never been
-     * calculated, reports zero residual value and says why. Substituting the
-     * committed capital, or the contributed capital, would produce a TVPI of
-     * about 1.0 for every such fund — a number that looks like an answer and
-     * is not one.
-     */
-    let netAssetValue = '0';
-    let residualBasis = 'No portfolio is attached to this fund, so no residual value is included.';
-    const portfolioId = fund.portfolio_id as string | null;
-    if (portfolioId) {
-      try {
-        const rollUp = await aggregateForPortfolio(
-          request.db,
-          context.organizationId,
-          portfolioId,
-          query.modelClassification,
-        );
-        netAssetValue = rollUp.aggregate.netAssetValue;
-        residualBasis = `Net asset value of ${rollUp.included.length} property roll-up.`;
-      } catch {
-        residualBasis =
-          'The attached portfolio has no calculated model, so no residual value is included.';
-      }
-    }
-
-    const investors: FundInvestor[] = investorRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      investorClass: row.investor_class,
-      commitment: row.commitment,
-    }));
-    const transactions: FundTransaction[] = transactionRows.map((row) => ({
-      investorId: row.investor_id,
-      date: row.date,
-      type: row.type as FundTransaction['type'],
-      amount: row.amount,
-    }));
-
-    const valuationDate = query.valuationDate ?? new Date().toISOString().slice(0, 10);
-    const summary = computeFund({ investors, transactions, netAssetValue, valuationDate });
-
-    // Codes rather than identifiers, because a report names the investor the
-    // way the fund's own records do.
-    const codeById = new Map(investorRows.map((row) => [row.id, row.code]));
-    return {
-      fund: {
-        id: fund.id,
-        name: fund.name,
-        currency: fund.currency,
-        vintageYear: fund.vintage_year,
-      },
-      valuationDate,
-      residualBasis,
-      summary: {
-        ...summary,
-        positions: summary.positions.map((position) => ({
-          ...position,
-          investorCode: codeById.get(position.investorId) ?? position.investorId,
-        })),
-      },
-    };
+    return fundPosition(request, context.organizationId, id, query);
   });
+}
+
+/**
+ * A fund's position at a date.
+ *
+ * Extracted from the route so the reports are built from the same figures the
+ * screen shows. A second path would drift, and a statement that disagrees with
+ * the screen it was printed from is the worst kind of report: both look
+ * authoritative and only one can be right.
+ */
+async function fundPosition(
+  request: Parameters<typeof requireCapability>[0],
+  organizationId: string,
+  id: string,
+  query: { valuationDate?: string; modelClassification?: string },
+): Promise<{
+  fund: Record<string, unknown>;
+  valuationDate: string;
+  residualBasis: string;
+  summary: ReturnType<typeof computeFund> & {
+    positions: Array<Record<string, unknown>>;
+  };
+}> {
+  const fund = await requireFund(request, organizationId, id);
+
+  const investorRows = (await request.db`
+    SELECT id, code, name, investor_class, commitment
+    FROM fund_investors WHERE fund_id = ${id} ORDER BY code
+  `) as unknown as Array<{
+    id: string;
+    code: string;
+    name: string;
+    investor_class: string;
+    commitment: string;
+  }>;
+
+  const transactionRows = (await request.db`
+    SELECT investor_id, to_char(transaction_date, 'YYYY-MM-DD') AS date, type, amount
+    FROM fund_transactions WHERE fund_id = ${id}
+    ORDER BY transaction_date
+  `) as unknown as Array<{ investor_id: string; date: string; type: string; amount: string }>;
+
+  /*
+   * Residual value from the fund's portfolio, using the same roll-up the
+   * portfolio screen shows.
+   *
+   * A fund with no portfolio, or one whose properties have never been
+   * calculated, reports zero residual value and says why. Substituting the
+   * committed capital, or the contributed capital, would produce a TVPI of
+   * about 1.0 for every such fund — a number that looks like an answer and
+   * is not one.
+   */
+  let netAssetValue = '0';
+  let residualBasis = 'No portfolio is attached to this fund, so no residual value is included.';
+  const portfolioId = fund.portfolio_id as string | null;
+  if (portfolioId) {
+    try {
+      const rollUp = await aggregateForPortfolio(
+        request.db,
+        organizationId,
+        portfolioId,
+        query.modelClassification,
+      );
+      netAssetValue = rollUp.aggregate.netAssetValue;
+      residualBasis = `Net asset value of ${rollUp.included.length} property roll-up.`;
+    } catch {
+      residualBasis =
+        'The attached portfolio has no calculated model, so no residual value is included.';
+    }
+  }
+
+  const investors: FundInvestor[] = investorRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    investorClass: row.investor_class,
+    commitment: row.commitment,
+  }));
+  const transactions: FundTransaction[] = transactionRows.map((row) => ({
+    investorId: row.investor_id,
+    date: row.date,
+    type: row.type as FundTransaction['type'],
+    amount: row.amount,
+  }));
+
+  const valuationDate = query.valuationDate ?? new Date().toISOString().slice(0, 10);
+  const summary = computeFund({ investors, transactions, netAssetValue, valuationDate });
+
+  // Codes rather than identifiers, because a report names the investor the
+  // way the fund's own records do.
+  const codeById = new Map(investorRows.map((row) => [row.id, row.code]));
+  return {
+    fund: {
+      id: fund.id,
+      name: fund.name,
+      currency: fund.currency,
+      vintageYear: fund.vintage_year,
+    },
+    valuationDate,
+    residualBasis,
+    summary: {
+      ...summary,
+      positions: summary.positions.map((position) => ({
+        ...position,
+        investorCode: codeById.get(position.investorId) ?? position.investorId,
+      })),
+    },
+  };
 }
 
 async function requireFund(

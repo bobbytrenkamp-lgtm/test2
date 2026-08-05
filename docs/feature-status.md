@@ -22,13 +22,13 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       479 passed  (216 engine regression, 31 engine unit, 16 fund,
+Tests       489 passed  (216 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 18 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 10 error monitoring,
-                         5 reforecast, 10 comments,
+                         5 reforecast, 10 comments, 10 portfolio reports,
                          13 vertical slice)
 Browser      50 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          2 lease editor, 6 permissions, 1 rent-roll import,
@@ -152,6 +152,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
 | Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so on screen |
 | Fund-level waterfall, recallable distributions | Not started | Documented as not modelled in `fund.ts` rather than approximated |
+| Portfolio reports (summary, concentration, expirations) | Tested | Every rate states its own basis in a column |
+| Investor statement and capital account | Tested | Built from the same position the screen shows; states its own limits on its face |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
 | Reports (JSON, CSV, XLSX, print HTML) | Functional | |
 | Portable JSON export | Functional | Documented, non-proprietary |
