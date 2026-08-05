@@ -34,9 +34,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
+| Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**406 tests in total.**
+**413 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -56,7 +57,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**41 browser tests in total**, for 447 across the whole repository.
+**41 browser tests in total**, for 454 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

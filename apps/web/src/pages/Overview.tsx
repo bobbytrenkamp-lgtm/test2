@@ -479,19 +479,37 @@ export function JobsPage(): JSX.Element {
   );
 }
 
+interface AuditEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  occurred_at: string;
+  user_name: string | null;
+  user_email: string | null;
+  new_value: unknown;
+}
+
+const AUDIT_PAGE_SIZE = 100;
+
 export function AuditPage(): JSX.Element {
-  const audit = useResource<{
-    entries: Array<{
-      id: string;
-      action: string;
-      entity_type: string;
-      entity_id: string | null;
-      occurred_at: string;
-      user_name: string | null;
-      user_email: string | null;
-      new_value: unknown;
-    }>;
-  }>('/audit?limit=200');
+  // Pages accumulate rather than replacing one another: reading a history is a
+  // scroll, not a slideshow, and losing the rows above to see the ones below
+  // makes comparing two entries impossible.
+  const [loaded, setLoaded] = useState<AuditEntry[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+
+  const audit = useResource<{ entries: AuditEntry[]; nextCursor: string | null }>(
+    `/audit?limit=${AUDIT_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    [cursor],
+  );
+
+  // The cursor is where the last page stopped, not a position, so pages never
+  // shift under a reader while new entries are being written above them.
+  const entries = cursor
+    ? [...loaded, ...(audit.data?.entries ?? [])]
+    : (audit.data?.entries ?? []);
+  const nextCursor = audit.data?.nextCursor ?? null;
 
   return (
     <>
@@ -511,7 +529,7 @@ export function AuditPage(): JSX.Element {
       <ErrorMessage error={audit.error} />
       {audit.loading && <Loading label="Loading audit history" />}
 
-      {audit.data && audit.data.entries.length === 0 ? (
+      {audit.data && entries.length === 0 ? (
         <EmptyState title="Nothing recorded yet">
           Audit entries appear as models, properties and leases are created and changed.
         </EmptyState>
@@ -531,7 +549,7 @@ export function AuditPage(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {audit.data.entries.map((entry) => (
+                  {entries.map((entry) => (
                     <tr key={entry.id}>
                       <td>{formatDateTime(entry.occurred_at)}</td>
                       <td>{entry.user_name ?? entry.user_email ?? 'System'}</td>
@@ -547,6 +565,25 @@ export function AuditPage(): JSX.Element {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <span className="field-hint">
+                {entries.length} entr{entries.length === 1 ? 'y' : 'ies'} shown
+                {nextCursor ? '' : ' · the whole history'}
+              </span>
+              <div className="spacer" />
+              {nextCursor && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoaded(entries);
+                    setCursor(nextCursor);
+                  }}
+                  disabled={audit.loading}
+                >
+                  {audit.loading ? 'Loading…' : 'Load older entries'}
+                </button>
+              )}
             </div>
           </div>
         )

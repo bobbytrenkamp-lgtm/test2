@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { listAudit, listJobs } from '@cre/database';
+import { listAudit, listAuditPage, listJobs } from '@cre/database';
 import { requireCapability } from '../context.js';
 
 export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
@@ -12,15 +12,25 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
         propertyId: z.string().uuid().optional(),
         entityType: z.string().max(60).optional(),
         limit: z.coerce.number().int().min(1).max(500).default(100),
+        // Opaque to the caller: it is where the previous page stopped, not a
+        // position, so nothing should be computed from it.
+        cursor: z.string().max(120).optional(),
+        // Kept working for callers that page by position. Ignored when a cursor
+        // is supplied.
         offset: z.coerce.number().int().min(0).default(0),
       })
       .parse(request.query);
 
-    const entries = await listAudit(request.db, {
+    const page = await listAuditPage(request.db, {
       organizationId: context.organizationId,
       ...query,
     });
-    return { entries, limit: query.limit, offset: query.offset };
+    return {
+      entries: page.entries,
+      nextCursor: page.nextCursor,
+      limit: query.limit,
+      offset: query.offset,
+    };
   });
 
   /**
