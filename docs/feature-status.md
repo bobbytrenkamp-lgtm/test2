@@ -32,7 +32,7 @@ Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice)
-Browser      67 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser      68 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -187,7 +187,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
 | Reports with four output formats | Functional | |
-| Rent-roll import wizard | Tested | Browser test imports a part-invalid file and checks what reached the rent roll |
+| Rent-roll import wizard | Tested | Browser tests import a part-invalid CSV and a multi-sheet workbook, and check what reached the rent roll. The sheet is chosen in the wizard, not guessed for you |
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
 | Comments on a model, property or budget | Tested | Review tab on the model workspace; author-or-approver resolution, mentions restricted to organization members. Four browser tests across two roles |
 | Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
@@ -199,7 +199,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 67 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 68 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
