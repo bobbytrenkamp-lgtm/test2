@@ -258,6 +258,21 @@ export interface SponsorFeeContext {
   acquisitionBasis: Decimal;
   grossSalePrice: Decimal;
   saleIndex: number | null;
+  /**
+   * Capital expenditure incurred in each period, as a positive amount.
+   *
+   * The basis for a development fee. Incurred rather than budgeted: a fee on a
+   * budget is earned by writing the budget, and an underspend would pay the
+   * sponsor for work nobody did. The incurred figure is also the one the
+   * platform actually holds.
+   *
+   * Tenant improvements and leasing commissions are excluded. They are leasing
+   * costs, and a leasing commission already compensates that work; charging a
+   * development fee on top would pay for it twice.
+   */
+  capitalExpenditure: Decimal[];
+  /** Debt proceeds drawn in each period, the basis for a refinance fee. */
+  debtProceeds: Decimal[];
   trace: TraceRecorder;
 }
 
@@ -296,14 +311,45 @@ export function computeSponsorFees(ctx: SponsorFeeContext): {
           );
         }
         break;
-      default:
+      case 'development':
+        // Charged as cost is incurred, which is when the work it pays for is
+        // done. A lump sum at the start would pay the sponsor before the
+        // building exists, and one at the end would misstate the equity the
+        // project needs while it is being built.
+        for (let i = 0; i < n; i += 1) {
+          total[i] = (total[i] as Decimal).plus((ctx.capitalExpenditure[i] ?? ZERO).times(percent));
+        }
+        break;
+      case 'refinance':
+        /*
+         * On proceeds drawn *after* the first funding period.
+         *
+         * The initial funding is the acquisition loan. Charging a refinance fee
+         * on it would pay the sponsor twice for one financing — the acquisition
+         * fee already covers putting the deal together — and would quietly
+         * inflate every levered return on a model that never refinanced at all.
+         */
+        for (let i = 1; i < n; i += 1) {
+          total[i] = (total[i] as Decimal).plus((ctx.debtProceeds[i] ?? ZERO).times(percent));
+        }
+        break;
+      default: {
+        /*
+         * Every fee type the schema allows now has a basis, so this is
+         * unreachable and TypeScript narrows `fee.type` to `never` to say so.
+         * The assignment below is what makes adding a type to the schema a
+         * compile error here rather than a fee that silently is not charged —
+         * which is how `development` and `refinance` sat unbilled until now.
+         */
+        const unhandled: never = fee.type;
         ctx.trace.diagnostic(
           'FEE_TYPE_NOT_MODELLED',
           'informational',
-          `The ${fee.type.replace(/_/g, ' ')} fee "${fee.name}" has no cash-flow basis in this model and was not charged. Development and refinance fee bases are not yet implemented.`,
+          `The fee "${fee.name}" has a type this engine does not charge (${String(unhandled)}).`,
           `fee:${fee.id}`,
           'type',
         );
+      }
     }
   }
 

@@ -1688,6 +1688,100 @@ export function cashTrapDisabled(): ModelInput {
   };
 }
 
+/**
+ * Fixture 20 - Development and refinance fees, on bases anyone can check.
+ *
+ * Capital spend is a flat 100,000 a month for the first twelve months and
+ * nothing afterwards: 1,200,000 of development cost, and a 4% development fee
+ * is 48,000 charged as the money is spent rather than in a lump.
+ *
+ * The loan funds 2,000,000 at the start and draws a further 1,000,000 in month
+ * 25 — a refinancing. A 1% refinance fee is 10,000, on the second draw only:
+ * charging it on the initial funding would pay the sponsor twice for one
+ * financing, since the acquisition fee already covers putting the deal
+ * together.
+ */
+export function sponsorFeeBases(): ModelInput {
+  return buildModel({
+    modelId: 'fx-sponsor-fees',
+    modelName: 'Sponsor fee test property (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 36,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-FEE',
+      name: 'Sponsor fee test',
+      propertyType: 'industrial',
+      rentableArea: '100000',
+    },
+    spaces: [{ id: 'S1', code: 'Whole building', area: '100000' }],
+    tenants: [{ id: 'T1', name: 'Sole occupant' }],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '100000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '12.00',
+        baseRentBasis: 'per_area_per_year',
+        excludeFromRollover: true,
+      },
+    ],
+    expenses: [],
+    capital: [
+      {
+        id: 'C1',
+        name: 'Base building works',
+        category: 'development_hard_cost',
+        method: 'custom_monthly_schedule',
+        amount: '0',
+        // 100,000 a month for twelve months, then nothing.
+        monthlySchedule: Array.from({ length: 36 }, (_, i) => (i < 12 ? '100000' : '0')),
+      },
+    ],
+    debt: [
+      {
+        id: 'D1',
+        name: 'Construction loan',
+        type: 'construction',
+        commitment: '3000000',
+        initialFunding: '2000000',
+        fundingDate: '2026-01-01',
+        draws: [{ date: '2028-01-01', amount: '1000000' }],
+        rateType: 'fixed',
+        fixedRate: '0.05',
+        interestOnlyMonths: 36,
+        amortizationMonths: 0,
+        termMonths: 36,
+        repayOnSale: true,
+      },
+    ],
+    equity: {
+      partners: [
+        { id: 'LP', name: 'Investor', role: 'lp', contributionShare: '0.9' },
+        { id: 'GP', name: 'Sponsor', role: 'gp', contributionShare: '0.1' },
+      ],
+      tiers: [],
+      fees: [
+        { id: 'F-DEV', name: 'Development fee', type: 'development', percent: '0.04' },
+        { id: 'F-REF', name: 'Refinance fee', type: 'refinance', percent: '0.01' },
+      ],
+    },
+    valuation: {
+      discountRate: '0.08',
+      terminalCapRate: '0.07',
+      terminalNoiBasis: 'trailing_12',
+      saleMonth: 36,
+    },
+  });
+}
+
 export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   singleTenantIndustrial,
   multiTenantOffice,
@@ -1708,4 +1802,5 @@ export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   reconciledRecovery,
   partialSpaceRecovery,
   cashTrapOnBreach,
+  sponsorFeeBases,
 };

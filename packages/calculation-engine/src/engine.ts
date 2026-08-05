@@ -52,6 +52,31 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 3.2.0
+ *
+ * Development and refinance fee bases. Both fee types have been in the schema
+ * since the equity structure was written and neither had a basis, so a model
+ * configuring one produced an informational diagnostic and charged nothing —
+ * silently understating what the sponsor takes.
+ *
+ * A development fee is charged on capital expenditure **as it is incurred**.
+ * Incurred rather than budgeted: a fee on a budget is earned by writing the
+ * budget. Tenant improvements and leasing commissions are excluded, because a
+ * leasing commission already compensates that work.
+ *
+ * A refinance fee is charged on debt proceeds drawn **after the first funding
+ * period**. The initial funding is the acquisition loan and the acquisition fee
+ * already covers putting the deal together; charging both would pay twice for
+ * one financing and inflate the sponsor's take on every model that never
+ * refinanced.
+ *
+ * The fallback branch now assigns `fee.type` to `never`, so adding a type to
+ * the schema is a compile error here rather than a fee that quietly is not
+ * charged — which is exactly how these two sat unbilled.
+ *
+ * Additive: a model with no development or refinance fee is unchanged, and
+ * every pre-existing regression assertion passes unaltered.
+ *
  * ## 3.1.0
  *
  * Cash-management triggers on covenant breach. A breach the engine only
@@ -148,7 +173,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '3.1.0';
+export const ENGINE_VERSION = '3.2.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -612,6 +637,8 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     acquisitionBasis,
     grossSalePrice: sale?.grossSalePrice ?? ZERO,
     saleIndex: sale?.saleIndex ?? null,
+    capitalExpenditure: capitalExpenditures,
+    debtProceeds: debt.proceeds,
     trace,
   });
 

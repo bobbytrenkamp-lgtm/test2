@@ -15,6 +15,7 @@ import {
   partialSpaceRecovery,
   percentageRentProperty,
   reconciledRecovery,
+  sponsorFeeBases,
   refinanceScenario,
   renewalOption,
   singleTenantIndustrial,
@@ -837,5 +838,133 @@ describe('Fixture 19: a covenant breach that traps cash', () => {
     for (const row of untrapped.annual) {
       expect(Number(row.lines.restrictedCash)).toBe(0);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('Fixture 20: development and refinance fee bases', () => {
+  const result = run(sponsorFeeBases());
+
+  /*
+   * Capital spend is 100,000 a month for twelve months: 1,200,000, so a 4%
+   * development fee is 48,000. The loan funds 2,000,000 at the start and draws
+   * a further 1,000,000 in 2028; a 1% refinance fee is 10,000 on the second
+   * draw only.
+   *
+   * Fees are paid out of equity cash flow, so they do not appear on a cash-flow
+   * line — they show up as the difference between the property's levered return
+   * and the equity holder's. The waterfall's contributions carry them.
+   */
+  it('charges the development fee as cost is incurred, not in a lump', () => {
+    // The whole year-one spend attracts the fee; nothing afterwards does,
+    // because nothing is spent afterwards.
+    const spendYearOne = -line(result, 2026, 'capitalExpenditures');
+    expect(spendYearOne).toBeCloseTo(1200000, 2);
+    const spendYearTwo = -line(result, 2027, 'capitalExpenditures');
+    expect(spendYearTwo).toBeCloseTo(0, 2);
+  });
+
+  it('raises no diagnostic saying the fee type is not modelled', () => {
+    // Until now a development or refinance fee was silently not charged and
+    // said so only in an informational diagnostic nobody reads.
+    const notModelled = result.diagnostics.filter(
+      (entry) => entry.code === 'FEE_TYPE_NOT_MODELLED',
+    );
+    expect(notModelled).toEqual([]);
+  });
+
+  it('takes exactly the fees out of what the partners receive', () => {
+    /*
+     * The same model with no fees at all is the control.
+     *
+     *   development  4% x 1,200,000 of capital spend = 48,000
+     *   refinance    1% x 1,000,000 of the later draw = 10,000
+     *                                                  ───────
+     *                                                   58,000
+     *
+     * Sponsor fees are paid out of equity cash flow before the waterfall, so
+     * the partnership is 58,000 worse off — but the two fees land differently,
+     * and that difference is the point.
+     *
+     * The development fee falls in the construction months, when the deal is
+     * already cash-negative. A fee charged against a deficit is not a smaller
+     * distribution, it is a larger capital call: the partners fund it. So it
+     * appears as 48,000 of extra contributions.
+     *
+     * The refinance fee falls in 2028, when the property is throwing off cash,
+     * so it simply reduces what is distributed — 10,000 of it.
+     *
+     * Neither touches the property's own return: a sponsor fee is a
+     * distribution of the deal's cash, not a cost of the building. The headline
+     * levered figures are solved from levered cash flow, which is before fees,
+     * so they are unchanged by design.
+     */
+    const base = sponsorFeeBases();
+    const withoutFees = run({ ...base, equity: { ...base.equity, fees: [] } });
+
+    const distributed = (model: typeof result): number =>
+      model.waterfall.reduce((sum, partner) => sum + Number(partner.distributions), 0);
+    const contributed = (model: typeof result): number =>
+      model.waterfall.reduce((sum, partner) => sum + Number(partner.contributions), 0);
+
+    expect(contributed(result) - contributed(withoutFees)).toBeCloseTo(48000, 2);
+    expect(distributed(withoutFees) - distributed(result)).toBeCloseTo(10000, 2);
+
+    // Together, exactly the 58,000 the sponsor is owed.
+    const net = (model: typeof result): number => distributed(model) - contributed(model);
+    expect(net(withoutFees) - net(result)).toBeCloseTo(58000, 2);
+
+    expect(Number(result.returns.unleveredIrr)).toBeCloseTo(
+      Number(withoutFees.returns.unleveredIrr),
+      10,
+    );
+  });
+
+  it('does not charge a refinance fee on the initial funding', () => {
+    /*
+     * The acquisition fee already covers putting the deal together. Charging
+     * the refinance fee on the first draw as well would take 1% of 3,000,000
+     * rather than of 1,000,000 — 30,000 instead of 10,000 — and would inflate
+     * the sponsor's take on every model that never refinanced at all.
+     *
+     * Proved by removing the later draw: with no refinancing there should be no
+     * refinance fee, so the equity multiple matches a model with no refinance
+     * fee configured.
+     */
+    const base = sponsorFeeBases();
+    const noRefinancing = {
+      ...base,
+      debt: base.debt.map((facility) => ({ ...facility, draws: [] })),
+    };
+    const withFee = run(noRefinancing);
+    const withoutFee = run({
+      ...noRefinancing,
+      equity: {
+        ...base.equity,
+        fees: base.equity.fees.filter((fee) => fee.type !== 'refinance'),
+      },
+    });
+
+    const distributed = (model: typeof result): number =>
+      model.waterfall.reduce((sum, partner) => sum + Number(partner.distributions), 0);
+
+    // No refinancing, so configuring the fee changes nothing at all.
+    expect(distributed(withFee)).toBeCloseTo(distributed(withoutFee), 2);
+
+    // And with the refinancing back, it is exactly 1% of the 1,000,000 drawn.
+    const refinanced = run(base);
+    const refinancedNoFee = run({
+      ...base,
+      equity: {
+        ...base.equity,
+        fees: base.equity.fees.filter((fee) => fee.type !== 'refinance'),
+      },
+    });
+    expect(distributed(refinancedNoFee) - distributed(refinanced)).toBeCloseTo(10000, 2);
+  });
+
+  it('raises no critical error', () => {
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
   });
 });
