@@ -160,3 +160,11 @@ jobs:
       # enforcing it; this is the enforcement. Reads files only.
       - name: Migration rollback safety
         run: node scripts/check-migrations.mjs
+
+      # The test counts in the documentation went stale repeatedly, which made
+      # the rest of those documents harder to trust. This enumerates the suites
+      # without running them and fails if a stated figure is wrong. It runs
+      # after the suites so a genuine test failure is reported first — a
+      # doc-count mismatch is the less interesting of the two.
+      - name: Documentation matches the code
+        run: node scripts/check-docs.mjs

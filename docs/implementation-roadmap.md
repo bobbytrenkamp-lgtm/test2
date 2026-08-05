@@ -425,3 +425,10 @@ approval.
 - A regression fixture's expected values are never taken from engine output.
 - Any change to existing model numbers is a **major** engine version.
 - Documentation is updated in the same commit as the behaviour it describes.
+  **This one is now enforced** for the part of it a machine can see:
+  `pnpm check:docs` enumerates every suite without running it and fails the
+  build if a stated count is wrong. It was added because the rule kept being
+  broken — one pass alone corrected nine rows describing shipped work as
+  unbuilt, and a verification block four merges out of date. It cannot tell
+  whether a row marked Tested describes what the tests assert; that still needs
+  a reader. It closes the gap that kept reopening.

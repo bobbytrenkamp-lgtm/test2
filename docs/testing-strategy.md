@@ -17,7 +17,20 @@ construction. It would pass on the day a formula silently breaks.
 pnpm test                      # everything below the browser
 DATABASE_URL=... pnpm test     # everything, including database-backed suites
 pnpm test:e2e                  # the browser suite, on the built bundle
+pnpm check:docs                # the counts below still match the code
 ```
+
+**The counts in this document are enforced.** `pnpm check:docs` enumerates every
+suite — `vitest list` and `playwright --list`, neither of which runs anything —
+and fails the build if a figure here or in the verification block of
+`docs/feature-status.md` is wrong. It exists because these numbers went stale
+repeatedly: this file once claimed 164 regression tests against 202 real ones,
+and described a browser suite that had since doubled. A document wrong about its
+own easily checkable parts earns no trust on the parts nobody can check.
+
+Without a `DATABASE_URL` the database suites are skipped and therefore invisible
+to the enumeration, so the check compares the per-suite rows it can see and says
+it did not check the totals, rather than failing for a reason that is not drift.
 
 | Suite | Location | Count | Needs a database |
 | --- | --- | --- | --- |
