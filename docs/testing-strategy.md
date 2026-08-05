@@ -60,10 +60,11 @@ built bundle:
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
 | Fund positions | `e2e/funds.spec.ts` | 5 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
+| Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**46 browser tests in total**, for 525 across the whole repository.
+**50 browser tests in total**, for 529 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

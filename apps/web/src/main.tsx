@@ -15,7 +15,13 @@ import { AssumptionsTab } from './pages/AssumptionsTab.js';
 import { ReturnsTab } from './pages/ReturnsTab.js';
 import { ScenariosTab } from './pages/ScenariosTab.js';
 import { BudgetsTab } from './pages/BudgetsTab.js';
-import { ImportsTab, ReportsTab, ValidationTab, VersionsTab } from './pages/SupportTabs.js';
+import {
+  ImportsTab,
+  ReportsTab,
+  ReviewTab,
+  ValidationTab,
+  VersionsTab,
+} from './pages/SupportTabs.js';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('The application root element is missing from index.html.');
@@ -44,6 +50,7 @@ createRoot(container).render(
               <Route path="reports" element={<ReportsTab />} />
               <Route path="imports" element={<ImportsTab />} />
               <Route path="versions" element={<VersionsTab />} />
+              <Route path="review" element={<ReviewTab />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

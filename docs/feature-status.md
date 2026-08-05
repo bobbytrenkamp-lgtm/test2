@@ -30,10 +30,11 @@ Tests       479 passed  (216 engine regression, 31 engine unit, 16 fund,
                          7 version comparison via the API, 10 error monitoring,
                          5 reforecast, 10 comments,
                          13 vertical slice)
-Browser      46 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser      50 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          2 lease editor, 6 permissions, 1 rent-roll import,
                          5 budgets, 6 palette and paste, 5 funds,
-                         2 version comparison, 11 accessibility)
+                         2 version comparison, 4 review comments,
+                         11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
@@ -181,7 +182,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser test imports a part-invalid file and checks what reached the rent roll |
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
-| Comments on a model, property or budget | Tested | API only — no interface renders them yet. Author-or-approver resolution, mentions restricted to organization members |
+| Comments on a model, property or budget | Tested | Review tab on the model workspace; author-or-approver resolution, mentions restricted to organization members. Four browser tests across two roles |
 | Tasks, mentions notifications, activity feed | Not started | `tasks` table migrated and unused |
 | Portfolio roll-up | Functional | |
 | Jobs and audit history | Functional | |

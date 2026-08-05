@@ -793,3 +793,25 @@ details.chart-data > summary {
   border-radius: 3px;
   padding: 1px 4px;
 }
+
+/* Review comments -------------------------------------------------------- */
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.comment {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface);
+}
+/* A resolved comment stays legible but recedes: it is history, not work. */
+.comment.resolved {
+  opacity: 0.72;
+  border-style: dashed;
+}

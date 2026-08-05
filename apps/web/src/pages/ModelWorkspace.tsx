@@ -37,6 +37,7 @@ const TABS = [
   { to: 'imports', label: 'Imports' },
   { to: 'reports', label: 'Reports' },
   { to: 'versions', label: 'Versions' },
+  { to: 'review', label: 'Review' },
 ];
 
 export function ModelWorkspace(): JSX.Element {
