@@ -194,9 +194,23 @@ worked around rather than heeded. The guard lives in the shared collection
 registration, so a seventh collection would inherit it; a test asserts all six
 are actually covered, because "it is shared" is not evidence.
 
-Still to do: grid virtualisation and cursor pagination on the audit log, once
-profiling says where; error monitoring; an audit with a real screen reader; and
-deployment automation with a rollback path.
+~~Cursor pagination on the audit log~~ — done. The log paged by `OFFSET`, which
+makes PostgreSQL walk and discard every skipped row, so page four hundred costs
+four hundred times page one. It now pages by keyset — reading from where the
+last page stopped — on an index of `(organization_id, occurred_at DESC,
+id DESC)`.
+
+The id in that key is the load-bearing part. `occurred_at` alone is not unique:
+a bulk import writes a batch of audit rows inside one statement and PostgreSQL's
+`now()` is the transaction's start time, so they genuinely collide. Two rows
+that compare equal can land on either side of a page boundary — one shown twice,
+another never. On an audit log a silently skipped row is the worst defect
+available, so the test writes twenty-five rows sharing one timestamp to the
+microsecond and walks every page at three different page sizes.
+
+Still to do: grid virtualisation, once profiling says where; error monitoring;
+an audit with a real screen reader; and deployment automation with a rollback
+path.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted

@@ -22,17 +22,18 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       406 passed  (202 engine regression, 31 engine unit, 16 fund,
+Tests       413 passed  (202 engine regression, 31 engine unit, 16 fund,
                          18 variance, 51 import, 23 authorization, 13 budgets,
                          7 portfolios, 10 funds via the API, 17 optimistic
-                         locking, 5 recovery pools, 13 vertical slice)
+                         locking, 5 recovery pools, 7 audit pagination,
+                         13 vertical slice)
 Browser      41 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 5 funds, 11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
-Migrations  9 applied against PostgreSQL 16
+Migrations  10 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
