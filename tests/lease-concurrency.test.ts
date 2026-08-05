@@ -264,4 +264,187 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
       expect(await version()).toBe(before + 1);
     });
   });
+
+  /* ---------------------------------------------------------------------- */
+  /* Assumption collections                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * The collections carry their own row-level versions rather than sharing the
+   * model's. Two analysts editing the same expense line collide; two editing
+   * different lines do not, which is the distinction a model-wide version could
+   * not make and the reason 0007 deliberately stopped short of these tables.
+   */
+  describe('on an assumption collection', () => {
+    async function put(
+      segment: string,
+      code: string,
+      body: Record<string, unknown>,
+      expectedVersion?: number | null,
+    ): Promise<{ statusCode: number; body: string }> {
+      const response = await ctx.app.inject({
+        method: 'PUT',
+        url: `/api/v1/models/${modelId}/${segment}/${code}`,
+        headers: authed(owner.cookie),
+        payload: {
+          ...body,
+          ...(expectedVersion === undefined ? {} : { expectedVersion }),
+        },
+      });
+      return { statusCode: response.statusCode, body: response.body };
+    }
+
+    async function rows(segment: string): Promise<Array<Record<string, unknown>>> {
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelId}/${segment}`,
+        headers: authed(owner.cookie),
+      });
+      return (response.json() as { items: Array<Record<string, unknown>> }).items;
+    }
+
+    async function row(segment: string, code: string): Promise<Record<string, unknown>> {
+      const found = (await rows(segment)).find((entry) => entry.code === code);
+      if (!found) throw new Error(`${segment}/${code} not found`);
+      return found;
+    }
+
+    function expense(amount: string): Record<string, unknown> {
+      return { name: 'Insurance', category: 'insurance', method: 'fixed', amount };
+    }
+
+    it('starts a row at version 1 and increments on each write', async () => {
+      await put('expenses', 'INS', expense('50000'));
+      expect((await row('expenses', 'INS')).version).toBe(1);
+
+      await put('expenses', 'INS', expense('52000'), 1);
+      const after = await row('expenses', 'INS');
+      expect(after.version).toBe(2);
+      expect(after.amount).toBe('52000.000000');
+    });
+
+    it('refuses a write whose version has been overtaken, and keeps the other figure', async () => {
+      await put('expenses', 'TAX', expense('80000'));
+
+      const theirs = await put('expenses', 'TAX', expense('95000'), 1);
+      expect(theirs.statusCode).toBe(200);
+
+      const mine = await put('expenses', 'TAX', expense('60000'), 1);
+      expect(mine.statusCode).toBe(409);
+      const error = JSON.parse(mine.body) as {
+        error: {
+          code: string;
+          details: { collection: string; code: string; currentVersion: number };
+        };
+      };
+      expect(error.error.code).toBe('ASSUMPTION_VERSION_CONFLICT');
+      expect(error.error.details.collection).toBe('expenses');
+      expect(error.error.details.code).toBe('TAX');
+      expect(error.error.details.currentVersion).toBe(2);
+
+      // Their figure survives untouched.
+      expect((await row('expenses', 'TAX')).amount).toBe('95000.000000');
+    });
+
+    it('lets exactly one of two simultaneous writers to the same row win', async () => {
+      await put('expenses', 'CAM', expense('30000'));
+
+      const [first, second] = await Promise.all([
+        put('expenses', 'CAM', expense('31000'), 1),
+        put('expenses', 'CAM', expense('32000'), 1),
+      ]);
+      expect([first.statusCode, second.statusCode].sort()).toEqual([200, 409]);
+
+      const current = await row('expenses', 'CAM');
+      expect(current.version).toBe(2);
+      expect(['31000.000000', '32000.000000']).toContain(current.amount);
+    });
+
+    it('does not make two people editing different rows collide', async () => {
+      // The whole reason these are row-level rather than model-wide. One analyst
+      // adding a roof replacement while another adjusts insurance is not a
+      // conflict, and software that says it is gets worked around.
+      await put('expenses', 'ROOF', expense('10000'));
+      await put('expenses', 'UTIL', expense('20000'));
+
+      const [roof, util] = await Promise.all([
+        put('expenses', 'ROOF', expense('11000'), 1),
+        put('expenses', 'UTIL', expense('21000'), 1),
+      ]);
+      expect(roof.statusCode).toBe(200);
+      expect(util.statusCode).toBe(200);
+      expect((await row('expenses', 'ROOF')).amount).toBe('11000.000000');
+      expect((await row('expenses', 'UTIL')).amount).toBe('21000.000000');
+    });
+
+    it('does not move the model version when a collection row is written', async () => {
+      // Confirms the two are genuinely independent: editing an expense must not
+      // invalidate an assumptions editor someone else has open.
+      const before = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+      });
+      const modelVersion = (before.json() as { model: { version: number } }).model.version;
+
+      await put('expenses', 'SEPARATE', expense('1000'));
+
+      const after = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+      });
+      expect((after.json() as { model: { version: number } }).model.version).toBe(modelVersion);
+    });
+
+    it('ignores a version supplied when creating a row that does not exist', async () => {
+      const created = await put('expenses', 'BRAND-NEW', expense('5000'), 9);
+      expect(created.statusCode).toBe(200);
+      expect((await row('expenses', 'BRAND-NEW')).version).toBe(1);
+    });
+
+    it('accepts a write with no version, which is what the seed and imports need', async () => {
+      await put('expenses', 'FORCED', expense('7000'));
+      await put('expenses', 'FORCED', expense('8000'), 1);
+
+      const forced = await put('expenses', 'FORCED', expense('9000'));
+      expect(forced.statusCode).toBe(200);
+      expect((await row('expenses', 'FORCED')).amount).toBe('9000.000000');
+    });
+
+    it('guards every collection, not only expenses', async () => {
+      // The guard lives in the shared registration, so a collection added later
+      // gets it for free — but only if every existing one is actually covered.
+      const cases: Array<[string, Record<string, unknown>]> = [
+        ['other-revenue', { name: 'Parking', method: 'fixed', amount: '1000' }],
+        ['capital', { name: 'Roof', category: 'building', method: 'fixed', amount: '250000' }],
+        ['growth-curves', { name: 'Inflation', defaultRate: '0.03' }],
+        [
+          'market-leasing',
+          { name: 'Office standard', marketRent: '40', renewalProbability: '0.7' },
+        ],
+        [
+          'debt',
+          {
+            name: 'Senior loan',
+            type: 'senior',
+            commitment: '1000000',
+            fundingDate: '2026-01-01',
+            termMonths: 60,
+          },
+        ],
+      ];
+
+      for (const [segment, body] of cases) {
+        await put(segment, 'GUARD', body);
+        expect((await row(segment, 'GUARD')).version, segment).toBe(1);
+
+        expect((await put(segment, 'GUARD', body, 1)).statusCode, segment).toBe(200);
+        expect((await row(segment, 'GUARD')).version, segment).toBe(2);
+
+        const stale = await put(segment, 'GUARD', body, 1);
+        expect(stale.statusCode, segment).toBe(409);
+      }
+    });
+  });
 });

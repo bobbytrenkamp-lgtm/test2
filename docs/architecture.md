@@ -294,14 +294,26 @@ refusing.
 > and the write now share one transaction — as the lease implementation already
 > did.
 
-Not yet done: the assumption **collections** (expenses, capital, debt and the
-rest). Those are separate rows edited one at a time, and binding them to a
-single model-wide version would make two people editing unrelated collections
-collide for no reason; they need their own row-level versions. Also outstanding:
-grid virtualisation for very large rent rolls, and cursor pagination on the
-audit log (offset paging is measured fine at this scale but degrades deep into a
-large table). These are recorded in `docs/feature-status.md` rather than
-claimed.
+The assumption **collections** — expenses, other revenue, capital, debt, growth
+curves and market leasing profiles — carry versions too, but **per row rather
+than per model**. That was the whole reason they were left out of the model
+change rather than folded into it: binding them to a model-wide version would
+make one analyst adding a roof replacement collide with another adjusting the
+insurance line, and a guard that refuses unrelated edits does not get respected,
+it gets worked around. Two writers to the same row now resolve to one accepted
+and one refused; two writers to different rows both succeed, and a test asserts
+that second half explicitly, because a lock that is too broad passes every test
+that only checks the first.
+
+The guard lives in the shared collection registration rather than in each of the
+six upserts, so it cannot drift between them and a seventh collection inherits
+it. A test still walks all six, since "it is shared code" is an argument, not
+evidence.
+
+Still outstanding: grid virtualisation for very large rent rolls, and cursor
+pagination on the audit log (offset paging is measured fine at this scale but
+degrades deep into a large table). These are recorded in
+`docs/feature-status.md` rather than claimed.
 
 ## Deliberately not distributed
 

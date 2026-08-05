@@ -657,7 +657,11 @@ function registerCollection(
   app: FastifyInstance,
   segment: string,
   table: string,
-  upsert: (db: Sql, modelId: string, body: Record<string, unknown>) => Promise<{ id: string }>,
+  upsert: (
+    db: Sql,
+    modelId: string,
+    body: Record<string, unknown>,
+  ) => Promise<{ id: string; version: number }>,
 ): void {
   app.get(`/models/:id/${segment}`, async (request) => {
     const context = requireCapability(request, 'model:read');
@@ -677,9 +681,45 @@ function registerCollection(
       .parse(request.params);
     const model = await requireModel(request, context.organizationId, params.id);
     assertEditable(model.status);
-    const body = z.record(z.unknown()).parse(request.body);
+    const { expectedVersion, ...body } = z
+      .object({ expectedVersion: z.number().int().min(1).nullish() })
+      .passthrough()
+      .parse(request.body);
 
-    const saved = await upsert(request.db, params.id, { ...body, code: params.code });
+    /*
+     * The same guard the model itself carries, applied per row.
+     *
+     * A model-wide version was rejected deliberately: these are separate rows
+     * edited one at a time, and one analyst adding a roof replacement while
+     * another adjusts the insurance line is not a collision. Refusing it would
+     * teach people to save twice, which is worse than not guarding at all.
+     *
+     * The check and the write share one transaction with the row locked. Two
+     * statements on the pool would release the lock between them, which is the
+     * mistake the model route made and only the simultaneous-writer test found.
+     */
+    const saved = await request.db.begin(async (tx) => {
+      if (expectedVersion !== undefined && expectedVersion !== null) {
+        const existing = (await tx.unsafe(
+          `SELECT version FROM ${table} WHERE model_id = $1 AND code = $2 FOR UPDATE`,
+          [params.id, params.code],
+        )) as unknown as Array<{ version: number }>;
+        const current = existing[0]?.version;
+        // A row that does not exist yet cannot have been changed by anyone, so a
+        // version supplied on a creation is ignored rather than refused.
+        if (current !== undefined && current !== expectedVersion) {
+          throw new HttpError(
+            409,
+            'ASSUMPTION_VERSION_CONFLICT',
+            `${params.code} has been changed by someone else since you opened it ` +
+              `(you have version ${expectedVersion}, it is now ${current}).`,
+            { collection: segment, code: params.code, expectedVersion, currentVersion: current },
+          );
+        }
+      }
+      return upsert(tx as unknown as Sql, params.id, { ...body, code: params.code });
+    });
+
     await writeAudit(request.db, {
       organizationId: context.organizationId,
       userId: context.userId,
