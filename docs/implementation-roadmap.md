@@ -60,8 +60,34 @@ read a tile's note along with its figure, and "assets" ends in a T, which the
 compact-notation scale suffix matched. The amount came back as `NaN`. The helper
 now reads the first line only and says why.
 
-**What remains here:** the assumptions editor and versions have no dedicated
-coverage beyond the accessibility sweep, and the suite runs in Chromium only.
+**Since then: the assumptions editor too.** It sets the discount rate, the exit
+capitalisation rate and the sale month — the handful of numbers that move every
+figure the platform reports — and nothing checked that editing one did anything.
+A form test that types a value and finds it in the box proves the box works, so
+these change an assumption, recalculate, and require the valuation to fall, then
+restore it and require the value back. That is the difference between "the edit
+was applied" and "something changed".
+
+Writing it produced a lesson worth more than the test. It first reported an
+unchanged valuation, which looked like an engine defect; driving the same
+sequence through the API directly showed the API was perfect
+(0.0825 → $47.7M, 0.14 → $34.4M). The test was clicking Calculate and then
+typing while the calculation was still in flight, and the edit reverted.
+
+Two wrong turns on the way, both recorded because the reasoning was the
+mistake. The status banner was used as the completion signal — it reads the
+same after every run, so waiting for it matches the *previous* result
+instantly. And a remount-on-refetch was diagnosed in `ModelWorkspace`, a fix
+written for it, and a regression test written to prove the fix: the test passed
+with the fix reverted, and `modelResource.reload` turned out never to be called
+anywhere, so the model never refetches, the diagnosis was wrong and the change
+was inert. Both were reverted. The comment in the spec now states what was
+established by trying it both ways and stops there, rather than inventing a
+mechanism.
+
+**What remains here:** the versions tab has no dedicated coverage beyond the
+comparison tests and the accessibility sweep, and the suite runs in Chromium
+only.
 
 ### 2. Verify what is written but unproven — half done
 

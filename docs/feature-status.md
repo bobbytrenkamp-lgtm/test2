@@ -32,7 +32,7 @@ Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice)
-Browser      68 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser      72 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -182,7 +182,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
 | Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
 | Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser. Searchable by lease, tenant or suite, and sortable on six columns with `aria-sort`; area and rent sort numerically, which a browser test pins with a lease whose text order differs from its numeric order |
-| Assumptions, six collections | Functional | Common fields tabulated; full record edited as JSON |
+| Assumptions, six collections | Tested | Common fields tabulated; full record edited as JSON. A browser test changes the discount rate and requires the valuation to fall, so the number is proved to reach the engine rather than merely to reach the form |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
@@ -199,7 +199,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 68 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 72 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
