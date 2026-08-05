@@ -30,10 +30,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
-| Lease optimistic locking | `tests/lease-concurrency.test.ts` | 6 | Yes |
+| Optimistic locking, leases and models | `tests/lease-concurrency.test.ts` | 9 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**326 tests in total.**
+**329 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -48,11 +48,11 @@ built bundle:
 | Lease editor validation | `e2e/rent-roll.spec.ts` | 2 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
-| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 9 |
+| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 10 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**34 browser tests in total**, for 360 across the whole repository.
+**35 browser tests in total**, for 364 across the whole repository.
 
 ## The regression library
 
@@ -169,6 +169,14 @@ allow-list of known failures — one would become permanent within a month.
 These are the mechanical failures only. An audit with a real screen reader has
 still not been done, and remains on the roadmap.
 
+An intermittent failure in the cash-flow test turned out to be a defect the axe
+rules do not cover: two live regions were on screen at once — the model's result
+banner and a panel still loading beneath it — and neither had a name. Nothing
+could tell them apart, which is a problem for a screen-reader user before it is
+a problem for a test, because the announcement gives no clue which region spoke.
+Every `role="status"` region now carries an `aria-label`, and the tests address
+them by name.
+
 ## The performance baseline
 
 ```
@@ -276,7 +284,12 @@ Recording these because they are the argument for the approach:
     ignoring how much of the *area* it held. Caught by the contraction fixture,
     which expected 80% occupancy and got 100%. This one changed existing model
     numbers, so it took the engine to 2.0.0.
-12. **A single-tenant model took 2.4 seconds to calculate**, almost all of it
+12. **Optimistic locking on models did not lock.** The version check and the
+    update ran as two separate statements, each committing on its own pooled
+    connection, so the row lock was released before the write and two
+    simultaneous writers both passed. The sequential test passed; the test that
+    fires both through `Promise.all` failed. Written that way on purpose.
+13. **A single-tenant model took 2.4 seconds to calculate**, almost all of it
     independent of the number of leases. `discountFactor` and `xirr` each took a
     *fractional* power — decimal.js's most expensive operation, routed through a
     logarithm and an exponential at 34 digits — once per period, on each of 200

@@ -738,7 +738,12 @@ export function ImportsTab(): JSX.Element {
               matters as much as the count written: it is the number they now
               have to go and fix by hand. */}
           {committed && (
-            <div className="message info" role="status" style={{ marginTop: 12 }}>
+            <div
+              className="message info"
+              role="status"
+              aria-label="Import result"
+              style={{ marginTop: 12 }}
+            >
               {committed.imported} lease{committed.imported === 1 ? '' : 's'} written to the rent
               roll
               {committed.skipped > 0

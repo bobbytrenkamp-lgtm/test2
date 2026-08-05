@@ -132,8 +132,50 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
     if (!model) throw notFound();
     assertEditable(model.status);
 
-    const body = modelAssumptions.partial().parse(request.body);
-    const rows = (await request.db`
+    const body = modelAssumptions
+      .partial()
+      .extend({
+        /**
+         * The version the caller read. The workspace loaded the model before
+         * showing its assumptions, so it has one. Omitting it accepts
+         * last-write-wins, which scripted and bulk callers may want.
+         */
+        expectedVersion: z.number().int().min(1).nullish(),
+      })
+      .parse(request.body);
+
+    /*
+     * The version check and the update share one transaction, with the row
+     * locked for its duration.
+     *
+     * The first version of this ran them as two separate statements. Each went
+     * out on its own pooled connection and committed immediately, so the
+     * `FOR UPDATE` lock was released before the update ever ran and two
+     * simultaneous writers both passed the check. The sequential test still
+     * passed; only the test that fires both through `Promise.all` caught it.
+     * That is the whole reason that test is written that way.
+     */
+    const rows = (await request.db.begin(async (tx) => {
+      if (body.expectedVersion !== undefined && body.expectedVersion !== null) {
+        const current = (await tx`
+          SELECT version FROM models WHERE id = ${id} FOR UPDATE
+        `) as unknown as Array<{ version: number }>;
+        const stored = current[0]?.version;
+        // Refused before the update rather than folded into a `WHERE version = n`,
+        // which would report "not found" for a stale write — both wrong and
+        // unhelpful to whoever has to act on it.
+        if (stored !== undefined && stored !== body.expectedVersion) {
+          throw new HttpError(
+            409,
+            'MODEL_VERSION_CONFLICT',
+            `This model has been changed by someone else since you opened it ` +
+              `(you have version ${body.expectedVersion}, it is now ${stored}).`,
+            { expectedVersion: body.expectedVersion, currentVersion: stored },
+          );
+        }
+      }
+
+      return (await tx`
       UPDATE models SET
         name = COALESCE(${body.name ?? null}, name),
         classification = COALESCE(${body.classification ?? null}, classification),
@@ -160,10 +202,12 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
         net_against_modelled_vacancy = COALESCE(${body.netAgainstModelledVacancy ?? null}, net_against_modelled_vacancy),
         credit_loss_rate = COALESCE(${body.creditLossRate ?? null}::numeric, credit_loss_rate),
         equity_structure = COALESCE(${body.equityStructure ? request.db.json(body.equityStructure as never) : null}, equity_structure),
+        version = version + 1,
         updated_at = now()
       WHERE id = ${id} AND organization_id = ${context.organizationId}
       RETURNING *
     `) as unknown as Array<Record<string, unknown>>;
+    })) as Array<Record<string, unknown>>;
 
     await writeAudit(request.db, {
       organizationId: context.organizationId,

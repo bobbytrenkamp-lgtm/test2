@@ -137,6 +137,8 @@ export interface Model {
   acquisition_costs: string;
   general_vacancy_rate: string;
   credit_loss_rate: string;
+  /** Incremented on every write; sent back on save to detect a collision. */
+  version: number;
 }
 
 export interface Lease {

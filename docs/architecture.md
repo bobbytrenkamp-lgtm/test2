@@ -280,10 +280,28 @@ import uses it: an import is an explicit "replace these rows" and has nothing to
 have read first. The lease editor always sends one, because it loaded the lease
 before showing it.
 
-Not yet done: the same protection on models and assumption collections; grid
-virtualisation for very large rent rolls; and cursor pagination on the audit log
-(offset paging is measured fine at this scale but degrades deep into a large
-table). These are recorded in `docs/feature-status.md` rather than claimed.
+Models carry the same protection, and rather more of the leverage: a discount
+rate or an exit capitalisation rate moves every figure in the valuation at once,
+so two people adjusting assumptions simultaneously is the collision most worth
+refusing.
+
+> **The first model implementation was wrong.** The version check and the update
+> ran as two separate statements. Each went out on its own pooled connection and
+> committed immediately, so the `FOR UPDATE` lock was released before the update
+> ran and both simultaneous writers passed the check. The sequential test still
+> passed; only the test that fires both writes through `Promise.all` caught it.
+> That is the whole reason those tests are written that way, and why the check
+> and the write now share one transaction — as the lease implementation already
+> did.
+
+Not yet done: the assumption **collections** (expenses, capital, debt and the
+rest). Those are separate rows edited one at a time, and binding them to a
+single model-wide version would make two people editing unrelated collections
+collide for no reason; they need their own row-level versions. Also outstanding:
+grid virtualisation for very large rent rolls, and cursor pagination on the
+audit log (offset paging is measured fine at this scale but degrades deep into a
+large table). These are recorded in `docs/feature-status.md` rather than
+claimed.
 
 ## Deliberately not distributed
 

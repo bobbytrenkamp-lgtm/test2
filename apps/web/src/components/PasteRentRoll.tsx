@@ -121,6 +121,7 @@ export function PasteRentRoll({
             className={`message ${errors.length > 0 ? 'warning' : 'info'}`}
             style={{ marginTop: 16 }}
             role="status"
+            aria-label="Paste summary"
           >
             Header row {analysis.headerRowIndex + 1}, {analysis.rowCount} data rows,{' '}
             {(analysis.confidence * 100).toFixed(0)}% of columns recognised. {validation.leaseCount}{' '}

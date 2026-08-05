@@ -116,7 +116,7 @@ test.describe('pasting a rent roll from a spreadsheet', () => {
     await expect(findings).toBeVisible();
     await expect(findings.getByRole('row').filter({ hasText: 'Error' })).toHaveCount(1);
 
-    await expect(page.getByRole('status')).toContainText('2 data rows');
+    await expect(page.getByRole('status', { name: 'Paste summary' })).toContainText('2 data rows');
     await page.getByRole('button', { name: /^Import 1 lease/ }).click();
 
     // The wizard's own report is not evidence. The rent roll is.

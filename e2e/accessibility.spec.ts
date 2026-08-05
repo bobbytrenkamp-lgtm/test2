@@ -64,9 +64,12 @@ test.describe('signed in', () => {
     await page.getByRole('link', { name: SEED.industrial.property }).click();
     await page.getByRole('link', { name: SEED.industrial.model }).click();
     await page.getByRole('button', { name: 'Calculate' }).click();
-    await expect(page.getByRole('status')).toContainText('Calculated with engine', {
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+      'Calculated with engine',
+      {
+        timeout: 60_000,
+      },
+    );
     await audit(page);
   });
 
@@ -75,16 +78,35 @@ test.describe('signed in', () => {
     await page.getByRole('link', { name: SEED.industrial.property }).click();
     await page.getByRole('link', { name: SEED.industrial.model }).click();
     await page.getByRole('button', { name: 'Calculate' }).click();
-    await expect(page.getByRole('status')).toContainText('Calculated with engine', {
-      timeout: 60_000,
-    });
+    await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+      'Calculated with engine',
+      {
+        timeout: 60_000,
+      },
+    );
     await page.getByRole('link', { name: 'Returns and debt' }).click();
+    // Wait for the tab's own content before scanning. Auditing straight after
+    // the click caught the page mid-render and failed intermittently — a
+    // flaky accessibility gate is worse than none, because people learn to
+    // re-run it rather than read it.
+    await expect(page.getByRole('heading', { name: 'Return metrics' })).toBeVisible();
     await audit(page);
   });
 
   test('the portfolio aggregate', async ({ page }) => {
     await page.goto('/portfolios');
     await expect(page.getByRole('heading', { name: 'Portfolios', level: 1 })).toBeVisible();
+    await audit(page);
+  });
+
+  test('the assumptions tab', async ({ page }) => {
+    // Not previously covered, and the tab that now carries the model version on
+    // save, so it is worth having under the same gate as the rest.
+    await page.goto('/properties');
+    await page.getByRole('link', { name: SEED.office.property }).click();
+    await page.getByRole('link', { name: SEED.office.model }).click();
+    await page.getByRole('link', { name: 'Assumptions' }).click();
+    await expect(page.getByRole('heading', { name: /valuation/i }).first()).toBeVisible();
     await audit(page);
   });
 
