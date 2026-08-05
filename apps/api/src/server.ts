@@ -4,7 +4,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
-import { createDatabase, resolveSession, type Sql } from '@cre/database';
+import { createDatabase, recordError, resolveSession, type Sql } from '@cre/database';
 import type { Env } from './env.js';
 import { HttpError, SESSION_COOKIE, assertSameOriginIntent } from './context.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -156,9 +156,27 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       });
     }
 
-    // Unexpected failures are logged in full but never echoed to the client,
-    // because the message can contain SQL, file paths or model data.
+    /*
+     * Unexpected failures are logged in full but never echoed to the client,
+     * because the message can contain SQL, file paths or model data.
+     *
+     * They are also recorded, so a fault on an unwatched machine is noticed
+     * before somebody complains — which on a valuation platform may be after
+     * the number has been relied on. Only the fault's shape is stored: the
+     * route pattern rather than the resolved path, and no body, query, header
+     * or session token. See `error_events` in migration 0011.
+     */
     request.log.error({ err: error }, 'Unhandled error');
+    void recordError(db, {
+      organizationId: request.auth?.organizationId ?? null,
+      userId: request.auth?.user.id ?? null,
+      method: request.method,
+      route: request.routeOptions?.url ?? 'unknown',
+      statusCode: 500,
+      errorName: error instanceof Error ? error.name : 'Error',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? (error.stack ?? null) : null,
+    });
     return reply
       .status(500)
       .send({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.' } });

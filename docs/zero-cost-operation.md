@@ -100,7 +100,7 @@ generating a charge" behaviour.
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled by default, not implemented. No provider bundled |
 | Object storage | `STORAGE_DRIVER=local` — writes to a local directory |
 | Email | **No mailer.** Reset and invitation tokens are returned in the response outside production |
-| Monitoring | **None wired** |
+| Monitoring | **Local.** Unhandled server faults are recorded in an `error_events` table and read on the Tasks and jobs screen. No hosted service, no account, no key |
 | Maps | **None.** The geographic dashboard widget is deferred rather than backed by a paid tile provider |
 | Browser testing | **Local Chromium only.** Playwright downloads the browser from its own CDN; no hosted grid, no account, no key |
 
@@ -190,7 +190,7 @@ interface, or defer:
 | --- | --- |
 | Email delivery | **Deferred.** No provider. Tokens returned in non-production so flows are testable |
 | Malware scanning of uploads | **Deferred.** `scan_status` column and a driver seam exist; no scanner wired |
-| Error monitoring | **Deferred.** Attachment point documented |
+| Error monitoring | **Built locally.** A table, not a service: it costs nothing, keeps failure detail in the same database as everything it refers to, and can be replaced later by anything that reads it. Faults are grouped by fingerprint; the store holds no request body, query value, header or session token |
 | Server-side PDF | **Deferred.** Print-ready HTML works through the browser's own print-to-PDF, free |
 | Geographic maps | **Deferred.** No paid tile provider. Allocation is shown as charts and tables instead |
 | AI assistant | **Deferred and disabled by default.** Provider-neutral design; nothing bundled |

@@ -7,6 +7,7 @@ export * from './repositories/properties.js';
 export * from './repositories/models.js';
 export * from './repositories/calculations.js';
 export * from './repositories/audit.js';
+export * from './repositories/errors.js';
 export * from './repositories/jobs.js';
 export * from './repositories/leases.js';
 export * from './repositories/budgets.js';

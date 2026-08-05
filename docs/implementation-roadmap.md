@@ -16,7 +16,7 @@
 | 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, and fund-level commitments, capital calls, distributions, unfunded capital and investor returns. Fund-level waterfalls and recallable distributions are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Started.** Restore drill and an engine performance baseline both run in CI. Machine-checked accessibility on eleven screens. Still missing: a database and API load test, screen-reader audit, error monitoring, deployment automation. |
+| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI. Machine-checked accessibility on eleven screens. Local error monitoring. Still missing: a screen-reader audit and deployment automation with a rollback path. |
 
 ## What to do next, in order
 
@@ -208,9 +208,24 @@ another never. On an audit log a silently skipped row is the worst defect
 available, so the test writes twenty-five rows sharing one timestamp to the
 microsecond and walks every page at three different page sizes.
 
-Still to do: grid virtualisation, once profiling says where; error monitoring;
-an audit with a real screen reader; and deployment automation with a rollback
-path.
+~~Error monitoring~~ — done, and deliberately a table rather than a hosted
+service: it costs nothing, keeps failure detail in the same database as
+everything it refers to, and can be replaced later by anything that reads it.
+
+Faults are grouped by a fingerprint that strips identifiers and digits, so one
+route failing four thousand times reads as one problem rather than four
+thousand, and the count of organizations affected is what separates a support
+conversation from an outage.
+
+What is **not** recorded matters as much: no request body, no query values, no
+headers, no session token, and the route pattern rather than the resolved path.
+An error store is a copy of production data under weaker access controls unless
+it is disciplined about that, and the test asserts the absence against the
+schema rather than against one write — a column added later has to be argued
+for.
+
+Still to do: grid virtualisation, once profiling says where; an audit with a
+real screen reader; and deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted
