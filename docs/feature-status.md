@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 2.1.0 · Last verified 2026-08-04**
+**Engine version 3.0.0 · Last verified 2026-08-05**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -22,9 +22,10 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       337 passed  (164 engine regression, 31 engine unit, 18 variance,
+Tests       380 passed  (202 engine regression, 31 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
-                         7 portfolios, 17 optimistic locking, 13 vertical slice)
+                         7 portfolios, 17 optimistic locking, 5 recovery pools,
+                         13 vertical slice)
 Browser      35 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 10 accessibility)
@@ -34,7 +35,7 @@ Web build   succeeds (335 kB, 95 kB gzipped)
 Migrations  8 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
-Drill       21 checks passed (dump, restore, 5 valuations reproduced)
+Drill       21 checks passed (dump, restore, valuations reproduced)
 Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
 Load test   5,000 properties, 200,000 leases; every query inside budget
 Concurrency 200 parallel clients, ~1,000 req/s, p95 200ms, 0 failures
@@ -65,8 +66,10 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Occupancy-variable expenses | Tested | |
 | Revenue/expense fixed-point solver | Functional | 12 passes, 0.005 tolerance; non-convergence diagnosed |
 | Recoveries: NNN, base year, stop, fixed, gross | Tested | |
+| Multiple recovery pools per lease | Tested | Each pool keeps its own base year, cap history and reconciliation; fixture 16 and 5 API tests |
+| Reconciliation and prior-year true-ups | Tested | Estimate billed monthly, difference settled after year end; fixture 17 |
 | Gross-up, admin fees, caps and floors | Tested | Cumulative and non-cumulative |
-| Recovery detail rows | Tested | Full workings surfaced |
+| Recovery detail rows | Tested | Full workings surfaced, per pool, including the estimate and the true-up |
 | Vacancy netting (no double deduction) | Tested | Asserted across every fixture |
 | Capital, all methods | Functional | |
 | Debt: fixed and floating, IO, amortisation | Tested | Closed-form schedule check |
@@ -96,8 +99,9 @@ Licences    340 packages, none requiring payment or a commercial licence
   from, the rest because they bear on disposition rather than operating cash
   flow.
 - Percentage rent is spread across the year rather than settled at year end.
-- Recovery pools are one per lease; multiple simultaneous pools are not modelled.
-- Reconciliation timing and prior-year true-ups are not modelled.
+- A true-up whose reconciliation month falls beyond the forecast is excluded
+  from the cash flow, with `RECONCILIATION_OUTSIDE_FORECAST` naming the amount.
+  The forecast does not extend far enough to collect it.
 - Multi-currency is rejected rather than converted; one model, one currency.
 - Yield capitalisation methods (term and reversion, hardcore, equivalent yield)
   are **not started**.

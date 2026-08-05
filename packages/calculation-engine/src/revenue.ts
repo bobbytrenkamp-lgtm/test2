@@ -116,7 +116,7 @@ export function computePercentageRent(
 
     for (const [fiscalYear, periodIndices] of fiscalYears) {
       const occupiedMonths = periodIndices.reduce(
-        (acc, index) => acc.plus(series.occupancyFraction[index] ?? ZERO),
+        (acc, index) => acc.plus(series.timeFraction[index] ?? ZERO),
         ZERO,
       );
       if (occupiedMonths.isZero()) continue;
@@ -145,7 +145,7 @@ export function computePercentageRent(
       if (billed.isZero()) continue;
 
       for (const index of periodIndices) {
-        const fraction = series.occupancyFraction[index] ?? ZERO;
+        const fraction = series.timeFraction[index] ?? ZERO;
         if (fraction.isZero()) continue;
         const amount = overage.dividedBy(TWELVE).times(fraction);
         out[index] = (out[index] as Decimal).plus(amount);

@@ -630,8 +630,26 @@ export interface OccurrenceSeries {
   leasingCommissions: Decimal[];
   /** Weighted occupied area in each period. */
   occupiedArea: Decimal[];
-  /** Fraction of the period the space was occupied by this occurrence, 0..1. */
+  /**
+   * How much of the *space* this occurrence fills for this period, 0..1:
+   * time present x probability weight x share of the space's area.
+   *
+   * This is the physical-occupancy series. It is not the right multiplier for
+   * spreading an annual entitlement, because an entitlement already carries the
+   * tenant's area through its pro-rata share — see `timeFraction`.
+   */
   occupancyFraction: Decimal[];
+  /**
+   * How much of the *period* this occurrence was present for, 0..1: time
+   * present x probability weight, with no area term.
+   *
+   * Used to spread an annual figure — a recovery entitlement, an annual revenue
+   * item — across the months the tenant was actually there. A tenant present
+   * for half of March owes half of March; that it holds 40% of its suite has
+   * already been accounted for in the entitlement itself, and applying it again
+   * here would bill the tenant 40% of what it owes.
+   */
+  timeFraction: Decimal[];
 }
 
 /** Computes every periodic series a single lease occurrence contributes. */
@@ -649,6 +667,7 @@ export function computeOccurrenceSeries(
   const leasingCommissions = zeros(n);
   const occupiedArea = zeros(n);
   const occupancyFraction = zeros(n);
+  const timeFraction = zeros(n);
 
   // How much of the space it sits on this occurrence actually fills. A lease
   // normally takes its whole suite, so this is 1 and nothing changes. It is not
@@ -675,7 +694,8 @@ export function computeOccurrenceSeries(
       occurrence.expiration,
       calendar.proration,
     );
-    occupancyFraction[i] = occupancy.times(occurrence.weight).times(areaShare);
+    timeFraction[i] = occupancy.times(occurrence.weight);
+    occupancyFraction[i] = (timeFraction[i] as Decimal).times(areaShare);
     occupiedArea[i] = occurrence.area.times(occupancy).times(occurrence.weight);
 
     if (recordTrace && !rent.amount.isZero()) {
@@ -752,5 +772,6 @@ export function computeOccurrenceSeries(
     leasingCommissions,
     occupiedArea,
     occupancyFraction,
+    timeFraction,
   };
 }

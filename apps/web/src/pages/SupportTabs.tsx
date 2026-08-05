@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading } from '../components.js';
-import { formatDateTime, formatNumber, titleCase } from '../format.js';
+import { formatDateTime, formatNumber, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
@@ -94,6 +94,7 @@ export function ValidationTab(): JSX.Element {
                 <tr>
                   <th scope="col">Lease</th>
                   <th scope="col">Year</th>
+                  <th scope="col">Pool</th>
                   <th scope="col">Structure</th>
                   <th scope="col" className="numeric">
                     Tenant area
@@ -105,7 +106,7 @@ export function ValidationTab(): JSX.Element {
                     Pro-rata
                   </th>
                   <th scope="col" className="numeric">
-                    Pool
+                    Expense pool
                   </th>
                   <th scope="col" className="numeric">
                     Grossed up
@@ -123,15 +124,23 @@ export function ValidationTab(): JSX.Element {
                     Cap adjustment
                   </th>
                   <th scope="col" className="numeric">
-                    Recovery
+                    Settled
                   </th>
+                  <th scope="col" className="numeric">
+                    Billed as estimate
+                  </th>
+                  <th scope="col" className="numeric">
+                    True-up
+                  </th>
+                  <th scope="col">Settles in</th>
                 </tr>
               </thead>
               <tbody>
                 {cashFlow.recoveryDetail.map((row, index) => (
-                  <tr key={`${row.leaseId}-${row.fiscalYear}-${index}`}>
+                  <tr key={`${row.leaseId}-${row.poolCode}-${row.fiscalYear}-${index}`}>
                     <th scope="row">{row.leaseId}</th>
                     <td>{row.fiscalYear}</td>
+                    <td>{row.poolName}</td>
                     <td>{titleCase(row.method)}</td>
                     <td className="numeric">{formatNumber(row.tenantArea, 0)}</td>
                     <td className="numeric">{formatNumber(row.denominatorArea, 0)}</td>
@@ -144,6 +153,17 @@ export function ValidationTab(): JSX.Element {
                     <td className="numeric">{formatNumber(row.capAdjustment, 0)}</td>
                     <td className="numeric">
                       <strong>{formatNumber(row.finalRecovery, 0)}</strong>
+                    </td>
+                    <td className="numeric">{formatNumber(row.estimatedRecovery, 0)}</td>
+                    <td className={`numeric ${isNegative(row.trueUpAmount) ? 'negative' : ''}`}>
+                      {formatNumber(row.trueUpAmount, 0)}
+                    </td>
+                    <td>
+                      {row.trueUpPeriodIndex === null
+                        ? Number(row.trueUpAmount) === 0
+                          ? '-'
+                          : 'Outside the forecast'
+                        : `Period ${row.trueUpPeriodIndex + 1}`}
                     </td>
                   </tr>
                 ))}

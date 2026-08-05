@@ -1361,6 +1361,248 @@ export function expansionOption(): ModelInput {
   );
 }
 
+/**
+ * Fixture 16 - Two recovery pools on one lease, settling on different terms.
+ *
+ * Operating costs on an expense stop with a 5% annual cap; taxes triple net and
+ * uncapped. This is an ordinary office lease and it cannot be expressed as a
+ * single pool: one entitlement forces a choice between capping the taxes and
+ * uncapping the operating costs, and both are wrong.
+ *
+ * The half-building tenant makes the pro-rata share exactly 0.5, and the second
+ * tenant is full-service gross so it contributes no recovery of its own.
+ */
+export function multiplePoolRecovery(): ModelInput {
+  return buildModel({
+    modelId: 'fx-recovery-pools',
+    modelName: 'Multiple recovery pool test property (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 36,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-POOL',
+      name: 'Recovery pool test',
+      propertyType: 'office',
+      rentableArea: '100000',
+    },
+    growthCurves: [{ id: 'G10', name: 'Ten percent growth', defaultRate: '0.10' }],
+    spaces: [
+      { id: 'S1', code: 'Suite 1', area: '50000' },
+      { id: 'S2', code: 'Suite 2', area: '50000' },
+    ],
+    tenants: [
+      { id: 'T1', name: 'Pooled tenant' },
+      { id: 'T2', name: 'Gross tenant' },
+    ],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '50000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '25.00',
+        baseRentBasis: 'per_area_per_year',
+        recovery: {
+          pools: [
+            {
+              code: 'OPEX',
+              name: 'Operating costs',
+              method: 'expense_stop',
+              includedCategories: ['cam'],
+              expenseStopPerArea: '2.00',
+              capPercent: '0.05',
+            },
+            {
+              code: 'TAX',
+              name: 'Property taxes',
+              method: 'triple_net',
+              includedCategories: ['taxes'],
+            },
+          ],
+        },
+        excludeFromRollover: true,
+      },
+      {
+        id: 'L2',
+        tenantId: 'T2',
+        spaceIds: ['S2'],
+        status: 'occupied',
+        area: '50000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '28.00',
+        baseRentBasis: 'per_area_per_year',
+        recovery: { method: 'full_service_gross' },
+        excludeFromRollover: true,
+      },
+    ],
+    expenses: [
+      {
+        id: 'E1',
+        name: 'Operating costs',
+        category: 'cam',
+        method: 'fixed_annual',
+        amount: '400000',
+        growthCurveId: 'G10',
+        recoverableShare: '1',
+        variableShare: '0',
+      },
+      {
+        id: 'E2',
+        name: 'Property taxes',
+        category: 'taxes',
+        method: 'fixed_annual',
+        amount: '300000',
+        growthCurveId: 'G10',
+        recoverableShare: '1',
+        variableShare: '0',
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      terminalCapRate: '0.07',
+      terminalNoiBasis: 'trailing_12',
+      saleMonth: 36,
+    },
+  });
+}
+
+/**
+ * Fixture 17 - Recoveries estimated on the prior year and reconciled in arrears.
+ *
+ * The tenant pays last year's settled amount monthly and the difference is
+ * billed three months after the year closes. That moves cash between years,
+ * which moves the return, so it is not presentation. The final year's true-up
+ * falls beyond the forecast on purpose: the engine has to say so rather than
+ * quietly lose a receivable.
+ */
+export function reconciledRecovery(): ModelInput {
+  return buildModel({
+    modelId: 'fx-reconciliation',
+    modelName: 'Recovery reconciliation test property (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 48,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-REC',
+      name: 'Reconciliation test',
+      propertyType: 'office',
+      rentableArea: '50000',
+    },
+    growthCurves: [{ id: 'G10', name: 'Ten percent growth', defaultRate: '0.10' }],
+    spaces: [{ id: 'S1', code: 'Whole building', area: '50000' }],
+    tenants: [{ id: 'T1', name: 'Single occupant' }],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '50000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '20.00',
+        baseRentBasis: 'per_area_per_year',
+        recovery: {
+          method: 'triple_net',
+          estimateBasis: 'prior_year_actual',
+          reconciliationLagMonths: 3,
+        },
+        excludeFromRollover: true,
+      },
+    ],
+    expenses: [
+      {
+        id: 'E1',
+        name: 'Operating expenses',
+        category: 'cam',
+        method: 'fixed_annual',
+        amount: '500000',
+        growthCurveId: 'G10',
+        recoverableShare: '1',
+        variableShare: '0',
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      terminalCapRate: '0.07',
+      terminalNoiBasis: 'trailing_12',
+      saleMonth: 48,
+    },
+  });
+}
+
+/**
+ * Fixture 18 - A lease covering part of a space, with recoveries.
+ *
+ * The case no earlier fixture had: every one of them let whole spaces, which is
+ * why a defect in exactly this configuration went unnoticed through two engine
+ * versions. The tenant holds 40,000 of a single 100,000 sqft space, so its
+ * pro-rata share and its share of the space it sits on are different numbers
+ * and confusing them is visible.
+ */
+export function partialSpaceRecovery(): ModelInput {
+  return buildModel({
+    modelId: 'fx-partial-space',
+    modelName: 'Partial-space recovery test property (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 12,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-PART',
+      name: 'Partial-space test',
+      propertyType: 'office',
+      rentableArea: '100000',
+    },
+    spaces: [{ id: 'S1', code: 'Whole floor', area: '100000' }],
+    tenants: [{ id: 'T1', name: 'Part-floor tenant' }],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '40000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '20.00',
+        baseRentBasis: 'per_area_per_year',
+        recovery: { method: 'triple_net' },
+        excludeFromRollover: true,
+      },
+    ],
+    expenses: [
+      {
+        id: 'E1',
+        name: 'Operating expenses',
+        category: 'cam',
+        method: 'fixed_annual',
+        amount: '500000',
+        recoverableShare: '1',
+        variableShare: '0',
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      terminalCapRate: '0.07',
+      terminalNoiBasis: 'trailing_12',
+      saleMonth: 12,
+    },
+  });
+}
+
 export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   singleTenantIndustrial,
   multiTenantOffice,
@@ -1377,4 +1619,7 @@ export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   renewalOption,
   terminationOption,
   contractionOption,
+  multiplePoolRecovery,
+  reconciledRecovery,
+  partialSpaceRecovery,
 };

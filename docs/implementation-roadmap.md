@@ -7,7 +7,7 @@
 | 0. Audit and preservation | **Complete.** Repository was empty; see `docs/repository-assessment.md`. |
 | 1. Foundation | **Complete.** Monorepo, environment validation, PostgreSQL, migrations, authentication, organizations, permissions, design system, CI, tests, seed data. |
 | 2. Property and lease domain | **Complete.** Properties, buildings, spaces, tenants, leases, rent steps, market leasing assumptions, validation. |
-| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries, NOI, capital, traces, 12 regression fixtures. |
+| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 18 regression fixtures. |
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, one keyboard workflow, now covered by a browser suite. Spreadsheet-grade editing is not built. |
@@ -63,8 +63,17 @@ report what breaks.
   would either double-count area or invent rentable area the property does not
   have. Adding a space reference to `LeaseOption` is the next step there.
   Purchase, ROFR and ROFO bear on disposition, not operating cash flow.
-- **Multiple recovery pools per lease**, reconciliation timing and prior-year
-  true-ups.
+- ~~**Multiple recovery pools per lease**, reconciliation timing and prior-year
+  true-ups.~~ Done. A lease settles any number of pools, each with its own base
+  year, cap history and reconciliation, and a tenant can be billed an estimate
+  monthly with the difference settled after the year closes. Both default to the
+  previous behaviour.
+
+  Writing the round-trip test found a defect of my own making: 2.0.0's
+  area-share correction was also being applied when spreading an annual
+  entitlement across months, so a lease covering part of a space recovered only
+  its share of that space of what it was owed. Engine 3.0.0; fixture 18 covers
+  the case and reproduces the old figure when the fix is reverted.
 - **Development and refinance fee bases** in the waterfall.
 - **Cash-management triggers** on covenant breach.
 

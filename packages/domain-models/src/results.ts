@@ -91,6 +91,13 @@ export interface LeaseCashFlowRow {
 export interface RecoveryDetailRow {
   leaseId: string;
   fiscalYear: number;
+  /**
+   * Which pool this row settles. Leases with one implicit pool report the
+   * historical `default`, so a reader does not have to know whether the model
+   * was written before pools existed.
+   */
+  poolCode: string;
+  poolName: string;
   method: string;
   includedCategories: string[];
   tenantArea: string;
@@ -103,7 +110,18 @@ export interface RecoveryDetailRow {
   recoveryBeforeCaps: string;
   capAdjustment: string;
   adminFee: string;
+  /** What the year settles at, before the split between estimate and true-up. */
   finalRecovery: string;
+  /** Billed monthly through the year. Equals `finalRecovery` when nothing is estimated. */
+  estimatedRecovery: string;
+  /** `finalRecovery` less `estimatedRecovery`. Positive when the tenant underpaid. */
+  trueUpAmount: string;
+  /**
+   * The period the true-up lands in, or null when there is none. Null with a
+   * non-zero `trueUpAmount` means it fell outside the forecast and was dropped;
+   * a diagnostic says so.
+   */
+  trueUpPeriodIndex: number | null;
 }
 
 export interface DebtScheduleRow {

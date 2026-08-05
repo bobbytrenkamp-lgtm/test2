@@ -137,7 +137,16 @@ export const percentageRentSchema = z.object({
   exclusions: decimalString.default('0'),
 });
 
-export const recoveryConfigSchema = z.object({
+/**
+ * The terms of a single recovery pool.
+ *
+ * A pool is one reimbursement structure over one set of expense categories. A
+ * lease commonly has several — operating costs on a base year with a cap, taxes
+ * and insurance net with no cap — and they settle independently. These fields
+ * describe one of them; `recoveryConfigSchema` below carries either a single
+ * implicit pool (the historical shape) or a list of explicit ones.
+ */
+const recoveryTermsShape = {
   method: recoveryMethodEnum.default('none'),
   /**
    * Categories the tenant reimburses. Empty means "every category flagged
@@ -166,6 +175,54 @@ export const recoveryConfigSchema = z.object({
   capIsCumulative: z.boolean().default(false),
   /** Minimum recovery growth, applied the same way as the cap. */
   floorPercent: decimalString.nullish(),
+
+  /* --- Reconciliation ---------------------------------------------------- */
+
+  /**
+   * What the tenant is billed *during* the year, before the year is settled.
+   *
+   * `actual` bills the settled entitlement itself, which assumes the estimate
+   * was perfect and leaves nothing to reconcile. It is the default because it
+   * is what the engine did before reconciliation existed, so an existing model
+   * produces the same figures it always has.
+   *
+   * `prior_year_actual` bills last year's settled amount, which is what most
+   * leases actually say. `fixed_estimate` bills `estimatePerArea` per area per
+   * year, which is what a lease with a stated monthly estimate says.
+   */
+  estimateBasis: z.enum(['actual', 'prior_year_actual', 'fixed_estimate']).default('actual'),
+  /** Annual estimate per area unit, used when `estimateBasis` is `fixed_estimate`. */
+  estimatePerArea: decimalString.nullish(),
+  /**
+   * Months after the fiscal year ends that the true-up is billed or credited.
+   *
+   * Zero settles in the final month of the year itself. Three is the common
+   * lease term — the landlord has until the end of the first quarter to issue
+   * the reconciliation statement. The true-up is a single amount in a single
+   * month, positive when the tenant underpaid.
+   */
+  reconciliationLagMonths: z.number().int().min(0).max(24).default(0),
+};
+
+export const recoveryPoolSchema = z.object({
+  /** Stable identifier for the pool, used in traces and the recovery detail. */
+  code: z.string().min(1).max(60),
+  name: z.string().min(1).max(200),
+  ...recoveryTermsShape,
+});
+export type RecoveryPool = z.infer<typeof recoveryPoolSchema>;
+
+export const recoveryConfigSchema = z.object({
+  ...recoveryTermsShape,
+  /**
+   * Explicit pools. When this is non-empty the lease-level terms above are
+   * ignored and each pool settles on its own — its own base year, its own cap,
+   * its own reconciliation — and the results are summed.
+   *
+   * When it is empty the lease-level terms are treated as one implicit pool,
+   * which is exactly what every model written before pools existed means.
+   */
+  pools: z.array(recoveryPoolSchema).default([]),
 });
 export type RecoveryConfig = z.infer<typeof recoveryConfigSchema>;
 
