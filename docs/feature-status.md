@@ -22,7 +22,7 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       558 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       563 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -166,7 +166,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Cross-organization isolation | Tested | 10 dedicated tests |
 | CSRF header requirement | Tested | |
 | Rate limiting | Functional | Global 600/min; 10/min on auth |
-| Generated API documentation | Not started | Routes are typed but no OpenAPI document is emitted |
+| Generated API surface | Tested | `docs/api-surface.md` is printed from the router's own table, so it cannot drift. Not an OpenAPI document: request and response schemas live inside handlers rather than on the route definitions, and a spec with empty schemas would look like a contract and describe nothing |
 
 ## 4. Web application
 

@@ -43,6 +43,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
+| Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
@@ -59,7 +60,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**558 tests in total.**
+**563 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -86,7 +87,7 @@ built bundle:
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 
-**67 browser tests in total**, for 625 across the whole repository.
+**67 browser tests in total**, for 630 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
