@@ -22,22 +22,22 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       502 passed  (229 engine regression, 31 engine unit, 16 fund,
-                         13 version comparison, 18 variance, 51 import,
+Tests       514 passed  (229 engine regression, 31 engine unit, 16 fund,
+                         13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 10 error monitoring,
-                         5 reforecast, 10 comments, 10 portfolio reports,
-                         13 vertical slice)
-Browser      50 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         2 lease editor, 6 permissions, 1 rent-roll import,
-                         5 budgets, 6 palette and paste, 5 funds,
-                         2 version comparison, 4 review comments,
-                         11 accessibility)
+                         5 reforecast, 10 comments, 12 tasks,
+                         10 portfolio reports, 13 vertical slice)
+Browser      56 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         4 lease editor, search and sort, 6 permissions,
+                         1 rent-roll import, 5 budgets, 6 palette and paste,
+                         5 funds, 2 version comparison, 4 review comments,
+                         4 tasks, 11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (335 kB, 95 kB gzipped)
+Web build   succeeds (378 kB, 106 kB gzipped)
 Migrations  11 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
@@ -92,7 +92,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Full return metric set | Functional | Null, never zero, when inputs are missing |
 | LP/GP waterfall | Tested | Preferred, ROC, catch-up, promote |
 | Sponsor fees | Functional | Acquisition, asset management, disposition only |
-| Development and refinance fee bases | Not started | Diagnosed as not modelled |
+| Development and refinance fee bases | Tested | Development fee on capital expenditure as incurred; refinance fee on debt drawn after the first funding period. Fixture 20 |
 | Portfolio aggregation | Tested | Rates rebuilt, IRR from combined flows |
 | Calculation traces | Tested | Rent, recoveries, terminal value, DCF |
 | Diagnostics | Tested | No fixture raises an error |
@@ -178,7 +178,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model workspace with tabs | Functional | Nine tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
 | Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
-| Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser |
+| Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser. Searchable by lease, tenant or suite, and sortable on six columns with `aria-sort`; area and rent sort numerically, which a browser test pins with a lease whose text order differs from its numeric order |
 | Assumptions, six collections | Functional | Common fields tabulated; full record edited as JSON |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
@@ -196,7 +196,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 54 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
+| Automated UI tests | Tested | 56 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
@@ -223,7 +223,7 @@ have since shipped; the rows above are the current state.)
 | **Excel (.xlsx) file import** | **Not started** | Only CSV is parsed today; exceljs can read, it is not wired |
 | Server-side PDF rendering | Deferred | Print HTML works via the browser; needs a headless browser in the worker |
 | Import rollback | Not started | Import is transactional; no undo after commit |
-| Portfolio reports | Not started | Aggregation exists; no report definitions for it |
+| Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
 
 ## 6. Security
 
@@ -260,8 +260,8 @@ have since shipped; the rows above are the current state.)
 | Docker Compose | **Designed, unverified** | `docker compose config` validates; images still never built — the registry is unreachable from the build environment |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
-| Error monitoring | Not started | No provider wired |
-| Deployment automation, rollback | Documented | Process described; not automated |
+| Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days. No external provider is wired, and none is needed |
+| Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is documented but not scripted |
 
 ## 8. Budgets, actuals and variance
 
@@ -276,7 +276,7 @@ have since shipped; the rows above are the current state.)
 | Approval freezes a budget | Tested | Entries and deletion refused afterwards |
 | Commentary with two-person approval | Tested | Self-approval refused; approved text recorded; rewriting withdraws approval |
 | Accounts on one side only | Tested | Reported rather than passing as a full variance |
-| Automatic reforecast carry-forward | Not started | A reforecast is a budget period like any other and must be loaded |
+| Reforecast carry-forward | Tested | `buildReforecast` carries closed months forward from actuals and forecasts the rest; `closedThrough` is stated by the caller, never inferred. Unforecast and unposted accounts are reported rather than dropped. 5 tests |
 
 ## 9. Testing
 
