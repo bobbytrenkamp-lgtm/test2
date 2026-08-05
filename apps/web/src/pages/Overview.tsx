@@ -426,8 +426,10 @@ export function JobsPage(): JSX.Element {
     <>
       <div className="page-title">
         <div>
-          <h1>Tasks and jobs</h1>
-          <p>Background work: queued calculations, scenario batches, exports and roll-ups.</p>
+          {/* Named for what it is. "Tasks" now means the asset-management
+              board, and a screen of queued calculations is not that. */}
+          <h1>Background jobs</h1>
+          <p>Queued calculations, scenario batches, exports and roll-ups.</p>
         </div>
         <button type="button" onClick={jobs.reload}>
           Refresh
