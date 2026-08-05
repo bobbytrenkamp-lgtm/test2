@@ -6,6 +6,36 @@
  * display: nothing formatted here is ever sent back or used in a calculation.
  */
 
+/**
+ * Formatters, kept rather than rebuilt.
+ *
+ * Constructing an `Intl.NumberFormat` loads and resolves a locale; calling
+ * `.format()` on an existing one does not, and the difference is roughly two
+ * orders of magnitude. Every function below used to construct one per call,
+ * which is invisible on a metric card and is not on the cash-flow grid: a
+ * monthly view formats each cell twice — once for the figure, once for the
+ * label a screen reader reads — so several hundred cells meant well over a
+ * thousand constructions per render.
+ *
+ * The key is the resolved options, so two callers wanting the same shape share
+ * one instance and a caller wanting a different shape gets its own. Unbounded
+ * in principle; bounded in practice by the handful of shapes this application
+ * asks for, because the arguments come from the code rather than from data.
+ */
+const formatters = new Map<string, Intl.NumberFormat>();
+
+function formatter(options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = JSON.stringify(options);
+  let cached = formatters.get(key);
+  if (!cached) {
+    // `undefined` locale rather than a fixed one: the reader's own conventions
+    // decide how a thousands separator is written.
+    cached = new Intl.NumberFormat(undefined, options);
+    formatters.set(key, cached);
+  }
+  return cached;
+}
+
 export function formatCurrency(
   value: string | number | null | undefined,
   currency = 'USD',
@@ -14,7 +44,7 @@ export function formatCurrency(
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
-  return new Intl.NumberFormat(undefined, {
+  return formatter({
     style: 'currency',
     currency,
     notation: options.compact ? 'compact' : 'standard',
@@ -27,7 +57,7 @@ export function formatPercent(value: string | number | null | undefined, decimal
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
-  return new Intl.NumberFormat(undefined, {
+  return formatter({
     style: 'percent',
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -38,7 +68,7 @@ export function formatNumber(value: string | number | null | undefined, decimals
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
-  return new Intl.NumberFormat(undefined, {
+  return formatter({
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(numeric);

@@ -365,9 +365,31 @@ monthly view of a ten-year forecast at 3,240 interactive cells and a median of
 429 ms to switch into, against 163 ms for the annual view. Rendering only the
 columns near the viewport took that to 594 cells and 212 ms.
 
-Still above the hundred-millisecond line, and the script says so: the remaining
-time is the rows and the re-layout rather than the column count. Row
-virtualisation is the next step, not a further pass at the columns.
+That left it still above the hundred-millisecond line, and the script said the
+remaining time was in the rows rather than the column count — from which the
+obvious conclusion was row virtualisation. **That conclusion was wrong, and the
+profiler now says so in its own output.**
+
+The remaining cost was per *cell*, not per row. `formatCurrency` built a fresh
+`Intl.NumberFormat` on every call — construction resolves a locale and is
+roughly two orders of magnitude dearer than formatting with one already built —
+and the grid called it twice per cell, once for the figure and once for the
+label a screen reader reads. Caching the formatter by its options and formatting
+once took the monthly switch from a median of about **219 ms to about 108 ms**,
+measured four times either side because the first single-run comparison was an
+outlier and would have overstated the gain. Roughly two thirds of that came from
+halving the call count and one third from the cache; the cache also benefits
+every other screen, since a report table and a metric card were paying the same
+toll unnoticed.
+
+Row virtualisation stays deliberately undone. The statement has 28 line items, a
+viewport shows most of them, and a cash-flow statement is read as a whole —
+unmounting "Net operating income" because it scrolled away costs a reader more
+than the milliseconds are worth. What is left is React reconciling several
+hundred buttons, and going further means a cheaper cell, which trades away the
+per-cell accessible label. That is a decision, not a refactor, and it is
+recorded in `scripts/profile-grid.ts` so the next person to read the profiler's
+output is not sent down the wrong path.
 
 ~~The rollback path~~ — enforced. The deployment guide's rollback procedure
 rested on "migrations are backward compatible by policy", which was a policy

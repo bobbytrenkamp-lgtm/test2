@@ -39,6 +39,40 @@ const MODEL = 'Valuation - 31 December 2026';
  */
 const IMMEDIATE_MS = 100;
 
+/**
+ * What to try next, once column virtualisation is already in place.
+ *
+ * Printed rather than left as folklore, because the obvious next step is the
+ * wrong one and a maintainer reading this output is exactly who needs telling.
+ *
+ * The two cheap wins have been taken. `formatCurrency` used to build a fresh
+ * `Intl.NumberFormat` on every call, and the grid called it twice per cell —
+ * once for the figure, once for the label a screen reader reads. Caching the
+ * formatter and formatting once took the monthly switch from a median of about
+ * 219 ms to about 108 ms on the machine this was developed on, measured four
+ * times either side.
+ *
+ * **Row virtualisation is not the next step**, despite being the obvious pair to
+ * the column work. The statement has 28 line items; a viewport shows most of
+ * them, so the saving is small — and a cash-flow statement is read as a whole.
+ * Unmounting "Net operating income" because it scrolled out of view costs a
+ * reader more than the milliseconds are worth.
+ *
+ * What is left is React reconciling several hundred buttons. If this needs to go
+ * further, the direction is a cheaper cell — a plain element with a delegated
+ * click handler instead of a button per figure — and that trades away the
+ * per-cell accessible label, so it needs deciding, not just doing.
+ */
+const NEXT_STEP =
+  'Column virtualisation is in place and the per-cell cost has already been cut\n' +
+  '(cached Intl formatter, formatted once rather than twice). Row virtualisation\n' +
+  'is NOT the next step: there are 28 line items, a viewport shows most of them,\n' +
+  'and a cash-flow statement is read as a whole — unmounting a subtotal because\n' +
+  'it scrolled away costs the reader more than the milliseconds are worth.\n' +
+  'What remains is React reconciling several hundred buttons. Going further means\n' +
+  'a cheaper cell, which trades away the per-cell accessible label: a decision,\n' +
+  'not a refactor.';
+
 async function signIn(page: Page): Promise<void> {
   await page.goto(BASE_URL);
   await page.getByLabel('Email').fill(EMAIL);
@@ -139,9 +173,7 @@ async function main(): Promise<void> {
         `The monthly switch is above ${IMMEDIATE_MS} ms, so the grid does not yet feel\n` +
           'immediate at this size.' +
           (virtualised
-            ? ' Column virtualisation is already in place, so the\n' +
-              'remaining time is the rows and the re-layout rather than the column\n' +
-              'count; row virtualisation or a cheaper cell is where to look next.'
+            ? '\n\n' + NEXT_STEP
             : ' Virtualising the columns would be worth its\n' +
               'complexity; record the measurement in docs/architecture.md alongside it.'),
       );
