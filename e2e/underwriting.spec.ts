@@ -27,9 +27,12 @@ test('sign in, open a model, calculate, and inspect how a figure was derived', a
   await expect(page.getByRole('heading', { name: SEED.office.model, level: 1 })).toBeVisible();
 
   await page.getByRole('button', { name: 'Calculate' }).click();
-  await expect(page.getByRole('status')).toContainText('Calculated with engine', {
-    timeout: 60_000,
-  });
+  await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+    'Calculated with engine',
+    {
+      timeout: 60_000,
+    },
+  );
 
   const cashFlow = page.getByRole('table', { name: /cash flow/i });
   await expect(cashFlow).toBeVisible();
@@ -72,12 +75,25 @@ test('the cash flow can be read monthly as well as annually', async ({ page }) =
   await page.getByRole('link', { name: SEED.industrial.model }).click();
 
   await page.getByRole('button', { name: 'Calculate' }).click();
-  await expect(page.getByRole('status')).toContainText('Calculated with engine', {
-    timeout: 60_000,
-  });
+  await expect(page.getByRole('status', { name: 'Model status' })).toContainText(
+    'Calculated with engine',
+    {
+      timeout: 60_000,
+    },
+  );
+
+  // Count the annual columns only once the annual view is the one on screen.
+  // Granularity is remembered between visits, so "whatever is showing" is not a
+  // safe baseline to compare the monthly view against.
+  const annual = page.getByRole('button', { name: 'Annual', exact: true });
+  await expect(annual).toBeVisible();
+  if ((await annual.getAttribute('aria-pressed')) !== 'true') await annual.click();
+  await expect(annual).toHaveAttribute('aria-pressed', 'true');
 
   const cashFlow = page.getByRole('table', { name: /cash flow/i });
+  await expect(cashFlow).toBeVisible();
   const annualColumns = await cashFlow.locator('thead th').count();
+  expect(annualColumns).toBeGreaterThan(1);
 
   await page.getByRole('button', { name: 'Monthly', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Monthly', exact: true })).toHaveAttribute(

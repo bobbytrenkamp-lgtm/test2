@@ -167,6 +167,10 @@ function ValuationAssumptions({
 
   const save = useMutation(async () =>
     api.patch(`/models/${model.id}`, {
+      // The version this tab opened. If someone else has changed an assumption
+      // since, the server refuses rather than writing over a figure this screen
+      // never showed.
+      expectedVersion: model.version,
       discountRate: form.discountRate || null,
       discountingConvention: form.discountingConvention,
       terminalCapRate: form.terminalCapRate || null,

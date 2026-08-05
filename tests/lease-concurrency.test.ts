@@ -203,4 +203,65 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
     expect(created.statusCode).toBe(200);
     expect((await read('L-BRAND-NEW')).version).toBe(1);
   });
+
+  /* ---------------------------------------------------------------------- */
+  /* Models                                                                  */
+  /* ---------------------------------------------------------------------- */
+
+  describe('on a model', () => {
+    async function patch(
+      discountRate: string,
+      expectedVersion?: number,
+    ): Promise<{ statusCode: number; body: string }> {
+      const response = await ctx.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+        payload: {
+          discountRate,
+          ...(expectedVersion === undefined ? {} : { expectedVersion }),
+        },
+      });
+      return { statusCode: response.statusCode, body: response.body };
+    }
+
+    async function version(): Promise<number> {
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+      });
+      return (response.json() as { model: { version: number } }).model.version;
+    }
+
+    it('refuses an assumption change whose version has been overtaken', async () => {
+      // A discount rate moves every figure in the valuation at once, so two
+      // people adjusting assumptions simultaneously is the collision most worth
+      // refusing.
+      const opened = await version();
+
+      const theirs = await patch('0.09', opened);
+      expect(theirs.statusCode).toBe(200);
+      expect(await version()).toBe(opened + 1);
+
+      const mine = await patch('0.11', opened);
+      expect(mine.statusCode).toBe(409);
+      const error = JSON.parse(mine.body) as { error: { code: string } };
+      expect(error.error.code).toBe('MODEL_VERSION_CONFLICT');
+    });
+
+    it('lets exactly one of two simultaneous assumption writers win', async () => {
+      const opened = await version();
+      const [first, second] = await Promise.all([patch('0.07', opened), patch('0.12', opened)]);
+      expect([first.statusCode, second.statusCode].sort()).toEqual([200, 409]);
+      expect(await version()).toBe(opened + 1);
+    });
+
+    it('accepts a change with no version, for scripted callers', async () => {
+      const before = await version();
+      const forced = await patch('0.085');
+      expect(forced.statusCode).toBe(200);
+      expect(await version()).toBe(before + 1);
+    });
+  });
 });

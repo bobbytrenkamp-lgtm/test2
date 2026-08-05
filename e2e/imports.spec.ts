@@ -45,7 +45,9 @@ test('analyses, reports findings, and imports only the sound rows', async ({ pag
   await expect(failing).toContainText(/expir|before|commence/i);
 
   await page.getByRole('button', { name: 'Import valid rows' }).click();
-  await expect(page.getByRole('status')).toContainText('1 lease written to the rent roll');
+  await expect(page.getByRole('status', { name: 'Import result' })).toContainText(
+    '1 lease written to the rent roll',
+  );
 
   // The wizard's own report is not evidence that anything was stored. The rent
   // roll is.

@@ -143,9 +143,15 @@ current version, rather than silently discarding someone's edit. Ten
 simultaneous guarded writes resolve to one accepted and nine refused. Sending no
 version remains a deliberate opt-out, which is what bulk import needs.
 
-Still to do: the same protection on models and assumption collections, grid
-virtualisation, cursor pagination on the audit log, error monitoring, an audit
-with a real screen reader, and deployment automation with a rollback path. Grid virtualisation and
+Models carry the same protection now. The first attempt at it was wrong — the
+check and the update ran as two autocommit statements, so the row lock was
+released before the write and both simultaneous writers passed. Only the
+`Promise.all` race test caught it.
+
+Still to do: the assumption **collections**, which need their own row-level
+versions rather than a model-wide one; grid virtualisation; cursor pagination on
+the audit log; error monitoring; an audit with a real screen reader; and
+deployment automation with a rollback path. Grid virtualisation and
 cursor pagination once profiling says where. Accessibility audit with a real
 screen reader. Error monitoring. Deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.

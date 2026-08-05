@@ -370,6 +370,7 @@ function ActualsImport({
             className={`message ${errors.length > 0 ? 'warning' : 'info'}`}
             style={{ marginTop: 16 }}
             role="status"
+            aria-label="Import preview"
           >
             {preview.wouldWrite} entries would be written across {preview.months.length} month
             {preview.months.length === 1 ? '' : 's'}

@@ -5,9 +5,13 @@ import type { ApiError } from './api.js';
 
 /** Shared presentational building blocks. */
 
+// A page can hold more than one live region at a time — a result banner and a
+// panel still loading beneath it, say. Anonymous ones are indistinguishable:
+// assistive technology cannot say which region spoke, and a test cannot address
+// one without matching the other. Every status region here carries a name.
 export function Loading({ label = 'Loading' }: { label?: string }): JSX.Element {
   return (
-    <div className="loading" role="status" aria-live="polite">
+    <div className="loading" role="status" aria-live="polite" aria-label={label}>
       {label}…
     </div>
   );

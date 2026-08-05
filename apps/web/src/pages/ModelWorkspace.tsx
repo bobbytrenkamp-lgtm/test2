@@ -123,7 +123,11 @@ export function ModelWorkspace(): JSX.Element {
       </div>
 
       {banner && (
-        <div className={`message ${banner.includes('error') ? 'error' : 'info'}`} role="status">
+        <div
+          className={`message ${banner.includes('error') ? 'error' : 'info'}`}
+          role="status"
+          aria-label="Model status"
+        >
           {banner}
         </div>
       )}
