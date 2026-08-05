@@ -16,13 +16,125 @@ import { PasteRentRoll } from '../components/PasteRentRoll.js';
  * validated together, and a half-saved lease would produce a cash flow nobody
  * could defend. The grid stays the reading surface; the editor is the writing
  * surface.
+ *
+ * ## Finding a lease
+ *
+ * A regional mall has three hundred tenancies. Reading one rent roll top to
+ * bottom is how a lease gets missed, so the grid searches and sorts. Both happen
+ * in the browser against the leases already loaded: a rent roll is one
+ * property's, which is hundreds of rows rather than millions, and a round trip
+ * per keystroke would be slower than the filter it replaces. If a single model
+ * ever holds enough leases for that to stop being true, the endpoint will need
+ * to filter and page — it currently returns them all.
  */
+
+/** What the grid can be ordered by, and how each column compares. */
+type SortKey = 'code' | 'tenant' | 'area' | 'commencement' | 'expiration' | 'rent';
+
+const SORTS: Record<SortKey, { label: string; compare: (a: Lease, b: Lease) => number }> = {
+  code: { label: 'Lease', compare: (a, b) => a.code.localeCompare(b.code) },
+  tenant: {
+    label: 'Tenant',
+    compare: (a, b) => (a.tenant_name ?? '').localeCompare(b.tenant_name ?? ''),
+  },
+  /*
+   * Area and rent are decimal *strings*, and sorting them as text puts 9,000 sf
+   * above 10,000 sf. Compared as numbers instead — the only place in this file
+   * where a decimal string is turned into a float, and safe because the result
+   * decides an order and is never shown or stored.
+   */
+  area: { label: 'Area', compare: (a, b) => Number(a.area) - Number(b.area) },
+  rent: { label: 'Base rent', compare: (a, b) => Number(a.base_rent) - Number(b.base_rent) },
+  // ISO dates sort correctly as text. A missing date sorts last in either
+  // direction: "no expiry recorded" is not "expires first".
+  commencement: {
+    label: 'Commences',
+    compare: (a, b) => byDate(a.commencement_date, b.commencement_date),
+  },
+  expiration: {
+    label: 'Expires',
+    compare: (a, b) => byDate(a.expiration_date, b.expiration_date),
+  },
+};
+
+function byDate(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return a < b ? -1 : 1;
+}
+
+interface SortState {
+  key: SortKey;
+  ascending: boolean;
+}
+
+/**
+ * A column header that reorders the grid.
+ *
+ * `aria-sort` on the header and a real button inside it, rather than a click
+ * handler on the `th`: a screen reader has to be able to say which column the
+ * table is ordered by and in which direction, and a keyboard has to be able to
+ * change it. The arrow is decorative and marked so, because the direction is
+ * already in `aria-sort`.
+ */
+function SortableHeader({
+  column,
+  sort,
+  onSort,
+  numeric = false,
+}: {
+  column: SortKey;
+  sort: SortState;
+  onSort: (state: SortState) => void;
+  numeric?: boolean;
+}): JSX.Element {
+  const active = sort.key === column;
+  const { label } = SORTS[column];
+  return (
+    <th
+      scope="col"
+      className={numeric ? 'numeric' : undefined}
+      aria-sort={active ? (sort.ascending ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        className="subtle"
+        // Re-selecting the current column reverses it; a different column
+        // starts ascending, which is what "sort by this" is taken to mean.
+        onClick={() => onSort({ key: column, ascending: active ? !sort.ascending : true })}
+      >
+        {label}
+        {active && (
+          <span aria-hidden="true" style={{ marginLeft: 4 }}>
+            {sort.ascending ? '▲' : '▼'}
+          </span>
+        )}
+      </button>
+    </th>
+  );
+}
+
+function matches(lease: Lease, needle: string): boolean {
+  const haystack = [lease.code, lease.tenant_name ?? '', ...lease.space_codes]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(needle);
+}
+
 export function RentRollTab(): JSX.Element {
   const { model, property, reloadCashFlow } = useModelContext();
   const { can } = useSession();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pasting, setPasting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
+    // Expiry first, ascending: the question asked of a rent roll more often
+    // than any other is what rolls over next.
+    key: 'expiration',
+    ascending: true,
+  });
 
   const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
   const spaces = useResource<{ spaces: Space[] }>(
@@ -36,13 +148,26 @@ export function RentRollTab(): JSX.Element {
     can('model:write') &&
     !['approved', 'published', 'superseded', 'archived'].includes(model.status);
 
-  const totals = useMemo(() => {
-    const rows = leases.data?.leases ?? [];
-    return {
-      count: rows.length,
-      area: rows.reduce((acc, lease) => acc + Number(lease.area), 0),
-    };
-  }, [leases.data]);
+  const all = useMemo(() => leases.data?.leases ?? [], [leases.data]);
+
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const rows = needle ? all.filter((lease) => matches(lease, needle)) : all;
+    // Sorted on a copy: `all` is the memo of what the server sent, and sorting
+    // in place would quietly reorder it for every other reader of it.
+    return [...rows].sort((a, b) => {
+      const order = SORTS[sort.key].compare(a, b);
+      return sort.ascending ? order : -order;
+    });
+  }, [all, search, sort]);
+
+  const totals = useMemo(
+    () => ({
+      count: visible.length,
+      area: visible.reduce((acc, lease) => acc + Number(lease.area), 0),
+    }),
+    [visible],
+  );
 
   if (leases.loading) return <Loading label="Loading the rent roll" />;
 
@@ -53,11 +178,28 @@ export function RentRollTab(): JSX.Element {
       <div className="card">
         <div className="row" style={{ marginBottom: 12 }}>
           <h2 style={{ margin: 0 }}>Leases</h2>
+          {/* Counts what is shown, and says so when that is not everything —
+              a total that silently means "the filtered subset" is how a rent
+              roll gets reported short. */}
           <span className="badge">
             {totals.count} lease{totals.count === 1 ? '' : 's'} · {formatNumber(totals.area, 0)}{' '}
             {model.area_unit}
           </span>
+          {totals.count !== all.length && (
+            <span className="badge accent">filtered from {all.length}</span>
+          )}
           <div className="spacer" />
+          <label className="visually-hidden" htmlFor="lease-search">
+            Search leases
+          </label>
+          <input
+            id="lease-search"
+            type="search"
+            placeholder="Search lease, tenant or suite…"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{ width: 'auto', minWidth: 220 }}
+          />
           {editable && (
             <>
               <button
@@ -103,18 +245,14 @@ export function RentRollTab(): JSX.Element {
               <caption className="visually-hidden">Leases on this model</caption>
               <thead>
                 <tr>
-                  <th scope="col">Lease</th>
-                  <th scope="col">Tenant</th>
+                  <SortableHeader column="code" sort={sort} onSort={setSort} />
+                  <SortableHeader column="tenant" sort={sort} onSort={setSort} />
                   <th scope="col">Suite</th>
                   <th scope="col">Status</th>
-                  <th scope="col" className="numeric">
-                    Area
-                  </th>
-                  <th scope="col">Commences</th>
-                  <th scope="col">Expires</th>
-                  <th scope="col" className="numeric">
-                    Base rent
-                  </th>
+                  <SortableHeader column="area" sort={sort} onSort={setSort} numeric />
+                  <SortableHeader column="commencement" sort={sort} onSort={setSort} />
+                  <SortableHeader column="expiration" sort={sort} onSort={setSort} />
+                  <SortableHeader column="rent" sort={sort} onSort={setSort} numeric />
                   <th scope="col">Basis</th>
                   <th scope="col" className="numeric">
                     Steps
@@ -123,7 +261,7 @@ export function RentRollTab(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {leases.data?.leases.map((lease) => (
+                {visible.map((lease) => (
                   <tr key={lease.id}>
                     <th scope="row">{lease.code}</th>
                     <td>{lease.tenant_name}</td>
@@ -157,6 +295,15 @@ export function RentRollTab(): JSX.Element {
                 ))}
               </tbody>
             </table>
+            {/* An empty table under a populated header reads as a rent roll with
+                no leases on it, which is a much more alarming thing than a
+                search that matched nothing. */}
+            {visible.length === 0 && (
+              <EmptyState title="No lease matches that search">
+                {all.length} lease{all.length === 1 ? '' : 's'} on this model; none has a code,
+                tenant or suite containing “{search.trim()}”.
+              </EmptyState>
+            )}
           </div>
         )}
       </div>

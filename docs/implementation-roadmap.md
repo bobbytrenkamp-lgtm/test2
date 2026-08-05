@@ -136,6 +136,27 @@ until the findings have been shown.
 models and screens; arrow keys and Enter; `aria-activedescendant` so the
 highlight is announced rather than only shown.
 
+**Done: finding a lease.** Three tenancies fit on a screen; a regional mall's
+three hundred do not, and reading a rent roll top to bottom is how a lease gets
+missed. The grid searches on lease code, tenant and suite, and sorts on six
+columns — with `aria-sort` on the header and a real button inside it, so a
+screen reader can say what the table is ordered by and a keyboard can change it.
+
+Two details are load-bearing. **Area and rent sort as numbers**: they are
+decimal strings, and sorting them as text puts 9,000 sf above 10,000 sf. The
+browser test pins this with a 4,200 sf lease against the seed's five-digit
+ones — as text it sorts after 38,200, so it is the case that tells a numeric
+comparison from a lexicographic one, and the test was confirmed to fail against
+a `localeCompare` implementation. **The count says when it is a subset**: a
+total that silently means "the filtered rows" is how a rent roll gets reported
+short.
+
+Both happen in the browser against the leases already loaded. A rent roll is one
+property's — hundreds of rows, not millions — and a round trip per keystroke
+would be slower than the filter it replaces. If a model ever holds enough leases
+for that to stop being true, the endpoint will need to filter and page; it
+currently returns them all, and the file says so.
+
 **Still to do:** multi-cell edit, fill-down, undo/redo, column hiding, and saved
 views (the `saved_views` table exists and is unused).
 
