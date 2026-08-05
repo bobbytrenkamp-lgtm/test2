@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.1.0** — `packages/calculation-engine`.
+Engine version **3.2.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -805,6 +805,31 @@ Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+### 3.2.0
+
+**Development and refinance fee bases.** Both types have been in the equity
+schema since it was written and neither had a basis, so a model configuring one
+charged nothing and said so only in an informational diagnostic — silently
+understating what the sponsor takes.
+
+| Fee | Basis |
+| --- | --- |
+| `development` | Capital expenditure as it is incurred, excluding TI and LC |
+| `refinance` | Debt proceeds drawn after the first funding period |
+
+Incurred rather than budgeted, because a fee on a budget is earned by writing
+the budget. TI and LC are excluded because a leasing commission already
+compensates that work. The initial funding is excluded from the refinance basis
+because the acquisition fee already covers putting the deal together, and
+charging both would pay twice for one financing.
+
+Where a fee falls while the deal is cash-negative it is funded by the partners
+rather than deducted from a distribution — a fee charged against a deficit is a
+larger capital call, not a smaller distribution. Fixture 20 asserts both halves
+separately.
+
+Additive: a model with no development or refinance fee is unchanged.
 
 ### 3.1.0
 

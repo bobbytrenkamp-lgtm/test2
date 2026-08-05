@@ -7,7 +7,7 @@
 | 0. Audit and preservation | **Complete.** Repository was empty; see `docs/repository-assessment.md`. |
 | 1. Foundation | **Complete.** Monorepo, environment validation, PostgreSQL, migrations, authentication, organizations, permissions, design system, CI, tests, seed data. |
 | 2. Property and lease domain | **Complete.** Properties, buildings, spaces, tenants, leases, rent steps, market leasing assumptions, validation. |
-| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 19 regression fixtures. |
+| 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 20 regression fixtures. |
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
@@ -74,7 +74,13 @@ report what breaks.
   entitlement across months, so a lease covering part of a space recovered only
   its share of that space of what it was owed. Engine 3.0.0; fixture 18 covers
   the case and reproduces the old figure when the fix is reverted.
-- **Development and refinance fee bases** in the waterfall.
+- ~~**Development and refinance fee bases** in the waterfall.~~ Done. Both types
+  had been in the schema since it was written with no basis, so a model
+  configuring one charged nothing. A development fee is now charged on capital
+  expenditure as it is incurred; a refinance fee on debt proceeds drawn after
+  the first funding period. Engine 3.2.0, and the fallback branch now assigns
+  the fee type to `never`, so adding a type to the schema is a compile error
+  rather than a fee that quietly is not charged.
 - ~~**Cash-management triggers** on covenant breach.~~ Done. A breach the engine
   only reported was a breach with no consequence: the model showed the covenant
   failing and distributed the cash anyway, overstating the levered return in
