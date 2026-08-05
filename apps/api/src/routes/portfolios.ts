@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '@cre/database';
 import { aggregatePortfolio, type PortfolioMember } from '@cre/calculation-engine';
+import { PORTFOLIO_REPORTS } from '@cre/reporting';
 import { badRequest, notFound, requireCapability } from '../context.js';
 
 export async function registerPortfolioRoutes(app: FastifyInstance): Promise<void> {
@@ -79,6 +80,53 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
       .object({ modelClassification: z.string().max(60).optional() })
       .parse(request.query);
     return aggregateForPortfolio(request.db, context.organizationId, id, query.modelClassification);
+  });
+
+  app.get('/portfolios/reports', async (request) => {
+    requireCapability(request, 'report:read');
+    return {
+      reports: PORTFOLIO_REPORTS.map((report) => ({
+        id: report.id,
+        title: report.title,
+        description: report.description,
+      })),
+    };
+  });
+
+  /**
+   * A portfolio report, built from the same roll-up the screen shows.
+   *
+   * Every rate on it states its own basis in a column, because a portfolio
+   * capitalisation rate that looks like an average of property rates — and is
+   * not — is a figure a reader will misread unless told.
+   */
+  app.get('/portfolios/:id/reports/:reportId', async (request) => {
+    const context = requireCapability(request, 'report:read');
+    const params = z
+      .object({ id: z.string().uuid(), reportId: z.string().max(60) })
+      .parse(request.params);
+    const query = z
+      .object({ modelClassification: z.string().max(60).optional() })
+      .parse(request.query);
+
+    const definition = PORTFOLIO_REPORTS.find((report) => report.id === params.reportId);
+    if (!definition) throw notFound('That report does not exist.');
+
+    const rollUp = await aggregateForPortfolio(
+      request.db,
+      context.organizationId,
+      params.id,
+      query.modelClassification,
+    );
+
+    return {
+      report: definition.build(rollUp.aggregate, {
+        portfolioName: String(rollUp.portfolio.name),
+        currency: 'USD',
+        areaUnit: 'sqft',
+      }),
+      excluded: rollUp.excluded,
+    };
   });
 
   app.put('/portfolios/:id/properties', async (request) => {
