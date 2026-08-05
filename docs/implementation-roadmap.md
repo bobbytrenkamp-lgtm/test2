@@ -33,8 +33,35 @@ platform was unlabelled, scrollable tables were unreachable by keyboard, the
 import wizard wrote rows without saying so, and concurrent migrations raced on
 `CREATE EXTENSION`.
 
-**What remains here:** the assumptions editor, scenarios, versions, reports and
-the portfolio builder are not covered, and the suite runs in Chromium only.
+**Since then: scenarios, reports and the portfolio roll-up are covered too**, and
+each is held to a claim rather than to having rendered. `Functional` in
+`docs/feature-status.md` meant reachable and believed working; believed is not
+verified, and these were the screens where the gap was widest.
+
+- **Sensitivity grids** are checked against an economic truth. A higher exit
+  capitalisation rate buys the same income for less, so value must fall as the
+  rate rises — on any asset, every time. A grid that is transposed, or that
+  reuses one cell's result, renders perfectly and fails that. The two-way test
+  checks the column direction as well, which the one-way test cannot see.
+- **Reports** are held to the promise the screen makes in its own words: one
+  definition rendered four ways, so the screen and the file can never disagree.
+  The test reads a report on screen, fetches the same report as CSV, and
+  compares the columns, their order and the row count. Reversing the column
+  order in the exporter fails it, which is how it was confirmed to bite.
+- **The portfolio roll-up** is checked against the rule the module rests on: a
+  rate is rebuilt from the portfolio's own numerator and denominator, never
+  averaged across assets. Replacing the aggregation with a plain mean moves the
+  going-in cap rate by 2.64 percentage points on the demonstration portfolio —
+  five times the test's tolerance — so the tolerance has been tested against the
+  error it exists to catch rather than guessed at.
+
+Writing them cost one debugging round of my own making: the metric-tile helper
+read a tile's note along with its figure, and "assets" ends in a T, which the
+compact-notation scale suffix matched. The amount came back as `NaN`. The helper
+now reads the first line only and says why.
+
+**What remains here:** the assumptions editor and versions have no dedicated
+coverage beyond the accessibility sweep, and the suite runs in Chromium only.
 
 ### 2. Verify what is written but unproven — half done
 

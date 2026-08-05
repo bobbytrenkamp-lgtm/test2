@@ -78,9 +78,12 @@ built bundle:
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
+| Sensitivity grids and cloning | `e2e/scenarios.spec.ts` | 3 |
+| Reports, screen against CSV | `e2e/reports.spec.ts` | 2 |
+| Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 
-**56 browser tests in total**, for 570 across the whole repository.
+**64 browser tests in total**, for 578 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
