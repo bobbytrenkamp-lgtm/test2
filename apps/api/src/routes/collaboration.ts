@@ -79,6 +79,27 @@ export async function registerCollaborationRoutes(app: FastifyInstance): Promise
     return context.organizationId;
   }
 
+  /**
+   * Who this caller may mention.
+   *
+   * Deliberately not the members list: that needs `member:manage`, which an
+   * analyst does not have and should not need in order to draw a colleague into
+   * a discussion. This returns the minimum a mention picker requires — an
+   * identifier and a name — and not the email addresses or roles the
+   * administrative list carries.
+   */
+  app.get('/comments/mentionable', async (request) => {
+    const context = requireCapability(request, 'comment:write');
+    const people = await request.db`
+      SELECT m.user_id, u.name
+      FROM memberships m
+      JOIN users u ON u.id = m.user_id
+      WHERE m.organization_id = ${context.organizationId} AND m.user_id <> ${context.userId}
+      ORDER BY u.name
+    `;
+    return { people };
+  });
+
   app.get('/comments', async (request) => {
     const query = z
       .object({

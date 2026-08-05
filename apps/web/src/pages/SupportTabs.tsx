@@ -4,6 +4,7 @@ import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from
 import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
+import { CommentThread } from '../components/CommentThread.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /** Model health: every diagnostic the engine raised on the last calculation. */
@@ -1018,5 +1019,28 @@ export function ImportsTab(): JSX.Element {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The review conversation about this model.
+ *
+ * On its own tab rather than tucked under Versions: an objection nobody can
+ * find is an objection nobody answers, and the approval workflow is where it
+ * matters most.
+ */
+export function ReviewTab(): JSX.Element {
+  const { model } = useModelContext();
+  return (
+    <>
+      <div className="card">
+        <h2>Review</h2>
+        <p className="field-hint" style={{ marginTop: 0 }}>
+          Comments sit with the model they are about. Sending a model back to draft records that it
+          happened; a comment records why, which is the part somebody has to act on.
+        </p>
+      </div>
+      <CommentThread entityType="model" entityId={model.id} title="Comments on this model" />
+    </>
   );
 }

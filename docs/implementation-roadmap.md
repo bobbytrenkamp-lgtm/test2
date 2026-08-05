@@ -155,9 +155,17 @@ Comments are not the audit log, and the audit entry deliberately records that a
 comment happened without copying what it said. An append-only copy of every word
 would make resolving one cosmetic.
 
-**Still to do:** tasks (the table is migrated and unused), notifications, an
-activity feed, and a comment thread in the interface — the API is complete and
-tested but nothing renders it yet.
+The Review tab on the model workspace carries the conversation, on its own tab
+rather than tucked under Versions: an objection nobody can find is an objection
+nobody answers. A resolved comment recedes rather than disappearing — it is
+history, not work — and the open list is what a reviewer is asked to act on.
+
+Four browser tests drive it across two roles, including the one the whole
+feature rests on: the analyst who was criticised can read and answer the
+objection but is offered no way to dismiss it.
+
+**Still to do:** tasks (the table is migrated and unused), notifications, and an
+activity feed.
 
 ### 7. Portfolio reporting and funds (phase 10) — funds done
 
