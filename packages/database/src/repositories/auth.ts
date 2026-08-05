@@ -12,6 +12,20 @@ export interface UserRecord {
   last_login_at: Date | null;
 }
 
+/**
+ * A verified user, plus the TOTP secret the login route needs.
+ *
+ * Deliberately a separate type rather than a field on `UserRecord`. A
+ * `UserRecord` is what `resolveSession` attaches to *every* authenticated
+ * request, and carrying the second factor's secret on it would put the secret
+ * in scope for every route in the application — a thing to be leaked rather
+ * than a thing to be used. Only `authenticate` returns this, and only the login
+ * route reads it.
+ */
+export interface AuthenticatedUser extends UserRecord {
+  mfa_secret: string | null;
+}
+
 export interface SessionRecord {
   id: string;
   user_id: string;
@@ -59,12 +73,12 @@ export async function createUser(
 export async function findUserByEmail(
   sql: Sql,
   email: string,
-): Promise<(UserRecord & { password_hash: string | null }) | null> {
+): Promise<(AuthenticatedUser & { password_hash: string | null }) | null> {
   const rows = (await sql`
-    SELECT id, email, name, is_active, mfa_enrolled, last_login_at, password_hash
+    SELECT id, email, name, is_active, mfa_enrolled, mfa_secret, last_login_at, password_hash
     FROM users
     WHERE email = ${email.trim().toLowerCase()}
-  `) as unknown as Array<UserRecord & { password_hash: string | null }>;
+  `) as unknown as Array<AuthenticatedUser & { password_hash: string | null }>;
   return rows[0] ?? null;
 }
 
@@ -83,7 +97,7 @@ export async function authenticate(
   sql: Sql,
   email: string,
   password: string,
-): Promise<UserRecord | null> {
+): Promise<AuthenticatedUser | null> {
   const user = await findUserByEmail(sql, email);
   const ok = await verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !ok || !user.is_active) return null;
@@ -100,6 +114,7 @@ export async function authenticate(
     name: user.name,
     is_active: user.is_active,
     mfa_enrolled: user.mfa_enrolled,
+    mfa_secret: user.mfa_secret ?? null,
     last_login_at: user.last_login_at,
   };
 }
