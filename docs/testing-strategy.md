@@ -39,6 +39,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 229 | No |
+| Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
@@ -60,7 +61,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**563 tests in total.**
+**572 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -87,7 +88,7 @@ built bundle:
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 
-**67 browser tests in total**, for 630 across the whole repository.
+**67 browser tests in total**, for 639 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

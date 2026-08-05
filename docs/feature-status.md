@@ -22,20 +22,21 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       563 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       572 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 10 error monitoring,
-                         5 reforecast, 10 comments, 12 tasks,
+                         5 reforecast, 10 comments, 12 tasks, 31 TOTP,
+                         13 multi-factor, 5 route inventory, 9 property-based,
                          10 portfolio reports, 13 vertical slice)
 Browser      67 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
-                         11 accessibility)
+                         3 two-factor, 11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -293,7 +294,7 @@ have since shipped; the rows above are the current state.)
 | Vertical slice, end to end | Tested | 13 |
 | Browser end-to-end tests | Tested | 35, Chromium only |
 | Automated accessibility tests | Tested | 12 screens under `axe-core`; no screen-reader audit yet |
-| Property-based tests | Not started | |
+| Property-based tests | Tested | Eight invariants over 200 seeded models, no dependency. The generator asserts its own coverage, after the first version silently produced 1,251 rows of zeros and passed everything |
 | Documentation drift gate | Tested | `pnpm check:docs` enumerates every suite without running it and fails the build if a stated count is wrong; proved against four kinds of injected drift |
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
