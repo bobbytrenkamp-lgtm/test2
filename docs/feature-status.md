@@ -22,14 +22,16 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       413 passed  (202 engine regression, 31 engine unit, 16 fund,
-                         18 variance, 51 import, 23 authorization, 13 budgets,
-                         7 portfolios, 10 funds via the API, 17 optimistic
-                         locking, 5 recovery pools, 7 audit pagination,
-                         13 vertical slice)
-Browser      41 passed  (3 sign-in, 2 underwriting, 2 lease editor,
+Tests       433 passed  (202 engine regression, 31 engine unit, 16 fund,
+                         13 version comparison, 18 variance, 51 import,
+                         23 authorization, 13 budgets, 7 portfolios,
+                         10 funds via the API, 17 optimistic locking,
+                         5 recovery pools, 7 audit pagination,
+                         7 version comparison via the API, 13 vertical slice)
+Browser      43 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
-                         6 palette and paste, 5 funds, 11 accessibility)
+                         6 palette and paste, 5 funds, 2 version comparison,
+                         11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
@@ -121,6 +123,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Rent steps, escalations, recoveries as structured data | Tested | |
 | Model-scoped assumption tables | Functional | |
 | Immutable model versions | Tested | Snapshot and recalculate |
+| Side-by-side version comparison | Tested | What was edited and what it did; both versions recalculated under one engine so an engine change is never mistaken for an edit |
 | Calculation runs and traces | Tested | |
 | Audit log | Tested | Append-only by convention; no DB-level grant yet |
 | Jobs | Functional | Claim, complete, fail with backoff, reap stalled |
@@ -174,7 +177,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Validation panel and recovery workings | Functional | |
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser test imports a part-invalid file and checks what reached the rent roll |
-| Versions and approval workflow | Functional | |
+| Versions and approval workflow | Tested | Comparison covered in the browser suite |
 | Portfolio roll-up | Functional | |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
@@ -182,7 +185,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Functional | 23 Playwright tests in Chromium on the built bundle. The assumptions editor, scenarios, versions, reports and portfolio builder are not yet covered |
+| Automated UI tests | Tested | 43 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
 | Accessibility, machine-checked | Tested | `axe-core` on nine screens, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column

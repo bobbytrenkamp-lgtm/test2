@@ -24,6 +24,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
+| Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 202 | No |
 | Budget variance arithmetic | `packages/calculation-engine/src/variance.test.ts` | 18 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
@@ -35,9 +36,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
+| Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**413 tests in total.**
+**433 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -54,10 +56,11 @@ built bundle:
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
 | Fund positions | `e2e/funds.spec.ts` | 5 |
+| Version comparison | `e2e/versions.spec.ts` | 2 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**41 browser tests in total**, for 454 across the whole repository.
+**43 browser tests in total**, for 476 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
