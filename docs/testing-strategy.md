@@ -39,9 +39,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 10 | Yes |
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
+| Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**469 tests in total.**
+**479 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -62,7 +63,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**46 browser tests in total**, for 515 across the whole repository.
+**46 browser tests in total**, for 525 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
