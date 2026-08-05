@@ -14,7 +14,7 @@
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Partial.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow. Side-by-side version comparison is not built. |
 | 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
-| 10. Portfolio and funds | **Partial.** Dynamic and static portfolios, aggregation (now single-query and tested), concentration analysis. Fund-level cash flows and investor reporting are not built. |
+| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, and fund-level commitments, capital calls, distributions, unfunded capital and investor returns. Fund-level waterfalls and recallable distributions are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Started.** Restore drill and an engine performance baseline both run in CI. Machine-checked accessibility on eleven screens. Still missing: a database and API load test, screen-reader audit, error monitoring, deployment automation. |
 
@@ -117,10 +117,32 @@ views (the `saved_views` table exists and is unused).
 Comments, mentions, tasks, review requests, notifications, activity feed. Tables
 are migrated.
 
-### 7. Portfolio reporting and funds (phase 10)
+### 7. Portfolio reporting and funds (phase 10) — funds done
 
-Portfolio `ReportDefinition`s, fund-level cash flows, commitments,
-contributions, distributions, unfunded commitments, investor reporting.
+**Done: fund-level investor economics.** A fund records its investors and their
+commitments, the capital called from each and the distributions returned, and
+reports the position that adds up to: unfunded capital, proportion called, DPI,
+RVPI, TVPI and a net internal rate of return solved from the fund's own dated
+flows.
+
+Two decisions carry the rest. Residual value comes from the roll-up of the
+portfolio the fund holds — the same one the portfolio screen shows, reached
+through the same function, because a second aggregation would drift and a fund
+and a portfolio disagreeing about the same assets is a defect nobody notices
+until an investor asks. And a fund with no portfolio attached reports zero
+residual value **and says why**: substituting contributed capital would give
+every such fund a TVPI near 1.0, a number that looks like an answer and is not
+one.
+
+Deliberately not modelled, and documented in `fund.ts` rather than approximated:
+recallable distributions (the transaction record has no field saying which are
+recallable, and inferring it would be guessing at the partnership agreement),
+fund-level carried interest and catch-up (the deal waterfall settles one
+investment, a fund waterfall settles across the whole portfolio with its own
+hurdle and clawback), and management fee mechanics.
+
+**Still to do:** portfolio-level `ReportDefinition`s, and an investor statement
+that can be sent out rather than read on screen.
 
 ### 8. Production hardening (phase 12)
 

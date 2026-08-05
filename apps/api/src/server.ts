@@ -12,6 +12,7 @@ import { registerOrganizationRoutes } from './routes/organizations.js';
 import { registerPropertyRoutes } from './routes/properties.js';
 import { registerModelRoutes } from './routes/models.js';
 import { registerCalculationRoutes } from './routes/calculations.js';
+import { registerFundRoutes } from './routes/funds.js';
 import { registerPortfolioRoutes } from './routes/portfolios.js';
 import { registerAuditRoutes } from './routes/audit.js';
 import { registerImportRoutes } from './routes/imports.js';
@@ -176,6 +177,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerModelRoutes(api);
       await registerCalculationRoutes(api);
       await registerPortfolioRoutes(api);
+      await registerFundRoutes(api);
       await registerAuditRoutes(api);
       await registerImportRoutes(api);
       await registerReportRoutes(api);
