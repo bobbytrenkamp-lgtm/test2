@@ -293,6 +293,7 @@ have since shipped; the rows above are the current state.)
 | Browser end-to-end tests | Tested | 35, Chromium only |
 | Automated accessibility tests | Tested | 12 screens under `axe-core`; no screen-reader audit yet |
 | Property-based tests | Not started | |
+| Documentation drift gate | Tested | `pnpm check:docs` enumerates every suite without running it and fails the build if a stated count is wrong; proved against four kinds of injected drift |
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
 | Error monitoring | Tested | Unhandled faults recorded and grouped; the store has no column for a body, query, header or session token, asserted against the schema |
