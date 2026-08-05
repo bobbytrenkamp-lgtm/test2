@@ -154,3 +154,9 @@ jobs:
       # against the installed tree; it contacts no external service.
       - name: Licence check
         run: node scripts/check-licences.mjs
+
+      # The deployment guide's rollback procedure assumes every migration leaves
+      # the previous release able to run. That was a policy with nothing
+      # enforcing it; this is the enforcement. Reads files only.
+      - name: Migration rollback safety
+        run: node scripts/check-migrations.mjs

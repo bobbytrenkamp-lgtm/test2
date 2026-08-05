@@ -26,7 +26,8 @@
     "load-test": "tsx scripts/load-test.ts",
     "concurrency-test": "tsx scripts/concurrency-test.ts",
     "dev": "pnpm --parallel --filter @cre/api --filter @cre/web --filter @cre/worker run dev",
-    "profile:grid": "tsx scripts/profile-grid.ts"
+    "profile:grid": "tsx scripts/profile-grid.ts",
+    "check:migrations": "node scripts/check-migrations.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.10.2",

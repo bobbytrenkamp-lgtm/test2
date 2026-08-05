@@ -112,7 +112,27 @@ migration instead of editing an applied one.
 
 Deploy order: migrate, then release the API and worker. Migrations are written to
 be backward compatible with the previous release so a rollback does not need a
-down migration.
+down migration — and that is **enforced**, not merely intended:
+
+```bash
+pnpm check:migrations
+```
+
+It refuses a migration that drops a table or column, renames either, relaxes a
+constraint, or adds a `NOT NULL` column without a default. Each of those leaves
+the previous release unable to run against the new schema, which is exactly what
+a rollback asks it to do. The check runs on every CI build.
+
+A destructive change is sometimes right — dropping a column after the release
+that stopped using it has shipped everywhere. That is a two-step dance, and it
+has to be a decision rather than an accident, so it needs an explicit marker:
+
+```sql
+-- rollback-unsafe: notes was removed in 4.0.0 and no release still reads it.
+```
+
+The marker does not make the migration safe. It records that somebody considered
+the rollback and accepted the consequence.
 
 ## Health and observability
 
@@ -181,9 +201,20 @@ pg_restore --dbname="postgres://…/cre_restore" --no-owner --no-privileges cre-
 ## Rollback
 
 1. Redeploy the previous API and worker images.
-2. Leave the schema in place — migrations are backward compatible by policy.
-3. If a migration must be reversed, write a **new forward** migration that
+2. Leave the schema in place. `pnpm check:migrations` gates every build on the
+   previous release still being able to run against it, so this is safe by
+   construction rather than by intention.
+3. Confirm `GET /api/v1/health` reports `"status": "ok"` before declaring the
+   rollback complete. It reports `"degraded"` unless a query actually reaches the
+   database, which is the point: a process that starts is not the same as one
+   that can serve.
+4. If a migration must be reversed, write a **new forward** migration that
    reverses it, so the checksum chain stays intact.
+
+What this does **not** cover: a release that wrote data the previous release
+cannot read — a new enum value in a column it validates, say. The schema check
+cannot see that, and no automated check here does. Treat a data-shape change as
+a two-step release the same way a column drop is.
 
 ## Least privilege
 
@@ -199,5 +230,12 @@ by convention.
 
 Stateless API and worker processes scale horizontally. The database is the
 constraint. When it becomes one: read replicas for reporting, then partition
-`calculation_runs` and `audit_log` by time. No load testing has been done, so
-these are informed expectations rather than measurements.
+`calculation_runs` and `audit_log` by time.
+
+These are no longer guesses. `pnpm load-test` builds 5,000 properties and
+200,000 leases and times the queries the interface issues; `pnpm concurrency-test`
+drives 200 parallel clients through the real server. The second corrected an
+assumption worth repeating here: the connection pool is **not** the throughput
+constraint — measured across 5 to 60 connections it was flat to worse, because
+the single Node process is the bottleneck. Throughput scales by running more API
+processes, not by raising the pool.
