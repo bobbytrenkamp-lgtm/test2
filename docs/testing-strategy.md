@@ -25,7 +25,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
-| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 202 | No |
+| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 216 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
@@ -41,7 +41,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**455 tests in total.**
+**469 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -62,14 +62,14 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**46 browser tests in total**, for 501 across the whole repository.
+**46 browser tests in total**, for 515 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
 
 ## The regression library
 
-Eighteen independently designed fictional properties:
+Nineteen independently designed fictional properties:
 
 1. Single-tenant industrial, triple net, 3% compounding escalations
 2. Multi-tenant office with base-year recoveries and rollover
@@ -89,6 +89,7 @@ Eighteen independently designed fictional properties:
 16. Two recovery pools on one lease, settling on different terms
 17. Recoveries estimated on the prior year and reconciled three months in arrears
 18. A lease covering part of a space, with recoveries
+19. A covenant breach that traps cash, and the cure that releases it
 
 Each fixture stores its inputs (the fixture function), its expected outputs (the
 assertions), the assumptions behind them (comments stating the arithmetic), a

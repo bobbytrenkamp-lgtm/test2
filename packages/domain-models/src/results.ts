@@ -47,6 +47,10 @@ export const CASH_FLOW_LINES = [
   'interestExpense',
   'principalAmortization',
   'financingFees',
+  // Negative when a covenant breach traps cash with the lender, positive when
+  // it is released. Zero on every model that has no cash-management trigger,
+  // which is every model written before one existed.
+  'restrictedCash',
   'leveredCashFlow',
   'grossSaleProceeds',
   'sellingCosts',

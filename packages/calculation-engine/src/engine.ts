@@ -30,7 +30,7 @@ import { computeExpenseSeries, totalExpenses } from './expenses.js';
 import { computeRecoveries } from './recoveries.js';
 import { computeOtherPropertyRevenue, computePercentageRent } from './revenue.js';
 import { computeCapital } from './capital.js';
-import { computeDebt } from './debt.js';
+import { applyCashTrap, computeDebt } from './debt.js';
 import { computeDcf, computeDirectCapitalization, computeSale } from './valuation.js';
 import {
   breakevenOccupancy,
@@ -51,6 +51,30 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * Bump the minor version for additive behaviour and the major version whenever
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
+ *
+ * ## 3.1.0
+ *
+ * Cash-management triggers on covenant breach. A breach the engine only
+ * reported was a breach with no consequence: the model showed the covenant
+ * failing and distributed the cash anyway, overstating the levered return in
+ * precisely the years a lender is most worried about.
+ *
+ * Where a facility carries `cashTrap`, the surplus is withheld from equity
+ * while the breach persists and released when the covenant has been met for the
+ * required consecutive periods. The property's own performance is untouched —
+ * NOI and unlevered cash flow are identical either way — which is what makes
+ * this a financing outcome rather than an operating one. A new
+ * `restrictedCash` line makes the movement visible, and it nets to zero over
+ * any span that both traps and releases.
+ *
+ * **Cash sweep is deliberately not modelled.** Applying trapped cash to
+ * principal makes the amortisation schedule depend on the cash flow that
+ * depends on the schedule, and approximating that fixed point would misstate
+ * the balance — which then misstates every covenant tested against it.
+ *
+ * Additive: the trigger defaults to off and every regression assertion passes
+ * unaltered, so `restrictedCash` is zero on every model written before it
+ * existed.
  *
  * ## 3.0.0
  *
@@ -124,7 +148,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '3.0.0';
+export const ENGINE_VERSION = '3.1.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -542,7 +566,7 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     );
   }
 
-  const leveredCashFlow = unleveredCashFlow.map((ucf, i) =>
+  const leveredBeforeTrap = unleveredCashFlow.map((ucf, i) =>
     ucf
       .plus(debt.proceeds[i] as Decimal)
       .minus(debt.interest[i] as Decimal)
@@ -550,6 +574,31 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
       .minus(debt.fees[i] as Decimal)
       .plus(sale && i === sale.saleIndex ? sale.netSaleProceeds : ZERO)
       .minus(debt.payoff[i] as Decimal),
+  );
+
+  /*
+   * A covenant breach the engine only reports is a breach with no consequence.
+   * Where a facility carries a cash-management trigger, the surplus is withheld
+   * from equity while the breach persists — the property performs exactly as
+   * before and the equity holder receives nothing, which moves the levered
+   * return without moving a single operating figure.
+   *
+   * Zero on every model that has no trigger configured, which is every model
+   * written before one existed.
+   */
+  const cashTrap = applyCashTrap(input.debt, debt.schedules, leveredBeforeTrap);
+  for (const event of cashTrap.events) {
+    trace.warn(
+      event.event === 'trapped' ? 'CASH_TRAP_SPRUNG' : 'CASH_TRAP_RELEASED',
+      event.event === 'trapped'
+        ? `Cash management triggered in period ${event.periodIndex}: ${event.reason}. Surplus cash is withheld from equity until the covenant is cured.`
+        : `Cash management released in period ${event.periodIndex}: ${event.reason}. ${event.amount} returns to equity.`,
+      'debt',
+      'cashTrap',
+    );
+  }
+  const leveredCashFlow = leveredBeforeTrap.map((cf, i) =>
+    cf.minus(cashTrap.movement[i] as Decimal),
   );
 
   /* --------------------------------------------------------------------- */
@@ -616,6 +665,9 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     interestExpense: debt.interest.map((v) => v.negated()),
     principalAmortization: debt.principal.map((v) => v.negated()),
     financingFees: debt.fees.map((v) => v.negated()),
+    // Negative in the period cash is trapped, positive when it is released, so
+    // the line sums to zero over any span that both traps and releases.
+    restrictedCash: cashTrap.movement.map((v) => v.negated()),
     leveredCashFlow,
     grossSaleProceeds,
     sellingCosts: sellingCosts.map((v) => v.negated()),
