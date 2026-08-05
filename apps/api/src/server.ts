@@ -29,6 +29,18 @@ export interface ServerOptions {
   logger?: boolean;
 }
 
+/** One route the server exposes: a method and the path it is registered at. */
+export interface RouteInventoryEntry {
+  method: string;
+  url: string;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    routeInventory: RouteInventoryEntry[];
+  }
+}
+
 /**
  * Builds the API.
  *
@@ -50,6 +62,29 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     trustProxy: true,
     bodyLimit: 5 * 1024 * 1024,
   });
+
+  /*
+   * Every route this server exposes, recorded as it is registered.
+   *
+   * Hand-written lists of endpoints are wrong within a release. This one cannot
+   * be, because it is the router's own answer: `tests/route-inventory.test.ts`
+   * walks it and requires each route to refuse an unauthenticated request
+   * unless it appears on an explicit public allowlist, and
+   * `scripts/api-inventory.mjs` prints it as documentation. A route added
+   * without authentication therefore fails the build rather than waiting to be
+   * noticed.
+   */
+  const routes: RouteInventoryEntry[] = [];
+  app.addHook('onRoute', (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) {
+      // HEAD is added automatically alongside every GET and is not a separate
+      // surface to document or defend.
+      if (method === 'HEAD') continue;
+      routes.push({ method, url: route.url });
+    }
+  });
+  app.decorate('routeInventory', routes);
 
   // Several endpoints take no payload but are still POSTs. A client that sets a
   // JSON content-type and sends nothing is making a well-formed request, so an

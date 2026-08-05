@@ -494,6 +494,43 @@ code to the site in real time is inside the window, and no shared-secret scheme
 fixes that. WebAuthn does, by binding the response to the origin, and is the
 honest upgrade path. A browser test asserts that sentence is on the page.
 
+### 8c. The API surface, enumerated and defended — done
+
+There was no generated API documentation, and `tests/authorization.test.ts`
+checked endpoints chosen by hand. That is worth having and it has a hole the
+shape of every route nobody thought to add to it: an endpoint registered
+tomorrow without an authorization check passes the entire suite, because no test
+knows it exists.
+
+The server now records its own routes as they register, through Fastify's
+`onRoute` hook, and two things read that inventory.
+
+`tests/route-inventory.test.ts` walks every route and requires each to refuse an
+unauthenticated request. Making one public is still possible and is now a
+deliberate act: it must be named in an allowlist **with a stated reason**, and a
+further test fails if a listed route no longer exists — a stale exemption is how
+a path quietly becomes public after a rename. A third test does the same for the
+CSRF header on every state-changing route. Proved non-vacuously with an
+unguarded probe route, which the suite named and reported the status it wrongly
+returned.
+
+One entry earns its place by having been caught: `OPTIONS *`, the CORS
+preflight, was passing because injecting `*` returns 400 — a refusal by
+accident, not by design. It is now listed explicitly with the reason a preflight
+is safe to serve, rather than left to pass for a reason that could change.
+
+`pnpm api:inventory` prints the same table as documentation, and
+`docs/api-surface.md` is generated from it: 116 routes, 7 reachable without a
+session. A hand-written list would have been wrong within a release, which is
+the same failure the documentation-count gate exists to stop.
+
+**It is deliberately not an OpenAPI document**, and the script says so. Request
+and response shapes are validated by `zod` schemas declared inside each handler
+rather than registered with Fastify, so nothing can see them from outside;
+emitting a spec with empty schemas would look like a contract and describe
+nothing. A real one means lifting those schemas onto the route definitions,
+which is a change to every route and a decision rather than a script.
+
 ### 9. Optional extras, only if wanted
 
 Excel import, server-side PDF, multi-factor authentication, malware scanning,
