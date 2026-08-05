@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type BudgetLine, computeVariance, forecastToBudgetLines } from './variance.js';
+import {
+  buildReforecast,
+  computeVariance,
+  forecastToBudgetLines,
+  type BudgetLine,
+} from './variance.js';
 
 /**
  * Budget, actuals and variance.
@@ -245,5 +250,171 @@ describe('forecast as a comparison side', () => {
     expect(report.rows.find((row) => row.accountCode === '5000')?.variance).toBe('0.00');
     expect(report.totalVariance).toBe('2000.00');
     expect(report.unmatchedAccounts).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('reforecast', () => {
+  /*
+   * A three-month year, closed through February.
+   *
+   *   Rent      budget 100 a month, actual 98 in January and 102 in February
+   *   Repairs   budget -20 a month, actual -35 in January, nothing in February
+   *   Legal     not budgeted at all, actual -8 in January
+   *
+   * The reforecast is therefore:
+   *   January   rent 98, repairs -35, legal -8
+   *   February  rent 102
+   *   March     rent 100, repairs -20   (still the forecast)
+   */
+  const forecast: BudgetLine[] = [
+    {
+      accountCode: '4000',
+      accountName: 'Rent',
+      category: 'revenue',
+      periodMonth: '2026-01-01',
+      amount: '100',
+    },
+    {
+      accountCode: '4000',
+      accountName: 'Rent',
+      category: 'revenue',
+      periodMonth: '2026-02-01',
+      amount: '100',
+    },
+    {
+      accountCode: '4000',
+      accountName: 'Rent',
+      category: 'revenue',
+      periodMonth: '2026-03-01',
+      amount: '100',
+    },
+    {
+      accountCode: '5100',
+      accountName: 'Repairs',
+      category: 'operating_expense',
+      periodMonth: '2026-01-01',
+      amount: '-20',
+    },
+    {
+      accountCode: '5100',
+      accountName: 'Repairs',
+      category: 'operating_expense',
+      periodMonth: '2026-02-01',
+      amount: '-20',
+    },
+    {
+      accountCode: '5100',
+      accountName: 'Repairs',
+      category: 'operating_expense',
+      periodMonth: '2026-03-01',
+      amount: '-20',
+    },
+  ];
+
+  const actuals: BudgetLine[] = [
+    {
+      accountCode: '4000',
+      accountName: 'Rent',
+      category: 'revenue',
+      periodMonth: '2026-01-01',
+      amount: '98',
+    },
+    {
+      accountCode: '4000',
+      accountName: 'Rent',
+      category: 'revenue',
+      periodMonth: '2026-02-01',
+      amount: '102',
+    },
+    {
+      accountCode: '5100',
+      accountName: 'Repairs',
+      category: 'operating_expense',
+      periodMonth: '2026-01-01',
+      amount: '-35',
+    },
+    {
+      accountCode: '6000',
+      accountName: 'Legal',
+      category: 'operating_expense',
+      periodMonth: '2026-01-01',
+      amount: '-8',
+    },
+  ];
+
+  const result = buildReforecast({ actuals, forecast, closedThrough: '2026-02-01' });
+
+  it('takes the closed months from the ledger and the rest from the model', () => {
+    const january = result.lines.filter((line) => line.periodMonth === '2026-01-01');
+    expect(january.map((line) => line.amount).sort()).toEqual(['-35', '-8', '98']);
+
+    const march = result.lines.filter((line) => line.periodMonth === '2026-03-01');
+    expect(march.map((line) => line.amount).sort()).toEqual(['-20', '100']);
+  });
+
+  it('never blends an actual with a forecast for the same month', () => {
+    // February is closed, so its rent is 102 — not the 100 budgeted, and not an
+    // average of the two, which would describe neither.
+    const february = result.lines.filter(
+      (line) => line.periodMonth === '2026-02-01' && line.accountCode === '4000',
+    );
+    expect(february).toHaveLength(1);
+    expect(february[0]?.amount).toBe('102');
+  });
+
+  it('reports how the year splits', () => {
+    expect(result.actualMonths).toBe(2);
+    expect(result.forecastMonths).toBe(1);
+  });
+
+  it('names an account the ledger posted that the forecast cannot carry forward', () => {
+    // Legal happened and is in the reforecast for January, but nothing projects
+    // it for March. Silently dropping it would understate the year.
+    expect(result.unforecastAccounts).toEqual([{ accountCode: '6000', accountName: 'Legal' }]);
+    expect(result.lines.some((line) => line.accountCode === '6000')).toBe(true);
+  });
+
+  it('names an account the forecast expected that was never posted', () => {
+    // Repairs were budgeted for February and nothing was posted. A missing
+    // posting and a genuine zero look identical here, so it is named rather
+    // than assumed either way.
+    const repairs = result.unpostedAccounts.find((entry) => entry.accountCode === '5100');
+    expect(repairs?.months).toEqual(['2026-02-01']);
+    expect(
+      result.lines.some((line) => line.accountCode === '5100' && line.periodMonth === '2026-02-01'),
+    ).toBe(false);
+  });
+
+  it('uses the stated cut-off rather than the latest month it can find', () => {
+    // An early posting into March must not truncate the forecast: a month is
+    // closed when the accountant says so, not when a figure appears in it.
+    const withEarlyPosting = buildReforecast({
+      actuals: [
+        ...actuals,
+        {
+          accountCode: '4000',
+          accountName: 'Rent',
+          category: 'revenue',
+          periodMonth: '2026-03-01',
+          amount: '5',
+        },
+      ],
+      forecast,
+      closedThrough: '2026-02-01',
+    });
+    const marchRent = withEarlyPosting.lines.filter(
+      (line) => line.periodMonth === '2026-03-01' && line.accountCode === '4000',
+    );
+    expect(marchRent).toHaveLength(1);
+    expect(marchRent[0]?.amount).toBe('100');
+  });
+
+  it('is the plain forecast when nothing has closed', () => {
+    const nothingClosed = buildReforecast({ actuals, forecast, closedThrough: '2025-12-01' });
+    expect(nothingClosed.actualMonths).toBe(0);
+    expect(nothingClosed.forecastMonths).toBe(3);
+    expect(nothingClosed.lines).toHaveLength(forecast.length);
   });
 });

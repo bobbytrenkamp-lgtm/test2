@@ -339,3 +339,94 @@ export function forecastToBudgetLines(source: ForecastLineSource): BudgetLine[] 
   }
   return lines;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Reforecast                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface ReforecastInput {
+  /** What actually happened, month by month. */
+  actuals: BudgetLine[];
+  /** What the model says will happen, for the same fiscal year. */
+  forecast: BudgetLine[];
+  /**
+   * The last month actuals are complete through, `YYYY-MM-01`. Months at or
+   * before it come from the ledger; later months come from the forecast.
+   *
+   * Given rather than inferred, because the latest month *present* in the
+   * actuals is not the same as the latest month *closed*: a single early
+   * posting into next month would otherwise silently truncate the forecast.
+   */
+  closedThrough: string;
+}
+
+export interface ReforecastResult {
+  /** The revised year: actuals to date, forecast thereafter. */
+  lines: BudgetLine[];
+  /**
+   * Accounts the ledger posted that the forecast has no line for. They are
+   * included for the elapsed months — they happened — but the remainder of the
+   * year has nothing to carry them forward with, so they are named.
+   */
+  unforecastAccounts: Array<{ accountCode: string; accountName: string }>;
+  /**
+   * Accounts the forecast expects that the ledger never posted in an elapsed
+   * month. Treated as zero for those months, because the ledger is the record
+   * of what happened — but a missing posting and a genuine zero look identical
+   * here, so they are named rather than assumed.
+   */
+  unpostedAccounts: Array<{ accountCode: string; accountName: string; months: string[] }>;
+  /** How the year splits. */
+  actualMonths: number;
+  forecastMonths: number;
+}
+
+/**
+ * Builds a reforecast: what happened, then what is still expected.
+ *
+ * A reforecast is not a new budget. It is the year as it now looks — the closed
+ * months as the ledger recorded them, and the rest as the model still projects
+ * — which is the figure an asset manager reports against for the remainder of
+ * the year.
+ *
+ * The two halves are never blended. A month is either closed or it is not, and
+ * averaging an actual with a forecast for the same month would produce a number
+ * that describes neither.
+ */
+export function buildReforecast(input: ReforecastInput): ReforecastResult {
+  const closed = input.closedThrough;
+
+  const forecastAccounts = new Map(input.forecast.map((line) => [line.accountCode, line] as const));
+  const actualAccounts = new Map(input.actuals.map((line) => [line.accountCode, line] as const));
+
+  const elapsed = input.actuals.filter((line) => line.periodMonth <= closed);
+  const remaining = input.forecast.filter((line) => line.periodMonth > closed);
+
+  const unforecastAccounts = [...actualAccounts.values()]
+    .filter((line) => !forecastAccounts.has(line.accountCode))
+    .map((line) => ({ accountCode: line.accountCode, accountName: line.accountName }));
+
+  // Which elapsed months each forecast account was never posted in.
+  const elapsedMonths = [...new Set(input.forecast.map((line) => line.periodMonth))]
+    .filter((month) => month <= closed)
+    .sort();
+  const posted = new Set(elapsed.map((line) => `${line.accountCode}|${line.periodMonth}`));
+  const unpostedAccounts: ReforecastResult['unpostedAccounts'] = [];
+  for (const [accountCode, line] of forecastAccounts) {
+    const missing = elapsedMonths.filter((month) => !posted.has(`${accountCode}|${month}`));
+    if (missing.length > 0) {
+      unpostedAccounts.push({ accountCode, accountName: line.accountName, months: missing });
+    }
+  }
+
+  return {
+    lines: [...elapsed, ...remaining].sort(
+      (a, b) =>
+        a.periodMonth.localeCompare(b.periodMonth) || a.accountCode.localeCompare(b.accountCode),
+    ),
+    unforecastAccounts,
+    unpostedAccounts,
+    actualMonths: new Set(elapsed.map((line) => line.periodMonth)).size,
+    forecastMonths: new Set(remaining.map((line) => line.periodMonth)).size,
+  };
+}

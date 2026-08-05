@@ -16,7 +16,7 @@ import {
   upsertVarianceCommentary,
   writeAudit,
 } from '@cre/database';
-import { computeVariance, forecastToBudgetLines } from '@cre/calculation-engine';
+import { buildReforecast, computeVariance, forecastToBudgetLines } from '@cre/calculation-engine';
 import { analyzeActuals, mapActuals } from '@cre/reporting';
 import { badRequest, forbidden, notFound, requireCapability } from '../context.js';
 
@@ -338,6 +338,110 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       comparison: { label: comparisonLabel },
       report,
     };
+  });
+
+  /**
+   * Builds a reforecast from a set of actuals and a model's forecast.
+   *
+   * A reforecast is not a new budget: it is the year as it now looks — the
+   * closed months as the ledger recorded them, the rest as the model still
+   * projects — which is what an asset manager reports against for the rest of
+   * the year. Today that had to be assembled by hand in a spreadsheet and
+   * loaded back, which is where a year's reporting quietly diverges from the
+   * model it is supposed to track.
+   *
+   * The cut-off is stated rather than inferred. A single early posting into
+   * next month would otherwise truncate the forecast, and a month is closed
+   * when the accountant says so.
+   */
+  app.post('/budgets/:id/reforecast', async (request, reply) => {
+    const context = requireCapability(request, 'budget:write');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({
+        modelId: z.string().uuid(),
+        closedThrough: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        label: z.string().min(1).max(200),
+      })
+      .parse(request.body);
+
+    const actualsPeriod = await getBudgetPeriod(request.db, context.organizationId, id);
+    if (!actualsPeriod) throw notFound('That budget does not exist.');
+    if (actualsPeriod.kind !== 'actual') {
+      throw badRequest(
+        'A reforecast is built from a period of actuals. This one is a ' +
+          `${actualsPeriod.kind}, which is a plan rather than a record of what happened.`,
+      );
+    }
+
+    const latest = await getLatestCalculation(request.db, body.modelId);
+    if (!latest) {
+      throw badRequest(
+        'That model has not been calculated, so there is no forecast to carry forward. Calculate it first.',
+      );
+    }
+
+    const actuals = await budgetLinesFor(request.db, id);
+    const forecast = forecastToBudgetLines({
+      monthly: latest.result.monthly as unknown as Record<string, string[]>,
+      monthStarts: latest.result.periods.map((period) => period.startDate),
+    });
+
+    const reforecast = buildReforecast({
+      actuals,
+      forecast: forecast.filter(
+        (line) => Number(line.periodMonth.slice(0, 4)) === actualsPeriod.fiscal_year,
+      ),
+      closedThrough: body.closedThrough,
+    });
+
+    const created = await request.db.begin(async (tx) => {
+      const rows = (await tx`
+        INSERT INTO budget_periods (organization_id, property_id, model_id, kind, fiscal_year, label)
+        VALUES (${context.organizationId}, ${actualsPeriod.property_id}, ${body.modelId},
+                'reforecast', ${actualsPeriod.fiscal_year}, ${body.label})
+        RETURNING *
+      `) as unknown as Array<Record<string, unknown>>;
+      const period = rows[0] as Record<string, unknown>;
+
+      for (const line of reforecast.lines) {
+        await tx`
+          INSERT INTO budget_entries (budget_period_id, account_code, account_name, period_month, amount)
+          VALUES (${period.id as string}, ${line.accountCode}, ${line.accountName},
+                  ${line.periodMonth}, ${line.amount})
+          ON CONFLICT DO NOTHING
+        `;
+      }
+      return period;
+    });
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: 'budget.reforecast_created',
+      entityType: 'budget_period',
+      entityId: created.id as string,
+      propertyId: actualsPeriod.property_id,
+      modelId: body.modelId,
+      newValue: {
+        label: body.label,
+        closedThrough: body.closedThrough,
+        actualMonths: reforecast.actualMonths,
+        forecastMonths: reforecast.forecastMonths,
+      },
+      ipAddress: request.ip,
+    });
+
+    return reply.status(201).send({
+      period: created,
+      // Named rather than buried: an account the ledger posted that nothing
+      // projects forward, and one the forecast expected that never appeared,
+      // are both things somebody has to decide about.
+      unforecastAccounts: reforecast.unforecastAccounts,
+      unpostedAccounts: reforecast.unpostedAccounts,
+      actualMonths: reforecast.actualMonths,
+      forecastMonths: reforecast.forecastMonths,
+    });
   });
 
   /* ---------------------------------------------------------------------- */

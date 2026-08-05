@@ -22,12 +22,13 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       443 passed  (202 engine regression, 31 engine unit, 16 fund,
+Tests       455 passed  (202 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 18 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 10 error monitoring,
+                         5 reforecast,
                          13 vertical slice)
 Browser      46 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          2 lease editor, 6 permissions, 1 rent-roll import,
