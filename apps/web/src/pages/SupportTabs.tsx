@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
-import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading } from '../components.js';
-import { formatDateTime, formatNumber, isNegative, titleCase } from '../format.js';
+import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from '../components.js';
+import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
@@ -371,6 +371,7 @@ export function VersionsTab(): JSX.Element {
   }>(`/models/${model.id}/versions`);
 
   const [label, setLabel] = useState('');
+  const [compare, setCompare] = useState<string[]>([]);
   const snapshot = useMutation(async () =>
     api.post(`/models/${model.id}/versions`, { label: label || null }),
   );
@@ -481,6 +482,7 @@ export function VersionsTab(): JSX.Element {
                 <caption className="visually-hidden">Immutable model versions</caption>
                 <thead>
                   <tr>
+                    <th scope="col">Compare</th>
                     <th scope="col">Version</th>
                     <th scope="col">Label</th>
                     <th scope="col">Status</th>
@@ -493,6 +495,23 @@ export function VersionsTab(): JSX.Element {
                 <tbody>
                   {versions.data.versions.map((version) => (
                     <tr key={version.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Compare version ${version.version_number}`}
+                          checked={compare.includes(version.id)}
+                          onChange={(event) =>
+                            setCompare((current) =>
+                              event.target.checked
+                                ? // Two at a time: a comparison of three has no
+                                  // before and after, and the oldest selection
+                                  // is the one a reader has moved on from.
+                                  [...current, version.id].slice(-2)
+                                : current.filter((id) => id !== version.id),
+                            )
+                          }
+                        />
+                      </td>
                       <th scope="row">v{version.version_number}</th>
                       <td>{version.label ?? '—'}</td>
                       <td>{titleCase(version.status)}</td>
@@ -509,6 +528,230 @@ export function VersionsTab(): JSX.Element {
             </div>
           )
         )}
+      </div>
+
+      {compare.length === 2 && (
+        <VersionComparison
+          modelId={model.id}
+          beforeId={compare[0] as string}
+          afterId={compare[1] as string}
+        />
+      )}
+    </>
+  );
+}
+
+interface FieldChange {
+  path: string;
+  unit: string;
+  before: string | null;
+  after: string | null;
+  delta: string | null;
+}
+
+interface Comparison {
+  before: { version_number: number; label: string | null; engine_version: string } | null;
+  after: { version_number: number; label: string | null; engine_version: string } | null;
+  comparison: {
+    inputChanges: Array<{
+      kind: string;
+      entity: string;
+      code: string;
+      label: string;
+      fields: FieldChange[];
+    }>;
+    annual: Array<{
+      fiscalYear: number;
+      lines: Array<{
+        line: string;
+        before: string;
+        after: string;
+        delta: string;
+        percentChange: string | null;
+      }>;
+    }>;
+    headline: {
+      value: { before: string; after: string; delta: string; percentChange: string | null } | null;
+      netOperatingIncomeYear1: { delta: string } | null;
+      unleveredIrr: FieldChange | null;
+      leveredIrr: FieldChange | null;
+    };
+    engineChanged: boolean;
+    engineBefore: string;
+    engineAfter: string;
+  };
+}
+
+/** How a changed field should be read, given the units it was recorded in. */
+function formatChange(field: FieldChange): string {
+  if (field.unit === 'rate') {
+    return `${formatPercent(field.before)} → ${formatPercent(field.after)}`;
+  }
+  if (field.unit === 'currency') {
+    return `${formatNumber(field.before, 2)} → ${formatNumber(field.after, 2)}`;
+  }
+  return `${field.before ?? '—'} → ${field.after ?? '—'}`;
+}
+
+/**
+ * Two versions, side by side.
+ *
+ * Both halves are shown together on purpose: a value that moved four million
+ * with no account of why is the artefact this replaces, and a diff nobody can
+ * prioritise is the other one.
+ */
+function VersionComparison({
+  modelId,
+  beforeId,
+  afterId,
+}: {
+  modelId: string;
+  beforeId: string;
+  afterId: string;
+}): JSX.Element {
+  const result = useResource<Comparison>(
+    `/models/${modelId}/versions/${beforeId}/compare/${afterId}`,
+    [modelId, beforeId, afterId],
+  );
+
+  if (result.loading) return <Loading label="Comparing versions" />;
+  if (result.error) {
+    return (
+      <div className="card">
+        <ErrorMessage error={result.error} />
+      </div>
+    );
+  }
+  if (!result.data) return <></>;
+
+  const { comparison, before, after } = result.data;
+
+  return (
+    <>
+      <div className="card">
+        <h2>
+          v{before?.version_number} → v{after?.version_number}
+        </h2>
+
+        {comparison.engineChanged && (
+          <div className="message warning" role="status" aria-label="Engine version notice">
+            These versions were originally calculated by engine {comparison.engineBefore} and{' '}
+            {comparison.engineAfter}. Both are recalculated here under the current engine, so this
+            comparison isolates what was edited — but neither figure will match what was stored at
+            the time.
+          </div>
+        )}
+
+        <dl className="metric-grid">
+          <Metric
+            label="Value"
+            value={formatNumber(comparison.headline.value?.delta, 0)}
+            note="Change in the discounted cash flow"
+          />
+          <Metric
+            label="Year 1 NOI"
+            value={formatNumber(comparison.headline.netOperatingIncomeYear1?.delta, 0)}
+            note="Change"
+          />
+          <Metric
+            label="Unlevered IRR"
+            value={
+              comparison.headline.unleveredIrr
+                ? formatChange(comparison.headline.unleveredIrr)
+                : 'Unchanged'
+            }
+          />
+          <Metric
+            label="Levered IRR"
+            value={
+              comparison.headline.leveredIrr
+                ? formatChange(comparison.headline.leveredIrr)
+                : 'Unchanged'
+            }
+          />
+        </dl>
+      </div>
+
+      <div className="card">
+        <h2>What was edited</h2>
+        {comparison.inputChanges.length === 0 ? (
+          <EmptyState title="No input differences">
+            The two versions have identical assumptions. Any difference in the figures above would
+            come from the engine, not from an edit.
+          </EmptyState>
+        ) : (
+          <div className="table-scroll" tabIndex={0} style={{ maxHeight: 360 }}>
+            <table>
+              <caption className="visually-hidden">Input differences between the versions</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Change</th>
+                  <th scope="col">What</th>
+                  <th scope="col">Field</th>
+                  <th scope="col">Before and after</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparison.inputChanges.flatMap((entry) =>
+                  entry.fields.length === 0
+                    ? [
+                        <tr key={`${entry.entity}-${entry.code}`}>
+                          <td>{titleCase(entry.kind)}</td>
+                          <th scope="row">
+                            {titleCase(entry.entity)} {entry.code}
+                          </th>
+                          <td colSpan={2}>{entry.label}</td>
+                        </tr>,
+                      ]
+                    : entry.fields.map((field, index) => (
+                        <tr key={`${entry.entity}-${entry.code}-${field.path}`}>
+                          <td>{index === 0 ? titleCase(entry.kind) : ''}</td>
+                          <th scope="row">
+                            {index === 0 ? `${titleCase(entry.entity)} ${entry.code}` : ''}
+                          </th>
+                          <td>{field.path.split('.').pop()}</td>
+                          <td>{formatChange(field)}</td>
+                        </tr>
+                      )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>What it did, year by year</h2>
+        <div className="table-scroll" tabIndex={0} style={{ maxHeight: 400 }}>
+          <table>
+            <caption className="visually-hidden">Annual movement between the versions</caption>
+            <thead>
+              <tr>
+                <th scope="col">Year</th>
+                {(comparison.annual[0]?.lines ?? []).map((line) => (
+                  <th key={line.line} scope="col" className="numeric">
+                    {titleCase(line.line.replace(/([A-Z])/g, ' $1'))}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {comparison.annual.map((year) => (
+                <tr key={year.fiscalYear}>
+                  <th scope="row">FY{year.fiscalYear}</th>
+                  {year.lines.map((line) => (
+                    <td
+                      key={line.line}
+                      className={`numeric ${isNegative(line.delta) ? 'negative' : ''}`}
+                    >
+                      {Number(line.delta) === 0 ? '—' : formatNumber(line.delta, 0)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

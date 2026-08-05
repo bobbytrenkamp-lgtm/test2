@@ -11,7 +11,7 @@ import {
   runAndStoreCalculationFromInput,
   writeAudit,
 } from '@cre/database';
-import { ENGINE_VERSION, calculate } from '@cre/calculation-engine';
+import { ENGINE_VERSION, calculate, compareVersions } from '@cre/calculation-engine';
 import type { ModelInput } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 
@@ -179,6 +179,60 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       returns: result.returns,
       valuations: result.valuations,
       diagnostics: result.diagnostics,
+    };
+  });
+
+  /**
+   * Side-by-side comparison of two frozen versions.
+   *
+   * Both are recalculated under the *current* engine rather than read from
+   * their stored results, so the comparison isolates what someone edited. Two
+   * results produced by different engine versions can differ for reasons nobody
+   * changed, and attributing that to an assumption is exactly the mistake this
+   * screen exists to prevent. The engine versions each was originally
+   * calculated under are reported alongside, so the reader can see when a
+   * stored figure will not match what is shown here.
+   */
+  app.get('/models/:id/versions/:beforeId/compare/:afterId', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const params = z
+      .object({
+        id: z.string().uuid(),
+        beforeId: z.string().uuid(),
+        afterId: z.string().uuid(),
+      })
+      .parse(request.params);
+
+    const model = await getModel(request.db, context.organizationId, params.id);
+    if (!model) throw notFound();
+    if (params.beforeId === params.afterId) {
+      throw badRequest('A version cannot be compared with itself.');
+    }
+
+    const [beforeInput, afterInput] = await Promise.all([
+      getModelVersionInput(request.db, params.id, params.beforeId),
+      getModelVersionInput(request.db, params.id, params.afterId),
+    ]);
+    if (!beforeInput) throw notFound('The earlier version does not exist on this model.');
+    if (!afterInput) throw notFound('The later version does not exist on this model.');
+
+    const stored = (await request.db`
+      SELECT id, version_number, label, engine_version, created_at
+      FROM model_versions
+      WHERE model_id = ${params.id} AND id IN (${params.beforeId}, ${params.afterId})
+    `) as unknown as Array<Record<string, unknown>>;
+    const byId = new Map(stored.map((row) => [row.id as string, row]));
+
+    const comparison = compareVersions(
+      { input: beforeInput, result: calculate(beforeInput, { trace: { enabled: false } }) },
+      { input: afterInput, result: calculate(afterInput, { trace: { enabled: false } }) },
+    );
+
+    return {
+      engineVersion: ENGINE_VERSION,
+      before: byId.get(params.beforeId) ?? null,
+      after: byId.get(params.afterId) ?? null,
+      comparison,
     };
   });
 
