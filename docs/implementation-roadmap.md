@@ -13,7 +13,7 @@
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
-| 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
+| 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, interface and tests. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, and fund-level commitments, capital calls, distributions, unfunded capital and investor returns. Fund-level waterfalls and recallable distributions are not built. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI. Machine-checked accessibility on eleven screens. Local error monitoring. Still missing: a screen-reader audit and deployment automation with a rollback path. |
@@ -90,9 +90,21 @@ positive one on every account. A miscategorised row then lands in the wrong
 subtotal — visible — rather than reversing its own variance, which is not. See
 `docs/calculation-specification.md` §21.
 
-**What remains:** a reforecast workflow that carries actuals-to-date forward
-into a revised forecast automatically. Today a reforecast is a budget period
-like any other and has to be loaded.
+**Done: reforecast carry-forward.** `POST /budgets/:id/reforecast` builds the
+year as it now looks — the closed months as the ledger recorded them, the rest
+as the model still projects — and writes it as a real budget period, so the
+variance screen reports against it without a second mechanism existing.
+
+The two halves are never blended: a month is either closed or it is not, and
+averaging an actual with a forecast for the same month produces a number that
+describes neither. The cut-off is stated rather than inferred, because a single
+early posting into next month would otherwise truncate the forecast, and a month
+is closed when the accountant says so.
+
+Accounts that do not line up are named in both directions — one the ledger
+posted that nothing projects forward, one the forecast expected that never
+appeared. A missing posting and a genuine zero look identical in a ledger, so
+neither is assumed.
 
 ### 5. Spreadsheet-grade editing (phase 6) — partly done
 

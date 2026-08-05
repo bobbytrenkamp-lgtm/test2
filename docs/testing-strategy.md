@@ -26,7 +26,7 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 202 | No |
-| Budget variance arithmetic | `packages/calculation-engine/src/variance.test.ts` | 18 | No |
+| Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
@@ -38,9 +38,10 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 10 | Yes |
+| Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**443 tests in total.**
+**455 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -61,7 +62,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**46 browser tests in total**, for 489 across the whole repository.
+**46 browser tests in total**, for 501 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
