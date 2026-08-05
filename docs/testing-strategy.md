@@ -51,7 +51,7 @@ built bundle:
 | Suite | Location | Count |
 | --- | --- | --- |
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
-| Underwriting path and the calculation inspector | `e2e/underwriting.spec.ts` | 2 |
+| Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
 | Lease editor validation | `e2e/rent-roll.spec.ts` | 2 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
@@ -61,7 +61,7 @@ built bundle:
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**43 browser tests in total**, for 486 across the whole repository.
+**46 browser tests in total**, for 489 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

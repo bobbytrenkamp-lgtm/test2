@@ -224,8 +224,17 @@ it is disciplined about that, and the test asserts the absence against the
 schema rather than against one write — a column added later has to be argued
 for.
 
-Still to do: grid virtualisation, once profiling says where; an audit with a
-real screen reader; and deployment automation with a rollback path.
+~~Grid virtualisation~~ — profiled, then done. `pnpm profile:grid` measured the
+monthly view of a ten-year forecast at 3,240 interactive cells and a median of
+429 ms to switch into, against 163 ms for the annual view. Rendering only the
+columns near the viewport took that to 594 cells and 212 ms.
+
+Still above the hundred-millisecond line, and the script says so: the remaining
+time is the rows and the re-layout rather than the column count. Row
+virtualisation is the next step, not a further pass at the columns.
+
+Still to do: an audit with a real screen reader, and deployment automation with
+a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted

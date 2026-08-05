@@ -29,10 +29,10 @@ Tests       443 passed  (202 engine regression, 31 engine unit, 16 fund,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 10 error monitoring,
                          13 vertical slice)
-Browser      43 passed  (3 sign-in, 2 underwriting, 2 lease editor,
-                         6 permissions, 1 rent-roll import, 5 budgets,
-                         6 palette and paste, 5 funds, 2 version comparison,
-                         11 accessibility)
+Browser      46 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         2 lease editor, 6 permissions, 1 rent-roll import,
+                         5 budgets, 6 palette and paste, 5 funds,
+                         2 version comparison, 11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
@@ -285,6 +285,7 @@ notifications, geographic maps, version side-by-side comparison.
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
 | Error monitoring | Tested | Unhandled faults recorded and grouped; the store has no column for a body, query, header or session token, asserted against the schema |
+| Cash-flow grid virtualisation | Tested | Columns near the viewport only; `aria-colcount` and `aria-colindex` report the true width. Measured with `pnpm profile:grid` |
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
 | Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, true races asserted with `Promise.all` |
 | Optimistic locking, assumption collections | Tested | Row-level `version` on all six collections; same-row writers collide, different-row writers do not. 17 locking tests in total |
