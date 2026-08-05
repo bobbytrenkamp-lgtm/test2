@@ -297,6 +297,7 @@ have since shipped; the rows above are the current state.)
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
 | Error monitoring | Tested | Unhandled faults recorded and grouped; the store has no column for a body, query, header or session token, asserted against the schema |
 | Cash-flow grid virtualisation | Tested | Columns near the viewport only; `aria-colcount` and `aria-colindex` report the true width. Measured with `pnpm profile:grid` |
+| Grid render cost | Tested | Per-cell formatting cut the monthly switch from ~219 ms to ~108 ms, measured four times either side. Row virtualisation is deliberately not done, and the profiler says why |
 | Migration rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI |
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
 | Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, true races asserted with `Promise.all` |

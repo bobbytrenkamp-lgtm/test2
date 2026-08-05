@@ -76,14 +76,18 @@ const OVERSCAN = 6;
 /**
  * Which columns are worth putting in the DOM.
  *
- * A ten-year monthly forecast is 121 columns across 27 line items, and every
- * figure is a button so it can be opened in the inspector: 3,240 interactive
+ * A ten-year monthly forecast is 121 columns across 28 line items, and every
+ * figure is a button so it can be opened in the inspector: 3,388 interactive
  * elements. Measured with `pnpm profile:grid`, switching to that view took a
  * median of 429 ms — well past the point an interaction stops feeling
  * immediate — against 163 ms for the annual view's 270 cells.
  *
  * Below `VIRTUALISE_ABOVE` columns this returns everything, so the annual view
  * and every small model keep exactly the behaviour they had.
+ *
+ * Virtualising the columns was half the answer. The other half was per-cell
+ * cost: see the note on the cell below, and `scripts/profile-grid.ts` for why
+ * virtualising the *rows* is deliberately not the next step.
  */
 function useVisibleColumns(
   total: number,
@@ -281,6 +285,10 @@ export function CashFlowTab(): JSX.Element {
                   {visible.map((column, offset) => {
                     const index = from + offset;
                     const raw = valueAt(line.key, index);
+                    // Formatted once and used twice. The figure and the label a
+                    // screen reader reads are the same string, so computing it
+                    // twice was both wasted work and a way for the two to drift.
+                    const shown = formatCurrency(raw, currency);
                     return (
                       <td
                         key={column.key}
@@ -302,9 +310,9 @@ export function CashFlowTab(): JSX.Element {
                               label: `${line.label}, ${column.label}`,
                             })
                           }
-                          aria-label={`Explain ${line.label} for ${column.label}: ${formatCurrency(raw, currency)}`}
+                          aria-label={`Explain ${line.label} for ${column.label}: ${shown}`}
                         >
-                          {formatCurrency(raw, currency)}
+                          {shown}
                         </button>
                       </td>
                     );
