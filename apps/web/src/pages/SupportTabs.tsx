@@ -799,10 +799,37 @@ function RecalculateButton({
 }
 
 /** Import a rent roll from a CSV: analyse, map, validate, then commit. */
+/**
+ * A file's bytes as base64, without blowing the stack on a large one.
+ *
+ * `String.fromCharCode(...bytes)` is the usual one-liner and throws on a
+ * spreadsheet of any size — the spread becomes one argument per byte. Chunked
+ * instead, which is the same result and survives a real rent roll.
+ */
+async function readAsBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+const isWorkbookName = (name: string): boolean => /\.(xlsx|xlsm)$/i.test(name.trim());
+
 export function ImportsTab(): JSX.Element {
   const { model, reloadCashFlow } = useModelContext();
   const [content, setContent] = useState('');
   const [filename, setFilename] = useState('');
+  /**
+   * Which worksheet to read.
+   *
+   * Held here rather than only inside the analysis, because all three steps
+   * have to agree: analysing sheet 1 and committing sheet 0 would import
+   * something nobody previewed, and every row of it would look plausible.
+   */
+  const [sheetIndex, setSheetIndex] = useState<number | undefined>(undefined);
   const [analysis, setAnalysis] = useState<{
     batchId: string;
     headers: string[];
@@ -811,6 +838,8 @@ export function ImportsTab(): JSX.Element {
     suggestedMapping: Record<string, number>;
     rowCount: number;
     preview: string[][];
+    sheetNames: string[];
+    sheetIndex: number;
   } | null>(null);
   const [mapping, setMapping] = useState<Record<string, number>>({});
   const [validation, setValidation] = useState<{
@@ -819,13 +848,20 @@ export function ImportsTab(): JSX.Element {
     issues: Array<{ rowIndex: number; severity: string; message: string; field?: string }>;
   } | null>(null);
 
-  const analyze = useMutation(async () => {
+  const analyze = useMutation(async (chosenSheet?: number) => {
     const response = await api.post<NonNullable<typeof analysis>>(
       `/models/${model.id}/imports/analyze`,
-      { filename: filename || 'rent-roll.csv', content },
+      {
+        filename: filename || 'rent-roll.csv',
+        content,
+        ...(chosenSheet === undefined ? {} : { sheetIndex: chosenSheet }),
+      },
     );
     setAnalysis(response);
     setMapping(response.suggestedMapping);
+    // Adopt whichever sheet the server actually read, so a suggestion becomes
+    // the explicit choice the later steps send back.
+    setSheetIndex(response.sheetIndex);
     setValidation(null);
     return response;
   });
@@ -833,7 +869,7 @@ export function ImportsTab(): JSX.Element {
   const validate = useMutation(async () => {
     const response = await api.post<NonNullable<typeof validation>>(
       `/models/${model.id}/imports/validate`,
-      { batchId: analysis?.batchId, content, mapping },
+      { batchId: analysis?.batchId, filename, sheetIndex, content, mapping },
     );
     setValidation(response);
     return response;
@@ -844,6 +880,8 @@ export function ImportsTab(): JSX.Element {
   const commit = useMutation(async () =>
     api.post<{ imported: number; skipped: number }>(`/models/${model.id}/imports/commit`, {
       batchId: analysis?.batchId,
+      filename,
+      sheetIndex,
       content,
       mapping,
       skipRowsWithErrors: true,
@@ -862,24 +900,48 @@ export function ImportsTab(): JSX.Element {
       <Field label="File name">
         <input value={filename} onChange={(event) => setFilename(event.target.value)} />
       </Field>
-      <Field label="CSV contents" hint="Paste the file, or read it in with the file picker below.">
-        <textarea
-          rows={8}
-          value={content}
-          spellCheck={false}
-          onChange={(event) => setContent(event.target.value)}
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
-        />
-      </Field>
-      <Field label="Or choose a file" hint="The file is read in the browser and shown above first.">
+      {isWorkbookName(filename) ? (
+        // A spreadsheet's bytes are not text, so there is nothing useful to
+        // show and nothing to paste. Saying what was read beats an empty box
+        // or a screen of mojibake.
+        <div className="message info" role="status" aria-label="Selected file">
+          <strong>{filename}</strong> will be read as a spreadsheet.
+          {analysis?.sheetNames.length
+            ? ` It has ${analysis.sheetNames.length} sheet${analysis.sheetNames.length === 1 ? '' : 's'}.`
+            : ''}
+        </div>
+      ) : (
+        <Field
+          label="CSV contents"
+          hint="Paste the file, or read it in with the file picker below."
+        >
+          <textarea
+            rows={8}
+            value={content}
+            spellCheck={false}
+            onChange={(event) => setContent(event.target.value)}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+          />
+        </Field>
+      )}
+      <Field
+        label="Or choose a file"
+        hint="CSV or Excel (.xlsx, .xlsm). The file is read in the browser and never leaves this deployment."
+      >
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={async (event) => {
             const file = event.target.files?.[0];
             if (!file) return;
             setFilename(file.name);
-            setContent(await file.text());
+            // A spreadsheet is binary and goes over as base64; a CSV is text
+            // and goes over as itself, exactly as before.
+            setContent(isWorkbookName(file.name) ? await readAsBase64(file) : await file.text());
+            // A new file invalidates any sheet chosen for the previous one.
+            setSheetIndex(undefined);
+            setAnalysis(null);
+            setValidation(null);
           }}
         />
       </Field>
@@ -890,7 +952,7 @@ export function ImportsTab(): JSX.Element {
           type="button"
           className="primary"
           disabled={!content || analyze.pending}
-          onClick={() => void analyze.run()}
+          onClick={() => void analyze.run(undefined)}
         >
           {analyze.pending ? 'Analysing…' : 'Analyse the file'}
         </button>
@@ -898,6 +960,32 @@ export function ImportsTab(): JSX.Element {
 
       {analysis && (
         <>
+          {analysis.sheetNames.length > 1 && (
+            /*
+             * The sheet is a choice, not a guess left to the software. A rent
+             * roll workbook routinely carries a cover sheet first, and the one
+             * that scores highest on rent-roll words is a suggestion that can
+             * be wrong — so it is shown, named, and changeable. Changing it
+             * re-analyses, because the headers and mapping belong to a sheet.
+             */
+            <Field
+              label="Worksheet"
+              hint="The sheet that most looks like a rent roll is chosen; change it if that is not this one."
+            >
+              <select
+                value={analysis.sheetIndex}
+                disabled={analyze.pending}
+                onChange={(event) => void analyze.run(Number(event.target.value))}
+              >
+                {analysis.sheetNames.map((name, index) => (
+                  <option key={name} value={index}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
           <div className="message info" style={{ marginTop: 16 }}>
             Header row {analysis.headerRowIndex + 1}, {analysis.rowCount} data rows,{' '}
             {(analysis.confidence * 100).toFixed(0)}% of columns recognised.

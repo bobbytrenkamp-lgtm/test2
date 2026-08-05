@@ -77,7 +77,7 @@ built bundle:
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
 | Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
-| Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
+| Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
 | Fund positions | `e2e/funds.spec.ts` | 5 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
@@ -90,7 +90,7 @@ built bundle:
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 
-**67 browser tests in total**, for 656 across the whole repository.
+**68 browser tests in total**, for 657 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -11,7 +11,7 @@
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
 | 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
-| 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built, and the wizard does not yet expose the sheet picker. |
+| 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
@@ -579,8 +579,15 @@ asserts that by sending no filename at all.
 `.xls`, the old binary format, is **not** supported — exceljs cannot read it, and
 the error says to save as `.xlsx` rather than failing at parse time.
 
-**Still to do here:** the import wizard does not yet offer the sheet picker the
-API now returns; a workbook still imports whichever sheet is suggested.
+~~**Still to do here:** the import wizard does not yet offer the sheet
+picker.~~ Done in the following change. The wizard reads a spreadsheet's bytes
+as base64 in the browser — chunked, because `String.fromCharCode(...bytes)` is
+the usual one-liner and throws on a file of any size — hides the paste box for a
+binary file rather than showing mojibake, and offers the worksheet as a named
+choice whenever a workbook has more than one. Changing it re-analyses, because
+headers and a mapping belong to a sheet. Confirmed to be a real choice rather
+than a label by stopping the picker's value reaching the server and watching the
+browser test fail.
 
 ### 9. Optional extras, only if wanted
 
