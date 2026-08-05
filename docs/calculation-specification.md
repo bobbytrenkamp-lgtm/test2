@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **2.1.0** — `packages/calculation-engine`.
+Engine version **3.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -396,6 +396,23 @@ Recoveries settle on a **fiscal-year** cycle. Partial fiscal years at either end
 of the forecast are annualised for the entitlement comparison and re-prorated
 afterwards, so a forecast starting in July does not understate a base-year stop.
 
+### Pools
+
+A lease settles one or more **pools**, each a reimbursement structure over its
+own set of expense categories, with its own base year, cap history and
+reconciliation. Pools do not interact; their results are summed.
+
+A lease with no explicit pools is treated as one implicit pool on the lease-level
+terms, reported under the code `default`. That is what every model written before
+pools existed means, and why they are unaffected.
+
+The distinction matters because a single pool cannot express an ordinary office
+lease: operating costs on a base year with a 5% cap alongside taxes and
+insurance net and uncapped forces a choice between capping the taxes and
+uncapping the operating costs. Both are wrong. Fixture 16 asserts the two settle
+independently, and asserts explicitly that the tax pool carries no cap
+adjustment.
+
 ### Pool
 
 ```
@@ -444,12 +461,48 @@ final         = clamp(beforeCaps, floor, ceiling)
 
 The admin fee is inside the capped amount, which is the more common drafting.
 
+### Reconciliation
+
+A settled year is not necessarily the year's cash. A tenant pays an estimate
+monthly and the difference is billed or credited after the year closes, which
+moves cash between years and therefore moves the return.
+
+```
+estimated  = actual            → the settled amount (nothing to reconcile)
+           | prior_year_actual → the previous billed year's settled amount
+           | fixed_estimate    → estimatePerArea × tenantArea
+
+trueUp     = settled − estimated
+```
+
+The estimate is spread across the months the tenant occupied, exactly as the
+settled amount was before. The true-up is a **single amount in a single month**,
+`reconciliationLagMonths` after the last period of the fiscal year — measured
+from the period the forecast actually modelled, not a nominal year end, so a
+forecast that stops mid-year reconciles from where it stopped.
+
+`prior_year_actual` has no prior year in the first billed year and falls back to
+that year's own settled amount. The alternative — estimating zero — would defer
+an entire year of recovery into one reconciliation month, which is not what any
+lease says.
+
+A true-up whose month falls beyond the forecast raises
+`RECONCILIATION_OUTSIDE_FORECAST` and is **excluded** from the cash flow. It is
+a real receivable the forecast does not extend far enough to collect, and the
+diagnostic names the amount so the omission is visible rather than inferred from
+a total that does not tie.
+
+The default is `actual` with a zero lag, which settles in the year itself and
+reproduces the behaviour that predates this section.
+
 ### Transparency
 
-Every settled year emits a `RecoveryDetailRow` carrying included categories,
-tenant area, denominator, pro-rata share, pool before and after gross-up, base
-year amount, stop, amount before caps, cap adjustment, admin fee and final
-recovery. The Validation tab renders these directly.
+Every settled year emits a `RecoveryDetailRow` carrying the pool code and name,
+included categories, tenant area, denominator, pro-rata share, pool before and
+after gross-up, base year amount, stop, amount before caps, cap adjustment,
+admin fee, final recovery, the estimated amount, the true-up and the period the
+true-up lands in (null when it fell outside the forecast). The Validation tab
+renders these directly.
 
 ---
 
@@ -752,6 +805,35 @@ Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+### 3.0.0
+
+**A correction to existing numbers.** A lease covering only part of a space
+under-recovered its expenses by exactly its share of that space, and the same
+error reached annual other-revenue items.
+
+2.0.0 scaled each occurrence's occupancy series by its share of the area it sits
+on. That is right for reporting how full a floor is and wrong as the multiplier
+for spreading an annual entitlement across months: the entitlement already
+carries the tenant's area through its pro-rata share, so applying the area again
+billed a tenant holding 40% of a floor 40% of what it owed.
+
+There are now two series. `occupancyFraction` is area-weighted and reports
+occupancy; `timeFraction` is time and probability only, and spreads annual
+figures over the months a tenant was present.
+
+No pre-existing fixture moved — every one of them lets whole spaces, which is
+how this survived two versions. Fixture 18 covers the case and reproduces the
+old figure when the fix is reverted. **Any model where a lease covers part of a
+space and recovers expenses will show higher recoveries**, and higher NOI and
+value with them.
+
+Additive in the same release: **multiple recovery pools per lease** and
+**reconciliation timing**, both described in section 9. Each defaults to the
+previous behaviour, and all 164 pre-existing regression assertions pass
+unaltered — those two alone would have been a minor bump. Three new fixtures
+cover the new paths, with expected values derived by hand from the assumptions
+rather than from engine output.
 
 ### 2.1.0
 

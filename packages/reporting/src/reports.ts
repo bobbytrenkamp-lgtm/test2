@@ -327,6 +327,9 @@ export const recoveryDetailReport: ReportDefinition = {
       columns: [
         { key: 'leaseId', label: 'Lease', align: 'left', format: 'text' },
         { key: 'fiscalYear', label: 'Fiscal year', align: 'left', format: 'text' },
+        // A lease with several pools produces one row per pool per year. Without
+        // the pool named, they are indistinguishable.
+        { key: 'poolName', label: 'Pool', align: 'left', format: 'text' },
         { key: 'method', label: 'Structure', align: 'left', format: 'text' },
         { key: 'includedCategories', label: 'Included categories', align: 'left', format: 'text' },
         { key: 'tenantArea', label: 'Tenant area', align: 'right', format: 'area' },
@@ -343,14 +346,28 @@ export const recoveryDetailReport: ReportDefinition = {
         { key: 'expenseStopAmount', label: 'Stop', align: 'right', format: 'currency' },
         { key: 'adminFee', label: 'Admin fee', align: 'right', format: 'currency' },
         { key: 'capAdjustment', label: 'Cap adjustment', align: 'right', format: 'currency' },
-        { key: 'finalRecovery', label: 'Recovery', align: 'right', format: 'currency' },
+        { key: 'finalRecovery', label: 'Settled', align: 'right', format: 'currency' },
+        {
+          key: 'estimatedRecovery',
+          label: 'Billed as estimate',
+          align: 'right',
+          format: 'currency',
+        },
+        { key: 'trueUpAmount', label: 'True-up', align: 'right', format: 'currency' },
+        { key: 'trueUpPeriod', label: 'True-up period', align: 'left', format: 'text' },
       ],
       rows: result.recoveryDetail.map((row) => ({
         ...row,
         fiscalYear: String(row.fiscalYear),
         includedCategories: row.includedCategories.join(', '),
+        // Null means either nothing to reconcile or a true-up that fell beyond
+        // the forecast; the true-up column distinguishes them.
+        trueUpPeriod: row.trueUpPeriodIndex === null ? '-' : String(row.trueUpPeriodIndex + 1),
       })),
-      footnotes: [`Amounts in ${context.currency}. Annualised where the fiscal year is partial.`],
+      footnotes: [
+        `Amounts in ${context.currency}. Annualised where the fiscal year is partial.`,
+        "Settled is the year's entitlement. Billed as estimate is what is charged monthly through the year; the true-up is the difference, charged in the period shown. A true-up with no period fell beyond the forecast and is excluded from the cash flow.",
+      ],
     };
   },
 };

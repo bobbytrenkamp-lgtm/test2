@@ -9,7 +9,10 @@ import {
   expenseStopRecovery,
   floatingRateDebt,
   lpGpWaterfall,
+  multiplePoolRecovery,
+  partialSpaceRecovery,
   percentageRentProperty,
+  reconciledRecovery,
   refinanceScenario,
   renewalOption,
   singleTenantIndustrial,
@@ -565,5 +568,199 @@ describe('calculation traces', () => {
   it('records nothing when tracing is off', () => {
     const result = run(baseYearRecovery(), false);
     expect(result.trace).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('Fixture 16: two recovery pools settling on different terms', () => {
+  const result = run(multiplePoolRecovery());
+
+  /*
+   * Derived by hand from the fixture, not from the engine.
+   *
+   *   Operating costs pool: 400,000 growing 10% -> 400,000 / 440,000 / 484,000
+   *   Tax pool:             300,000 growing 10% -> 300,000 / 330,000 / 363,000
+   *   Tenant share:         50,000 / 100,000 = 0.5
+   *
+   *   OPEX (expense stop 2.00/sf = 100,000, capped 5% a year):
+   *     FY2026  200,000 - 100,000 = 100,000, first year so uncapped
+   *     FY2027  220,000 - 100,000 = 120,000, ceiling 100,000 x 1.05 = 105,000
+   *     FY2028  242,000 - 100,000 = 142,000, ceiling 105,000 x 1.05 = 110,250
+   *
+   *   TAX (triple net, uncapped):
+   *     FY2026  150,000   FY2027  165,000   FY2028  181,500
+   */
+  it('settles each pool on its own terms and sums them', () => {
+    expect(year(result, 2026).lines.expenseRecoveries).toBe('250000.00');
+    expect(year(result, 2027).lines.expenseRecoveries).toBe('270000.00');
+    expect(year(result, 2028).lines.expenseRecoveries).toBe('291750.00');
+  });
+
+  it('does not let one pool cap the other', () => {
+    // The distinction the whole feature exists for. Merged into one capped
+    // entitlement, FY2027 would be 250,000 x 1.05 = 262,500 and FY2028 would be
+    // 275,625 — the taxes would have been capped by an operating-cost clause
+    // that says nothing about them.
+    expect(year(result, 2027).lines.expenseRecoveries).not.toBe('262500.00');
+
+    const taxes = result.recoveryDetail.filter((row) => row.poolCode === 'TAX');
+    expect(taxes.map((row) => row.capAdjustment)).toEqual(['0', '0', '0']);
+    expect(Number(taxes.find((row) => row.fiscalYear === 2028)?.finalRecovery)).toBeCloseTo(
+      181500,
+      6,
+    );
+  });
+
+  it('reports the cap it applied, on the pool it applied to', () => {
+    const opex = result.recoveryDetail.filter((row) => row.poolCode === 'OPEX');
+    expect(opex).toHaveLength(3);
+    // FY2027: entitled to 120,000, capped to 105,000, so the adjustment is -15,000.
+    expect(Number(opex.find((row) => row.fiscalYear === 2027)?.recoveryBeforeCaps)).toBeCloseTo(
+      120000,
+      6,
+    );
+    expect(Number(opex.find((row) => row.fiscalYear === 2027)?.capAdjustment)).toBeCloseTo(
+      -15000,
+      6,
+    );
+    expect(Number(opex.find((row) => row.fiscalYear === 2028)?.capAdjustment)).toBeCloseTo(
+      -31750,
+      6,
+    );
+  });
+
+  it('names both pools in the detail, so the workings can be read apart', () => {
+    const codes = [...new Set(result.recoveryDetail.map((row) => row.poolCode))].sort();
+    expect(codes).toEqual(['OPEX', 'TAX']);
+    expect(result.recoveryDetail.every((row) => row.poolName.length > 0)).toBe(true);
+    // The full-service tenant still produces nothing.
+    expect(result.recoveryDetail.some((row) => row.leaseId === 'L2')).toBe(false);
+  });
+
+  it('raises no critical error', () => {
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('Fixture 17: recoveries estimated on the prior year, reconciled in arrears', () => {
+  const result = run(reconciledRecovery());
+
+  /*
+   * Derived by hand from the fixture.
+   *
+   *   Expense 500,000 growing 10%: 500,000 / 550,000 / 605,000 / 665,500.
+   *   Sole tenant, triple net, so the settled entitlement equals the expense.
+   *
+   *   Estimated (prior year's settled amount; the first year has no prior year
+   *   and falls back to its own):
+   *     FY2026  500,000   FY2027  500,000   FY2028  550,000   FY2029  605,000
+   *
+   *   True-up (settled - estimated), billed three months after year end:
+   *     FY2026        0
+   *     FY2027   50,000 -> March 2028
+   *     FY2028   55,000 -> March 2029
+   *     FY2029   60,500 -> March 2030, beyond a 48-month forecast
+   *
+   *   Recovery revenue recognised:
+   *     FY2026  500,000
+   *     FY2027  500,000
+   *     FY2028  550,000 + 50,000 = 600,000
+   *     FY2029  605,000 + 55,000 = 660,000
+   */
+  it('bills the estimate during the year, not the settled amount', () => {
+    expect(year(result, 2026).lines.expenseRecoveries).toBe('500000.00');
+    expect(year(result, 2027).lines.expenseRecoveries).toBe('500000.00');
+  });
+
+  it('bills the shortfall in the month the reconciliation lands', () => {
+    expect(year(result, 2028).lines.expenseRecoveries).toBe('600000.00');
+    expect(year(result, 2029).lines.expenseRecoveries).toBe('660000.00');
+  });
+
+  it('puts the true-up in one month rather than spreading it', () => {
+    // Period 27 is March 2028: the FY2028 estimate of 550,000/12 = 45,833.33,
+    // plus the whole 50,000 owed for FY2027.
+    // The monthly series is presented rounded to the currency's two decimals,
+    // so the comparison is made at that precision rather than the engine's.
+    const monthly = result.monthly.expenseRecoveries;
+    expect(Number(monthly[26])).toBeCloseTo(95833.33, 2);
+    expect(Number(monthly[25])).toBeCloseTo(45833.33, 2);
+    expect(Number(monthly[27])).toBeCloseTo(45833.33, 2);
+  });
+
+  it('says so when a true-up falls beyond the forecast, rather than losing it', () => {
+    const warning = result.diagnostics.find(
+      (entry) => entry.code === 'RECONCILIATION_OUTSIDE_FORECAST',
+    );
+    expect(warning).toBeDefined();
+    expect(warning?.severity).toBe('warning');
+    expect(warning?.message).toContain('60500.00');
+  });
+
+  it('recognises everything settled except the true-up it warned about', () => {
+    // Settled over four years: 500,000 + 550,000 + 605,000 + 665,500 = 2,320,500.
+    // Recognised: 500,000 + 500,000 + 600,000 + 660,000 = 2,260,000.
+    // The 60,500 difference is exactly the FY2029 true-up that fell outside.
+    const recognised = [2026, 2027, 2028, 2029].reduce(
+      (sum, fiscalYear) => sum + line(result, fiscalYear, 'expenseRecoveries'),
+      0,
+    );
+    expect(recognised).toBeCloseTo(2260000, 4);
+
+    const settled = result.recoveryDetail.reduce((sum, row) => sum + Number(row.finalRecovery), 0);
+    expect(settled).toBeCloseTo(2320500, 4);
+    expect(settled - recognised).toBeCloseTo(60500, 4);
+  });
+
+  it('publishes the estimate and the true-up separately', () => {
+    const fy2027 = result.recoveryDetail.find((row) => row.fiscalYear === 2027);
+    expect(Number(fy2027?.finalRecovery)).toBeCloseTo(550000, 6);
+    expect(Number(fy2027?.estimatedRecovery)).toBeCloseTo(500000, 6);
+    expect(Number(fy2027?.trueUpAmount)).toBeCloseTo(50000, 6);
+    // Zero-based period 26 is the 27th month, March 2028.
+    expect(fy2027?.trueUpPeriodIndex).toBe(26);
+
+    const fy2029 = result.recoveryDetail.find((row) => row.fiscalYear === 2029);
+    expect(Number(fy2029?.trueUpAmount)).toBeCloseTo(60500, 6);
+    expect(fy2029?.trueUpPeriodIndex).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('Fixture 18: a lease covering part of a space', () => {
+  const result = run(partialSpaceRecovery());
+
+  /*
+   * 40,000 of a single 100,000 sqft space. Two different fractions are in play
+   * and they must not be multiplied together:
+   *
+   *   pro-rata share  = 40,000 / 100,000 = 0.4  (of the property's expenses)
+   *   share of space  = 40,000 / 100,000 = 0.4  (of the suite it sits on)
+   *
+   * Entitlement = 500,000 x 0.4 = 200,000, present all twelve months.
+   * Physical occupancy = 0.4, because 60,000 of the floor is empty.
+   */
+  it('recovers the tenant’s pro-rata share, undiminished by its share of the space', () => {
+    // Applying the area share twice would bill 200,000 x 0.4 = 80,000, which is
+    // what versions 2.0.0 and 2.1.0 did.
+    expect(year(result, 2026).lines.expenseRecoveries).toBe('200000.00');
+  });
+
+  it('still reports the floor as 40% occupied', () => {
+    // The correction must not undo what 2.0.0 fixed: the 60,000 sqft the tenant
+    // does not hold is vacant, and reporting the floor as full would overstate
+    // occupancy and understate general vacancy.
+    expect(Number(result.occupancy[0]?.physicalOccupancyPercent)).toBeCloseTo(0.4, 10);
+    expect(Number(result.occupancy[0]?.occupiedArea)).toBeCloseTo(40000, 6);
+  });
+
+  it('reconciles to NOI', () => {
+    // Base rent 40,000 x 20.00 = 800,000, plus 200,000 recovered, less 500,000.
+    expect(year(result, 2026).lines.scheduledBaseRent).toBe('800000.00');
+    expect(year(result, 2026).lines.netOperatingIncome).toBe('500000.00');
   });
 });

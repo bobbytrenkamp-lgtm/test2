@@ -52,6 +52,44 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 3.0.0
+ *
+ * **A correction to existing numbers, which is what makes this major.** A lease
+ * covering only part of a space under-recovered its expenses by exactly its
+ * share of that space. 2.0.0 scaled a lease's occupancy series by its share of
+ * the area it sits on — right for reporting how full a floor is, wrong as the
+ * multiplier for spreading an annual entitlement across months, because an
+ * entitlement already carries the tenant's area through its pro-rata share.
+ * Applying it twice billed a tenant holding 40% of a floor 40% of what it owed.
+ * The same error reached annual other-revenue items.
+ *
+ * There are now two series: `occupancyFraction`, area-weighted, for occupancy
+ * reporting, and `timeFraction`, for spreading annual figures over the months a
+ * tenant was present. No pre-existing fixture moved — every one of them let
+ * whole spaces, which is why this survived two versions — so fixture 18 exists
+ * to cover the case, and it reproduces the old figure when the fix is reverted.
+ *
+ * Any model where a lease covers part of a space and recovers expenses will
+ * show higher recoveries, and higher NOI and value with them.
+ *
+ * Additive in the same release: recoveries gained two things a real lease does
+ * and a single settled figure could not express.
+ *
+ * **Several pools per lease.** Operating costs on a base year with a cap, taxes
+ * and insurance net and uncapped, is one lease and three settlements. Each pool
+ * now keeps its own base year, cap history and reconciliation, and the results
+ * are summed. A lease with no explicit pools is one implicit pool on the terms
+ * it already had.
+ *
+ * **Reconciliation.** A tenant pays an estimate monthly and the difference is
+ * billed or credited after the year closes. That moves cash between years,
+ * which moves the return. The default estimate basis is the settled amount
+ * itself, which leaves nothing to reconcile.
+ *
+ * Both default to the previous behaviour, and all 164 pre-existing regression
+ * assertions pass unaltered, including the ones comparing exact strings — so
+ * these two would have been a minor bump on their own.
+ *
  * ## 2.1.0
  *
  * Performance only. The discount-factor series and XIRR each took decimal.js's
@@ -86,7 +124,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '2.1.0';
+export const ENGINE_VERSION = '3.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
