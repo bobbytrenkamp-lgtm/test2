@@ -310,8 +310,25 @@ Still above the hundred-millisecond line, and the script says so: the remaining
 time is the rows and the re-layout rather than the column count. Row
 virtualisation is the next step, not a further pass at the columns.
 
-Still to do: an audit with a real screen reader, and deployment automation with
-a rollback path.
+~~The rollback path~~ — enforced. The deployment guide's rollback procedure
+rested on "migrations are backward compatible by policy", which was a policy
+with nothing behind it: one `DROP COLUMN` and a rollback stops working, and
+nobody finds out until the day they need one.
+
+`pnpm check:migrations` now refuses a migration that drops a table or column,
+renames either, relaxes a constraint, or adds a `NOT NULL` column without a
+default. It runs on every CI build. A destructive change stays possible behind
+an explicit `-- rollback-unsafe:` marker, which does not make it safe — it
+records that somebody considered the rollback and accepted the consequence.
+
+The guide also says plainly what the check cannot see: a release that writes
+data the previous one cannot read is not a schema change, and no automated check
+here catches it.
+
+Still to do: an audit with a real screen reader, and the deploy automation
+itself — the ordering and health-check procedure is documented but not
+scripted, and it cannot be verified here while the container registry is
+unreachable.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted
