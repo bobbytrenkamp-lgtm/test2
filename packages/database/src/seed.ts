@@ -1076,6 +1076,12 @@ export async function seedDemonstrationData(sql: Sql): Promise<SeedResult> {
   // lands exactly on budget teaches nothing about what the screen is for.
   await seedBudgets(sql, organization.id, office.id, officeModel, analyst.id, reviewer.id);
 
+  // A fund holding the demonstration portfolio, with two investors part-way
+  // through their commitments. Half-called is deliberate: a fund shown fully
+  // drawn hides the unfunded figure, which is the one an investor relations
+  // team is asked about most often.
+  await seedFund(sql, organization.id, portfolioId);
+
   return {
     organizationId: organization.id,
     users: [
@@ -1281,5 +1287,79 @@ async function seedBudgets(
       SET approved_by = ${reviewerId}, approved_at = now(), approved_text = commentary
       WHERE id = ${commentaryId}
     `;
+  }
+}
+
+/**
+ * A demonstration fund over the seeded portfolio.
+ *
+ * Figures are fictional and chosen so the screen shows something an investor
+ * would recognise: two commitments of different sizes, called in two drawdowns,
+ * one distribution returned, and half the capital still unfunded.
+ */
+async function seedFund(sql: Sql, organizationId: string, portfolioId: string): Promise<void> {
+  const fundRows = (await sql`
+    INSERT INTO funds (organization_id, name, vintage_year, committed_capital, currency, portfolio_id)
+    VALUES (${organizationId}, 'Meridian Value Fund I (demonstration)', 2026, 50000000, 'USD',
+            ${portfolioId})
+    ON CONFLICT (organization_id, name) DO NOTHING
+    RETURNING id
+  `) as unknown as Array<{ id: string }>;
+  const fundId = fundRows[0]?.id;
+  if (!fundId) return;
+
+  const investors: Array<{ code: string; name: string; kind: string; commitment: string }> = [
+    {
+      code: 'LP-ALDER',
+      name: 'Alder State Pension (fictional)',
+      kind: 'lp',
+      commitment: '35000000',
+    },
+    {
+      code: 'LP-BRINE',
+      name: 'Brine Family Office (fictional)',
+      kind: 'lp',
+      commitment: '12500000',
+    },
+    {
+      code: 'GP-MERIDIAN',
+      name: 'Meridian GP Co-invest (fictional)',
+      kind: 'gp',
+      commitment: '2500000',
+    },
+  ];
+
+  const idByCode = new Map<string, string>();
+  for (const investor of investors) {
+    const rows = (await sql`
+      INSERT INTO fund_investors (fund_id, organization_id, code, name, investor_class, commitment)
+      VALUES (${fundId}, ${organizationId}, ${investor.code}, ${investor.name},
+              ${investor.kind}, ${investor.commitment})
+      ON CONFLICT (fund_id, code) DO NOTHING
+      RETURNING id
+    `) as unknown as Array<{ id: string }>;
+    const id = rows[0]?.id;
+    if (id) idByCode.set(investor.code, id);
+  }
+
+  // Two drawdowns of 25% each, then a first distribution. Every investor is
+  // called the same proportion, which is how a fund normally draws.
+  const schedule: Array<{ date: string; type: string; share: number }> = [
+    { date: '2026-03-31', type: 'contribution', share: 0.25 },
+    { date: '2026-09-30', type: 'contribution', share: 0.25 },
+    { date: '2027-06-30', type: 'distribution', share: 0.06 },
+  ];
+
+  for (const entry of schedule) {
+    for (const investor of investors) {
+      const investorId = idByCode.get(investor.code);
+      if (!investorId) continue;
+      const amount = (Number(investor.commitment) * entry.share).toFixed(2);
+      await sql`
+        INSERT INTO fund_transactions (fund_id, investor_id, transaction_date, type, amount, reference)
+        VALUES (${fundId}, ${investorId}, ${entry.date}, ${entry.type}, ${amount},
+                ${entry.type === 'contribution' ? 'Capital call notice' : 'Distribution notice'})
+      `;
+    }
   }
 }

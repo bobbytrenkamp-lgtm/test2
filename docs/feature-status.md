@@ -26,9 +26,9 @@ Tests       406 passed  (202 engine regression, 31 engine unit, 16 fund,
                          18 variance, 51 import, 23 authorization, 13 budgets,
                          7 portfolios, 10 funds via the API, 17 optimistic
                          locking, 5 recovery pools, 13 vertical slice)
-Browser      35 passed  (3 sign-in, 2 underwriting, 2 lease editor,
+Browser      41 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
-                         6 palette and paste, 10 accessibility)
+                         6 palette and paste, 5 funds, 11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
@@ -139,10 +139,10 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Calculate, cash flow, trace | Tested | |
 | Sensitivity (one- and two-way) | Functional | Full engine run per cell |
 | Scenario batch | Functional | Queued to the worker |
-| Fund investors and commitments | Tested | Row-level optimistic locking on a commitment |
+| Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
-| Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API |
-| Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so |
+| Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
+| Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so on screen |
 | Fund-level waterfall, recallable distributions | Not started | Documented as not modelled in `fund.ts` rather than approximated |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
 | Reports (JSON, CSV, XLSX, print HTML) | Functional | |

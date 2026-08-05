@@ -120,6 +120,21 @@ test.describe('signed in', () => {
     await audit(page);
   });
 
+  test('the fund position', async ({ page }) => {
+    // The newest screen, and the one with the densest table, so it is the most
+    // likely to reintroduce an unlabelled control or a header that names
+    // nothing.
+    await page.goto('/funds');
+    await expect(page.getByRole('heading', { name: 'Funds', level: 1 })).toBeVisible();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'Meridian Value Fund I' })
+      .getByRole('button', { name: 'Open' })
+      .click();
+    await expect(page.getByRole('heading', { name: 'Investor positions' })).toBeVisible();
+    await audit(page);
+  });
+
   test('the import wizard', async ({ page }) => {
     await page.goto('/properties');
     await page.getByRole('link', { name: SEED.office.property }).click();
