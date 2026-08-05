@@ -66,9 +66,18 @@ test('the screen and the CSV agree about what a report contains', async ({ page,
   await page.getByRole('link', { name: 'Reports' }).click();
   await expect(page.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
 
+  /*
+   * Scoped to the definitions table by its caption, not to "rows on the page".
+   * Viewing a report renders a second table below this one, and an unscoped
+   * row index walks straight into it — which is exactly the bug this had when
+   * first written: it passed alone and failed in the full suite, where the
+   * preview from an earlier assertion was still on screen.
+   */
+  const definitions = page.getByRole('table', { name: 'Available property reports' });
+
   // The first report in the list, whichever it is: the point is that the two
   // renderings agree, not that one particular report does.
-  const firstRow = page.getByRole('row').nth(1);
+  const firstRow = definitions.getByRole('row').nth(1);
   const title = (await firstRow.getByRole('rowheader').innerText()).trim();
   await firstRow.getByRole('button', { name: 'View' }).click();
 
@@ -134,7 +143,8 @@ test('every report definition is reachable and renders', async ({ page }) => {
   );
   await page.getByRole('link', { name: 'Reports' }).click();
 
-  const views = page.getByRole('button', { name: 'View' });
+  const definitions = page.getByRole('table', { name: 'Available property reports' });
+  const views = definitions.getByRole('button', { name: 'View' });
   const count = await views.count();
   // The feature is described as nine property reports; asserting the count
   // would pin a number that is allowed to grow, so this asserts there are
@@ -142,7 +152,7 @@ test('every report definition is reachable and renders', async ({ page }) => {
   expect(count).toBeGreaterThan(4);
 
   for (let i = 0; i < count; i += 1) {
-    const row = page.getByRole('row').nth(i + 1);
+    const row = definitions.getByRole('row').nth(i + 1);
     const title = (await row.getByRole('rowheader').innerText()).trim();
     await row.getByRole('button', { name: 'View' }).click();
     // Each renders its own heading and a table, rather than the previous

@@ -60,7 +60,9 @@ export function Shell(): JSX.Element {
         </div>
 
         <div className="row">
-          <span style={{ color: 'var(--text-muted)' }}>{session.user.name}</span>
+          <NavLink to="/security" style={{ color: 'var(--text-muted)' }}>
+            {session.user.name}
+          </NavLink>
           <button type="button" onClick={() => void signOut()}>
             Sign out
           </button>

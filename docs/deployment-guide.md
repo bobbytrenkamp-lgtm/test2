@@ -16,10 +16,27 @@ the Dockerfiles have been fixed — a lockfile fallback that silently defeated
 `--frozen-lockfile`, a missing workspace manifest that made the frozen install
 fail in the first place, and a missing `.dockerignore` that would have copied
 host-built `node_modules` over the Alpine ones. But **a review is not a build**.
-The environment this was developed in reaches the Docker daemon and its network
-policy blocks Docker Hub's blob CDN, so the base images cannot be pulled. Treat
-the images as untested until someone runs `docker compose build` where the
-registry is reachable.
+
+The blockage has since been diagnosed exactly, which matters because the earlier
+wording ("the registry is unreachable") sent the wrong signal. The Docker daemon
+runs and the registry API is reachable: `registry-1.docker.io/v2/` answers 401
+as it should unauthenticated, and `auth.docker.io/token` answers 200. What is
+blocked is the **blob CDN** — `production.cloudfront.docker.com` returns 403,
+an egress policy denial from the session's proxy. So manifests resolve and
+layers cannot be fetched, and `docker pull node:22-alpine` fails partway with a
+403 on the layer download.
+
+That is a single host to allow. Anyone with an environment that permits
+`production.cloudfront.docker.com` (or any registry mirror serving the same
+images) should run:
+
+```bash
+docker compose build && docker compose up
+```
+
+and report what breaks. Until then the images are **unbuilt, not merely
+untested**, and nothing in this guide about the container path has been
+executed.
 
 ## Requirements
 

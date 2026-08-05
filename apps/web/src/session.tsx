@@ -8,7 +8,7 @@ interface SessionContextValue {
   loading: boolean;
   can: (capability: Capability) => boolean;
   refresh: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, code?: string) => Promise<void>;
   signOut: () => Promise<void>;
   switchOrganization: (organizationId: string) => Promise<void>;
 }
@@ -39,8 +39,10 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
   }, [refresh]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      await api.post('/auth/login', { email, password });
+    async (email: string, password: string, code?: string) => {
+      // The code is omitted rather than sent empty when there is none: an
+      // account without a second factor should send exactly what it did before.
+      await api.post('/auth/login', { email, password, ...(code ? { code } : {}) });
       await refresh();
     },
     [refresh],

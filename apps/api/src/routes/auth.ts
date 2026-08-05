@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { Sql } from '@cre/database';
 import {
   authenticate,
   checkPasswordPolicy,
@@ -9,7 +10,10 @@ import {
   createUser,
   findUserByEmail,
   listMemberships,
+  normaliseRecoveryCode,
   revokeSession,
+  verifyPassword,
+  verifyTotp,
   writeAudit,
 } from '@cre/database';
 import { capabilitiesForRole } from '@cre/domain-models';
@@ -26,7 +30,41 @@ import {
 const credentialsSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(1).max(256),
+  /** A six-digit authenticator code, or a recovery code. Only accounts with a
+   *  second factor need it, so it is optional at the schema level and required
+   *  by the login route for the accounts that have one. */
+  code: z.string().max(40).optional(),
 });
+
+/**
+ * Spends a recovery code, if the submitted value is one.
+ *
+ * Codes are stored hashed, so finding the right row means checking the
+ * candidate against each unused hash rather than looking one up. That is a
+ * handful of comparisons against a per-user list of ten, and it is the price of
+ * not keeping a plaintext column of working bypass codes.
+ *
+ * Marking it used is conditional on it still being unused, so two requests
+ * racing with the same code cannot both win.
+ */
+async function consumeRecoveryCode(db: Sql, userId: string, submitted: string): Promise<boolean> {
+  const candidate = normaliseRecoveryCode(submitted);
+  const rows = (await db`
+    SELECT id, code_hash FROM mfa_recovery_codes
+    WHERE user_id = ${userId} AND used_at IS NULL
+  `) as unknown as Array<{ id: string; code_hash: string }>;
+
+  for (const row of rows) {
+    if (!(await verifyPassword(candidate, row.code_hash))) continue;
+    const claimed = (await db`
+      UPDATE mfa_recovery_codes SET used_at = now()
+      WHERE id = ${row.id} AND used_at IS NULL
+      RETURNING id
+    `) as unknown as Array<{ id: string }>;
+    return claimed.length > 0;
+  }
+  return false;
+}
 
 const registrationSchema = credentialsSchema.extend({
   name: z.string().min(1).max(200),
@@ -92,6 +130,52 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
     const user = await authenticate(request.db, body.email, body.password);
     if (!user) {
       throw new HttpError(401, 'INVALID_CREDENTIALS', 'That email or password is not correct.');
+    }
+
+    /*
+     * The second factor, if this account has one.
+     *
+     * Checked after the password and before any session exists, which is the
+     * only ordering that makes it a factor at all: issuing the cookie first and
+     * asking for a code afterwards would leave a usable session in the hands of
+     * whoever had the password.
+     *
+     * The response says a code is required rather than pretending the password
+     * was wrong. Hiding it would tell the user nothing actionable and tells an
+     * attacker who already has the password nothing they cannot discover by
+     * looking at the login form.
+     */
+    if (user.mfa_enrolled) {
+      const submitted = (body.code ?? '').replace(/\s/g, '');
+      if (!submitted) {
+        throw new HttpError(
+          401,
+          'MFA_REQUIRED',
+          'This account needs a code from its authenticator app.',
+        );
+      }
+
+      const accepted = user.mfa_secret ? verifyTotp(user.mfa_secret, submitted) : false;
+      const viaRecovery = accepted
+        ? false
+        : await consumeRecoveryCode(request.db, user.id, submitted);
+
+      if (!accepted && !viaRecovery) {
+        throw new HttpError(401, 'MFA_INVALID', 'That code is not right.');
+      }
+      if (viaRecovery) {
+        // Worth recording separately: a recovery code being used is either a
+        // lost device or somebody working around one, and both are things an
+        // administrator should be able to find afterwards.
+        await writeAudit(request.db, {
+          organizationId: null,
+          userId: user.id,
+          action: 'user.mfa_recovery_code_used',
+          entityType: 'user',
+          entityId: user.id,
+          ipAddress: request.ip,
+        });
+      }
     }
 
     // Sign the user straight into their only organization when there is one.

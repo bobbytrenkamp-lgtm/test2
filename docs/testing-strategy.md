@@ -55,9 +55,11 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
+| TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
+| Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**514 tests in total.**
+**558 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -82,8 +84,9 @@ built bundle:
 | Reports, screen against CSV | `e2e/reports.spec.ts` | 2 |
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
+| Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 
-**64 browser tests in total**, for 578 across the whole repository.
+**67 browser tests in total**, for 625 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

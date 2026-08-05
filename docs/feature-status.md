@@ -22,7 +22,7 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       514 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       558 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -30,7 +30,7 @@ Tests       514 passed  (229 engine regression, 31 engine unit, 16 fund,
                          7 version comparison via the API, 10 error monitoring,
                          5 reforecast, 10 comments, 12 tasks,
                          10 portfolio reports, 13 vertical slice)
-Browser      64 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser      67 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -39,7 +39,7 @@ Browser      64 passed  (3 sign-in, 5 underwriting and the virtualised grid,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
-Migrations  11 applied against PostgreSQL 16
+Migrations  12 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -197,7 +197,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 64 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 67 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
@@ -241,7 +241,7 @@ have since shipped; the rows above are the current state.)
 | Rate limiting | Functional | |
 | Error messages that leak nothing | Functional | Internals logged, never returned |
 | Secrets outside source control | Functional | `.env` git-ignored, validated at startup |
-| Multi-factor authentication | Not started | `mfa_enrolled` column only |
+| Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
 | Dependency scanning in CI | Functional | `pnpm audit` runs; not yet failing the build |
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
 | Malware scanning of uploads | Designed | Column exists; no scanner |
@@ -258,7 +258,7 @@ have since shipped; the rows above are the current state.)
 | Background worker | Functional | Not covered by automated tests |
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Functional | |
-| Docker Compose | **Designed, unverified** | `docker compose config` validates; images still never built — the registry is unreachable from the build environment |
+| Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days. No external provider is wired, and none is needed |
@@ -327,7 +327,7 @@ rendering, MFA, malware scanning.
 **Unverified.** The Docker images have never been built. The Compose file
 validates and several defects found by reading the Dockerfiles are fixed, but
 the base images cannot be pulled where this was developed — the network policy
-blocks Docker Hub's blob CDN. A review is not a build.
+blocks Docker Hub's blob CDN — specifically `production.cloudfront.docker.com`, which returns 403 while the registry API itself answers normally. A review is not a build.
 
 Backup and restore is no longer in this category: `pnpm drill:restore` dumps,
 restores and confirms a stored valuation reproduces from the restored data, and

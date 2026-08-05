@@ -16,7 +16,7 @@
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
 | 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI, and every migration is gated on leaving the previous release able to run. Machine-checked accessibility. Local error monitoring. Still missing: a screen-reader audit, and the deploy automation itself — the procedure is documented but not scripted. |
+| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI; every migration is gated on leaving the previous release able to run; documentation counts are gated too. Machine-checked accessibility. Local error monitoring. Multi-factor authentication. Still missing: a screen-reader audit, the deploy automation itself, and a container build — the images have never been built, and the one host that blocks it is named in `docs/deployment-guide.md`. |
 
 ## What to do next, in order
 
@@ -75,10 +75,19 @@ valuation to reproduce; the seed now calculates against a frozen version.
 **Docker images: still not built.** The Compose file validates and several real
 defects in the Dockerfiles are fixed (a fallback that silently defeated
 `--frozen-lockfile`, a missing workspace manifest, a missing `.dockerignore`),
-but the base images cannot be pulled where this was developed — the network
-policy blocks Docker Hub's blob CDN. A review is not a build. Anyone with
-registry access should run `docker compose build && docker compose up` and
-report what breaks.
+but the base images cannot be pulled where this was developed. A review is not
+a build.
+
+The blockage is now diagnosed exactly, which matters because "the registry is
+unreachable" pointed at the wrong thing. The Docker daemon runs and the registry
+API is reachable — `registry-1.docker.io/v2/` answers 401 unauthenticated as it
+should, `auth.docker.io/token` answers 200. What is refused is the **blob CDN**:
+`production.cloudfront.docker.com` returns 403 from the session's egress proxy,
+whose documentation is explicit that a policy denial must be reported rather than
+routed around. So manifests resolve and layers cannot be fetched.
+
+That is one host to allow. Anyone in an environment that permits it should run
+`docker compose build && docker compose up` and report what breaks.
 
 ### 3. Close the engine's honest gaps — options partly done
 
@@ -438,6 +447,52 @@ itself — the ordering and health-check procedure is documented but not
 scripted, and it cannot be verified here while the container registry is
 unreachable.
 ~~Backup and restore drill~~ — done, see item 2.
+
+### 8b. Multi-factor authentication — done
+
+A platform holding institutional valuations behind a password alone fails any
+serious security review, and `users.mfa_enrolled` had been in the schema since it
+was written with nothing to set it.
+
+**TOTP is implemented here rather than pulled in**, for two reasons. RFC 6238 is
+about forty lines — an HMAC, a dynamic truncation, a modulo — so a dependency
+would be more code to audit than the thing it replaces, and this is an
+authentication path where "audit" is not rhetorical. And the RFC **publishes
+official test vectors**, so the implementation is checked against numbers nobody
+here chose. That is the same rule the calculation engine follows: an expected
+value taken from your own output agrees with you by construction and would pass
+on the day the code breaks. RFC 4226 Appendix D, RFC 6238 Appendix B and RFC 4648
+§10 are all asserted.
+
+Four decisions carry the rest.
+
+**Enrolment is two steps.** A secret is issued, and the account is not protected
+until a code generated from it verifies. Flipping the flag on issue would lock
+somebody out with a secret they never finished scanning — the failure where the
+security feature is the attacker.
+
+**The code is checked before any session exists.** Issuing the cookie first and
+asking afterwards is not a second factor; it is a second factor-shaped screen in
+front of a session the attacker already holds.
+
+**The secret leaves the server exactly once.** Never from `/auth/me`, never from
+the status endpoint, never into the audit log. Somebody who has already stolen a
+session must not be able to ask the API for the factor that session is supposed
+to be protected by, and an append-only log of it would be a permanent copy.
+
+**Recovery codes are hashed and single-use.** A plaintext column of working
+bypass codes is a second password column with none of the care taken over the
+first. Spending one is audited separately, because a recovery code being used is
+either a lost device or somebody working around one.
+
+Both properties were checked against deliberately broken implementations:
+reusable recovery codes fail two tests, and skipping the factor check entirely
+fails six.
+
+The screen states what this does **not** protect against — someone relaying a
+code to the site in real time is inside the window, and no shared-secret scheme
+fixes that. WebAuthn does, by binding the response to the origin, and is the
+honest upgrade path. A browser test asserts that sentence is on the page.
 
 ### 9. Optional extras, only if wanted
 
