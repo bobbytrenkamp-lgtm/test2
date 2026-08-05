@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { listAudit, listAuditPage, listJobs } from '@cre/database';
+import {
+  listAudit,
+  listAuditPage,
+  listErrorEvents,
+  listErrorGroups,
+  listJobs,
+} from '@cre/database';
 import { requireCapability } from '../context.js';
 
 export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
@@ -55,6 +61,42 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
     reply.header('content-type', 'application/x-ndjson; charset=utf-8');
     reply.header('content-disposition', 'attachment; filename="audit-log.ndjson"');
     return entries.map((entry) => JSON.stringify(entry)).join('\n');
+  });
+
+  /**
+   * Recorded server faults, grouped.
+   *
+   * Behind `audit:read` rather than a capability of its own: whoever is
+   * entrusted with the record of who changed what is the same person entrusted
+   * with the record of what broke, and inventing a permission nobody assigns
+   * would leave this screen unreachable in practice.
+   *
+   * The store holds no request bodies, query values, headers or model figures —
+   * see `error_events` in migration 0011 — so this returns everything it has.
+   */
+  app.get('/operations/errors', async (request) => {
+    requireCapability(request, 'audit:read');
+    const query = z
+      .object({
+        sinceHours: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 90)
+          .default(24 * 7),
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+      })
+      .parse(request.query);
+
+    const since = new Date(Date.now() - query.sinceHours * 60 * 60 * 1000).toISOString();
+    const groups = await listErrorGroups(request.db, { since, limit: query.limit });
+    return { groups, since, sinceHours: query.sinceHours };
+  });
+
+  app.get('/operations/errors/:fingerprint', async (request) => {
+    requireCapability(request, 'audit:read');
+    const params = z.object({ fingerprint: z.string().min(8).max(64) }).parse(request.params);
+    return { events: await listErrorEvents(request.db, params.fingerprint) };
   });
 
   app.get('/jobs', async (request) => {

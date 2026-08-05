@@ -22,12 +22,13 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       433 passed  (202 engine regression, 31 engine unit, 16 fund,
+Tests       443 passed  (202 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 18 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
-                         7 version comparison via the API, 13 vertical slice)
+                         7 version comparison via the API, 10 error monitoring,
+                         13 vertical slice)
 Browser      43 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 5 funds, 2 version comparison,
@@ -35,7 +36,7 @@ Browser      43 passed  (3 sign-in, 2 underwriting, 2 lease editor,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
-Migrations  10 applied against PostgreSQL 16
+Migrations  11 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -283,6 +284,7 @@ notifications, geographic maps, version side-by-side comparison.
 | Property-based tests | Not started | |
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
+| Error monitoring | Tested | Unhandled faults recorded and grouped; the store has no column for a body, query, header or session token, asserted against the schema |
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
 | Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, true races asserted with `Promise.all` |
 | Optimistic locking, assumption collections | Tested | Row-level `version` on all six collections; same-row writers collide, different-row writers do not. 17 locking tests in total |

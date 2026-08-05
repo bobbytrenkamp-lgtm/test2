@@ -11,6 +11,7 @@ import {
   titleCase,
 } from '../format.js';
 import { useResource } from '../hooks.js';
+import { useSession } from '../session.js';
 
 /** Organization dashboard. */
 export function DashboardPage(): JSX.Element {
@@ -404,6 +405,23 @@ export function JobsPage(): JSX.Element {
     }>;
   }>('/jobs');
 
+  // Faults sit beside the job queue because they answer the same question — is
+  // anything wrong right now — and a separate screen is one nobody opens.
+  const { can } = useSession();
+  const errors = useResource<{
+    groups: Array<{
+      fingerprint: string;
+      method: string;
+      route: string;
+      error_name: string;
+      message: string;
+      occurrences: number;
+      last_seen: string;
+      organizations_affected: number;
+    }>;
+    sinceHours: number;
+  }>(can('audit:read') ? '/operations/errors?sinceHours=168' : null);
+
   return (
     <>
       <div className="page-title">
@@ -474,6 +492,64 @@ export function JobsPage(): JSX.Element {
             </div>
           </div>
         )
+      )}
+
+      {can('audit:read') && (
+        <div className="card">
+          <h2>Recorded faults</h2>
+          <p className="field-hint" style={{ marginTop: 0 }}>
+            Unhandled server failures from the last seven days, grouped so one route failing
+            repeatedly reads as one problem. The store holds no request bodies, query values or
+            model figures — reproducing a fault needs the model, which is still behind the
+            permissions it always had.
+          </p>
+          <ErrorMessage error={errors.error} />
+          {errors.loading && <Loading label="Loading recorded faults" />}
+          {errors.data && errors.data.groups.length === 0 ? (
+            <EmptyState title="Nothing has failed">
+              No unhandled server error has been recorded in the last seven days.
+            </EmptyState>
+          ) : (
+            errors.data && (
+              <div className="table-scroll" tabIndex={0} style={{ maxHeight: 360 }}>
+                <table>
+                  <caption className="visually-hidden">Recorded server faults</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Route</th>
+                      <th scope="col">Fault</th>
+                      <th scope="col" className="numeric">
+                        Occurrences
+                      </th>
+                      <th scope="col" className="numeric">
+                        Organizations
+                      </th>
+                      <th scope="col">Last seen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errors.data.groups.map((group) => (
+                      <tr key={group.fingerprint}>
+                        <th scope="row">
+                          {group.method} {group.route}
+                        </th>
+                        <td style={{ whiteSpace: 'normal', maxWidth: '28rem' }}>
+                          <strong>{group.error_name}</strong>
+                          <div className="field-hint">{group.message}</div>
+                        </td>
+                        <td className="numeric">{group.occurrences}</td>
+                        {/* One tenant repeatedly is a support conversation; every
+                            tenant at once is an outage. */}
+                        <td className="numeric">{group.organizations_affected}</td>
+                        <td>{formatDateTime(group.last_seen)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+        </div>
       )}
     </>
   );
