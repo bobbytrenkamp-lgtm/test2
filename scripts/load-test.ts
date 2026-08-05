@@ -163,7 +163,7 @@ try {
       ),
     );
     const sampleResult = {
-      engineVersion: '3.0.0',
+      engineVersion: '3.1.0',
       calculatedAt: '2026-01-01T00:00:00.000Z',
       currency: 'USD',
       areaUnit: 'sqft',
@@ -187,7 +187,7 @@ try {
     for (let i = 0; i < publishedModelIds.length; i += 200) {
       const batch = publishedModelIds.slice(i, i + 200).map((modelId) => ({
         model_id: modelId,
-        engine_version: '3.0.0',
+        engine_version: '3.1.0',
         status: 'succeeded',
         result: sql.json(sampleResult as never),
         diagnostics: sql.json([] as never),

@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.0.0** — `packages/calculation-engine`.
+Engine version **3.1.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -805,6 +805,36 @@ Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+### 3.1.0
+
+**Cash-management triggers on covenant breach.** A breach the engine only
+reported was a breach with no consequence: the model showed the covenant
+failing and distributed the cash anyway, overstating the levered return in
+precisely the years a lender is most worried about.
+
+Where a facility carries `cashTrap`, the surplus is withheld from equity while
+the breach persists and released once the covenant has been met for
+`cureConsecutivePeriods` consecutive periods. Anything still held at the end of
+the forecast is released — the facility is repaid on sale, and cash the lender
+no longer secures belongs to equity.
+
+Only a surplus can be trapped. A deficit is money the owner has to fund, and a
+lender does not collect it by refusing a distribution.
+
+The `restrictedCash` line carries the movement: negative when trapped, positive
+when released, netting to zero over any span that does both. NOI and unlevered
+cash flow are identical with the trigger on and off, which is what makes this a
+financing outcome rather than an operating one.
+
+**Cash sweep is deliberately not modelled.** Applying trapped cash to principal
+makes the amortisation schedule depend on the cash flow that depends on the
+schedule — a fixed point the engine would have to solve. Approximating it would
+misstate the balance, and a misstated balance misstates every covenant tested
+against it thereafter.
+
+Additive: the trigger defaults to off, so `restrictedCash` is zero on every
+model written before it existed and every regression assertion passes unaltered.
 
 ### 3.0.0
 

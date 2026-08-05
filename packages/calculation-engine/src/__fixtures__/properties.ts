@@ -1603,6 +1603,91 @@ export function partialSpaceRecovery(): ModelInput {
   });
 }
 
+/**
+ * Fixture 19 - A covenant breach that traps cash, and the cure that releases it.
+ *
+ * Deliberately arithmetic anyone can follow. 100,000 sqft at $6.00/sqft/yr is
+ * 600,000 of NOI with no expenses; a 5,000,000 interest-only loan at 6% is
+ * 300,000 of annual debt service, so the DSCR is exactly 2.0. A rent step to
+ * $12.00 from 2029 doubles NOI and takes the DSCR to 4.0.
+ *
+ * The covenant requires 3.0, so it is breached for the first years and met
+ * afterwards — which is the shape a cash-management trigger exists for.
+ */
+export function cashTrapOnBreach(): ModelInput {
+  return buildModel({
+    modelId: 'fx-cash-trap',
+    modelName: 'Cash-trap test property (fictional)',
+    forecast: {
+      startDate: '2026-01-01',
+      months: 84,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    property: {
+      id: 'P-TRAP',
+      name: 'Cash-trap test',
+      propertyType: 'industrial',
+      rentableArea: '100000',
+    },
+    spaces: [{ id: 'S1', code: 'Whole building', area: '100000' }],
+    tenants: [{ id: 'T1', name: 'Sole occupant' }],
+    leases: [
+      {
+        id: 'L1',
+        tenantId: 'T1',
+        spaceIds: ['S1'],
+        status: 'occupied',
+        area: '100000',
+        commencementDate: '2026-01-01',
+        expirationDate: '2035-12-31',
+        baseRent: '6.00',
+        baseRentBasis: 'per_area_per_year',
+        rentSteps: [{ startDate: '2029-01-01', amount: '12.00', basis: 'per_area_per_year' }],
+        excludeFromRollover: true,
+      },
+    ],
+    expenses: [],
+    debt: [
+      {
+        id: 'D1',
+        name: 'Senior loan',
+        type: 'permanent',
+        commitment: '5000000',
+        initialFunding: '5000000',
+        fundingDate: '2026-01-01',
+        rateType: 'fixed',
+        fixedRate: '0.06',
+        interestOnlyMonths: 84,
+        amortizationMonths: 0,
+        termMonths: 84,
+        minimumDscr: '3.0',
+        repayOnSale: true,
+        cashTrap: { enabled: true, trigger: 'minimum_dscr', cureConsecutivePeriods: 2 },
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      terminalCapRate: '0.07',
+      terminalNoiBasis: 'trailing_12',
+      saleMonth: 84,
+    },
+  });
+}
+
+/** The same property with the trigger switched off, for comparison. */
+export function cashTrapDisabled(): ModelInput {
+  const base = cashTrapOnBreach();
+  return {
+    ...base,
+    modelId: 'fx-cash-trap-off',
+    debt: base.debt.map((facility) => ({
+      ...facility,
+      cashTrap: { ...facility.cashTrap, enabled: false },
+    })),
+  };
+}
+
 export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   singleTenantIndustrial,
   multiTenantOffice,
@@ -1622,4 +1707,5 @@ export const ALL_FIXTURES: Record<string, () => ModelInput> = {
   multiplePoolRecovery,
   reconciledRecovery,
   partialSpaceRecovery,
+  cashTrapOnBreach,
 };

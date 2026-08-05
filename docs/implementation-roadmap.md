@@ -75,7 +75,16 @@ report what breaks.
   its share of that space of what it was owed. Engine 3.0.0; fixture 18 covers
   the case and reproduces the old figure when the fix is reverted.
 - **Development and refinance fee bases** in the waterfall.
-- **Cash-management triggers** on covenant breach.
+- ~~**Cash-management triggers** on covenant breach.~~ Done. A breach the engine
+  only reported was a breach with no consequence: the model showed the covenant
+  failing and distributed the cash anyway, overstating the levered return in
+  precisely the years a lender is most worried about. Surplus cash is now
+  withheld from equity while a breach persists and released on cure, with NOI
+  and unlevered cash flow untouched — a financing outcome, not an operating one.
+  Engine 3.1.0, default off. **Cash sweep is deliberately not modelled**:
+  applying trapped cash to principal makes the schedule depend on the cash flow
+  that depends on the schedule, and approximating that would misstate every
+  covenant tested against the balance afterwards.
 
 ### 4. ~~Budgets, actuals and variance~~ — done
 

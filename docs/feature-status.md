@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 3.0.0 · Last verified 2026-08-05**
+**Engine version 3.1.0 · Last verified 2026-08-05**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -22,7 +22,7 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       455 passed  (202 engine regression, 31 engine unit, 16 fund,
+Tests       469 passed  (216 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 18 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -81,7 +81,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Rate floors and caps | Tested | |
 | Capitalised interest | Functional | Used in the development fixture |
 | Fees: origination, exit, unused | Functional | Origination tested |
-| Covenant testing (DSCR, LTV, LTC, debt yield) | Functional | Reported; does not trigger a cash trap |
+| Covenant testing (DSCR, LTV, LTC, debt yield) | Tested | |
+| Cash-management triggers on breach | Tested | Surplus withheld from equity while breached, released on cure; NOI and unlevered cash flow unchanged. Cash sweep is not modelled |
 | Refinancing | Tested | Payoff and replacement funding |
 | DCF, end and mid period | Tested | Verified against closed-form annuities |
 | Terminal value, forward and trailing | Tested | Falls back and warns when the forecast is short |

@@ -46,6 +46,7 @@ const LINES: LineSpec[] = [
   { key: 'interestExpense', label: 'Interest expense', indent: true },
   { key: 'principalAmortization', label: 'Principal amortization', indent: true },
   { key: 'financingFees', label: 'Financing fees', indent: true },
+  { key: 'restrictedCash', label: 'Cash trapped by covenant', indent: true },
   { key: 'grossSaleProceeds', label: 'Gross sale proceeds' },
   { key: 'sellingCosts', label: 'Costs of sale', indent: true },
   { key: 'debtPayoff', label: 'Debt payoff', indent: true },

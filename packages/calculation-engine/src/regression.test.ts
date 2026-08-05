@@ -8,6 +8,8 @@ import {
   expansionOption,
   expenseStopRecovery,
   floatingRateDebt,
+  cashTrapDisabled,
+  cashTrapOnBreach,
   lpGpWaterfall,
   multiplePoolRecovery,
   partialSpaceRecovery,
@@ -762,5 +764,78 @@ describe('Fixture 18: a lease covering part of a space', () => {
     // Base rent 40,000 x 20.00 = 800,000, plus 200,000 recovered, less 500,000.
     expect(year(result, 2026).lines.scheduledBaseRent).toBe('800000.00');
     expect(year(result, 2026).lines.netOperatingIncome).toBe('500000.00');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
+describe('Fixture 19: a covenant breach that traps cash', () => {
+  const trapped = run(cashTrapOnBreach());
+  const untrapped = run(cashTrapDisabled());
+
+  /*
+   * 100,000 sqft at $6.00/sqft/yr is 600,000 of NOI with no expenses. A
+   * 5,000,000 interest-only loan at 6% is 300,000 of annual debt service, so
+   * the DSCR is exactly 2.0 — under the 3.0 the covenant requires. A rent step
+   * to $12.00 from 2029 doubles NOI and takes the DSCR to 4.0, curing it.
+   */
+  it('leaves the property’s own performance untouched', () => {
+    // The whole point: a trap moves cash, it does not change the asset. Every
+    // operating line must be identical with the trigger on and off.
+    for (const fiscalYear of [2026, 2028, 2030]) {
+      expect(line(trapped, fiscalYear, 'netOperatingIncome')).toBeCloseTo(
+        line(untrapped, fiscalYear, 'netOperatingIncome'),
+        6,
+      );
+      expect(line(trapped, fiscalYear, 'unleveredCashFlow')).toBeCloseTo(
+        line(untrapped, fiscalYear, 'unleveredCashFlow'),
+        6,
+      );
+    }
+  });
+
+  it('withholds the surplus from equity while the covenant is breached', () => {
+    // 600,000 of NOI less 300,000 of interest leaves 300,000 a year, and none
+    // of it reaches equity while the loan is out of compliance.
+    expect(line(untrapped, 2027, 'leveredCashFlow')).toBeCloseTo(300000, 2);
+    expect(line(trapped, 2027, 'leveredCashFlow')).toBeCloseTo(0, 2);
+    expect(line(trapped, 2027, 'restrictedCash')).toBeCloseTo(-300000, 2);
+  });
+
+  it('returns it once the covenant is met again', () => {
+    // Nothing is kept. Over the whole forecast the restricted line nets to
+    // zero: every pound trapped is a pound released.
+    const total = trapped.annual.reduce((sum, row) => sum + Number(row.lines.restrictedCash), 0);
+    expect(total).toBeCloseTo(0, 2);
+  });
+
+  it('lowers the levered return without lowering the property’s', () => {
+    // Deferring cash cannot improve an internal rate of return, and the
+    // unlevered return never sees the trap at all. This is the figure the
+    // feature exists to correct: a model that reported the breach and
+    // distributed the cash anyway overstated exactly these years.
+    expect(Number(trapped.returns.leveredIrr)).toBeLessThan(Number(untrapped.returns.leveredIrr));
+    expect(Number(trapped.returns.unleveredIrr)).toBeCloseTo(
+      Number(untrapped.returns.unleveredIrr),
+      10,
+    );
+  });
+
+  it('says when the trap sprang and when it released', () => {
+    const codes = trapped.diagnostics.map((entry) => entry.code);
+    expect(codes).toContain('CASH_TRAP_SPRUNG');
+    expect(codes).toContain('CASH_TRAP_RELEASED');
+    // A trap nobody is told about is indistinguishable from a modelling error.
+    const sprung = trapped.diagnostics.find((entry) => entry.code === 'CASH_TRAP_SPRUNG');
+    expect(sprung?.severity).toBe('warning');
+    expect(sprung?.message).toContain('withheld from equity');
+  });
+
+  it('reports nothing at all when the trigger is off', () => {
+    const codes = untrapped.diagnostics.map((entry) => entry.code);
+    expect(codes).not.toContain('CASH_TRAP_SPRUNG');
+    for (const row of untrapped.annual) {
+      expect(Number(row.lines.restrictedCash)).toBe(0);
+    }
   });
 });

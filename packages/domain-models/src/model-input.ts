@@ -479,6 +479,29 @@ export const debtFacilitySchema = z.object({
   unusedFeePercent: decimalString.default('0'),
   /** Interest accrues to principal instead of being paid in cash. */
   capitalizeInterest: z.boolean().default(false),
+  /**
+   * What happens to cash when a covenant is breached.
+   *
+   * A breach the engine only reports is a breach with no consequence, and the
+   * consequence is the point: a lender that traps cash changes what reaches
+   * equity, and therefore the levered return, without changing the property's
+   * performance at all.
+   */
+  cashTrap: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Which breach springs the trap. */
+      trigger: z
+        .enum(['any_covenant', 'minimum_dscr', 'minimum_debt_yield'])
+        .default('any_covenant'),
+      /**
+       * Consecutive compliant periods required before the trap releases.
+       * Loan documents usually require two or four quarters; the default of two
+       * periods is the conservative reading of "cured".
+       */
+      cureConsecutivePeriods: z.number().int().min(1).max(24).default(2),
+    })
+    .default({}),
 
   minimumDscr: decimalString.nullish(),
   maximumLtv: decimalString.nullish(),

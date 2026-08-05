@@ -304,3 +304,146 @@ export function balanceBefore(result: DebtResult, index: number): Decimal {
   if (index <= 0) return ZERO;
   return result.endingBalance[index - 1] ?? ZERO;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Cash management on covenant breach                                         */
+/* -------------------------------------------------------------------------- */
+
+export interface CashTrapResult {
+  /**
+   * Cash withheld from equity in each period, positive when trapped and
+   * negative when released. Subtracting this from levered cash flow gives what
+   * actually reaches the equity holder.
+   */
+  movement: Decimal[];
+  /** Balance held by the lender at the end of each period. */
+  restrictedBalance: Decimal[];
+  events: Array<{
+    periodIndex: number;
+    event: 'trapped' | 'released';
+    amount: string;
+    /** The covenant that sprang the trap, or the cure that released it. */
+    reason: string;
+  }>;
+}
+
+/**
+ * Applies cash-management triggers to a levered cash flow.
+ *
+ * A covenant breach the engine only reports is a breach with no consequence,
+ * and the consequence is the whole point. When a loan traps cash, the property
+ * performs exactly as before and the equity holder receives nothing, which
+ * moves the levered return without moving a single operating figure. A model
+ * that shows the breach but distributes the cash anyway overstates the return
+ * in precisely the years the lender is most worried about.
+ *
+ * ## What this deliberately does not model
+ *
+ * **Cash sweep** — trapped cash applied to principal rather than held. That
+ * would make the amortisation schedule depend on the cash flow, which depends
+ * on the schedule: a fixed point the engine would have to solve. Approximating
+ * it would misstate the balance, and a misstated balance misstates every
+ * covenant tested against it thereafter. A trap holds the cash; a sweep spends
+ * it, and the difference belongs in the loan documents, not in a guess.
+ */
+export function applyCashTrap(
+  facilities: DebtFacility[],
+  schedules: DebtSchedule[],
+  leveredCashFlow: Decimal[],
+): CashTrapResult {
+  const n = leveredCashFlow.length;
+  const movement = zeros(n);
+  const restrictedBalance = zeros(n);
+  const events: CashTrapResult['events'] = [];
+
+  const triggering = facilities.filter((facility) => facility.cashTrap?.enabled);
+  if (triggering.length === 0) return { movement, restrictedBalance, events };
+
+  // Which periods breached, per facility, restricted to the covenants that
+  // facility's trigger names.
+  const breachedIn = new Map<string, Set<number>>();
+  for (const facility of triggering) {
+    const trigger = facility.cashTrap.trigger;
+    const schedule = schedules.find((entry) => entry.facilityId === facility.id);
+    const periods = new Set<number>();
+    for (const breach of schedule?.covenantBreaches ?? []) {
+      if (trigger === 'any_covenant' || breach.covenant === trigger) {
+        periods.add(breach.periodIndex - 1);
+      }
+    }
+    breachedIn.set(facility.id, periods);
+  }
+
+  let held = ZERO;
+  let trapped = false;
+  let compliantRun = 0;
+  // The strictest cure requirement among the facilities that can trap, because
+  // cash held for one lender is not available to equity whatever the others say.
+  const cureAfter = Math.max(
+    ...triggering.map((facility) => facility.cashTrap.cureConsecutivePeriods),
+  );
+
+  for (let i = 0; i < n; i += 1) {
+    const breachedNow = triggering.filter((facility) => breachedIn.get(facility.id)?.has(i));
+
+    if (breachedNow.length > 0) {
+      compliantRun = 0;
+      if (!trapped) {
+        trapped = true;
+        events.push({
+          periodIndex: i + 1,
+          event: 'trapped',
+          amount: '0',
+          reason: `${breachedNow[0]?.name ?? 'A facility'} breached its covenant`,
+        });
+      }
+    } else if (trapped) {
+      compliantRun += 1;
+      if (compliantRun >= cureAfter) {
+        // Released in full: the trap exists to secure the lender while the
+        // breach persists, not to keep the money.
+        if (!held.isZero()) {
+          movement[i] = (movement[i] as Decimal).minus(held);
+          events.push({
+            periodIndex: i + 1,
+            event: 'released',
+            amount: held.toString(),
+            reason: `Covenant met for ${compliantRun} consecutive periods`,
+          });
+          held = ZERO;
+        }
+        trapped = false;
+        compliantRun = 0;
+      }
+    }
+
+    if (trapped) {
+      // Only a surplus can be trapped. A deficit is money the owner has to
+      // fund, and a lender does not collect it by refusing a distribution.
+      const surplus = Decimal.max(leveredCashFlow[i] as Decimal, ZERO);
+      if (!surplus.isZero()) {
+        movement[i] = (movement[i] as Decimal).plus(surplus);
+        held = held.plus(surplus);
+      }
+    }
+
+    restrictedBalance[i] = held;
+  }
+
+  // Anything still held at the end of the forecast is released: the loan is
+  // repaid on sale, and cash the lender no longer secures belongs to equity.
+  // Leaving it stranded would understate the return by the full amount.
+  if (!held.isZero() && n > 0) {
+    const last = n - 1;
+    movement[last] = (movement[last] as Decimal).minus(held);
+    restrictedBalance[last] = ZERO;
+    events.push({
+      periodIndex: n,
+      event: 'released',
+      amount: held.toString(),
+      reason: 'End of the forecast: the facility is repaid and the balance released',
+    });
+  }
+
+  return { movement, restrictedBalance, events };
+}
