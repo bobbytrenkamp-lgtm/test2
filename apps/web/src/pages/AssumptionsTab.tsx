@@ -348,6 +348,10 @@ function Collection({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
+  // Held outside the draft because it is not something anyone edits: it is the
+  // row as this screen last saw it, and the server refuses the write if it has
+  // moved on since.
+  const [openedVersion, setOpenedVersion] = useState<number | null>(null);
 
   const save = useMutation(async (code: string, body: Record<string, unknown>) =>
     api.put(`/models/${model.id}/${segment}/${encodeURIComponent(code)}`, body),
@@ -364,12 +368,15 @@ function Collection({
         model_id: _modelId,
         created_at: _createdAt,
         updated_at: _updatedAt,
+        version,
         ...rest
       } = row as Record<string, unknown>;
       setEditing(String(row.code));
+      setOpenedVersion(typeof version === 'number' ? version : null);
       setDraft(JSON.stringify(toCamel(rest), null, 2));
     } else {
       setEditing('');
+      setOpenedVersion(null);
       setDraft(JSON.stringify({ code: '', name: '' }, null, 2));
     }
   }
@@ -390,7 +397,9 @@ function Collection({
       );
       return;
     }
-    if (await save.run(code, body)) {
+    // The version this editor opened. Null on a new row, which cannot have been
+    // changed by anyone.
+    if (await save.run(code, { ...body, expectedVersion: openedVersion })) {
       setEditing(null);
       resource.reload();
       onSaved();
@@ -492,7 +501,17 @@ function Collection({
 
       {editing !== null && (
         <form onSubmit={submit} style={{ marginTop: 12 }}>
-          <ErrorMessage error={save.error} />
+          {save.error?.status === 409 ? (
+            <div className="message error" role="alert">
+              <strong>{save.error.message}</strong>
+              <p style={{ marginBottom: 0 }}>
+                Nothing has been saved. Cancel and reopen the row to see their change, then reapply
+                yours. Saving over them would discard work you cannot see from here.
+              </p>
+            </div>
+          ) : (
+            <ErrorMessage error={save.error} />
+          )}
           <Field
             label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
             error={parseError ?? undefined}

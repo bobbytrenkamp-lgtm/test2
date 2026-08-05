@@ -276,6 +276,20 @@ export async function deleteLease(sql: Sql, modelId: string, code: string): Prom
 /* Model-scoped assumption tables                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * What an assumption write returns.
+ *
+ * The version comes back so the editor can keep saving without re-reading the
+ * whole collection. Each of these rows carries its own version rather than
+ * sharing the model's: two analysts editing different expense lines are not in
+ * conflict, and software that says they are gets worked around rather than
+ * heeded.
+ */
+export interface CollectionRow {
+  id: string;
+  version: number;
+}
+
 export async function upsertExpense(
   sql: Sql,
   input: {
@@ -293,7 +307,7 @@ export async function upsertExpense(
     isCapitalized?: boolean;
     sortOrder?: number;
   },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO operating_expenses (
       model_id, code, name, category, account_code, method, amount, growth_curve,
@@ -310,10 +324,12 @@ export async function upsertExpense(
       method = EXCLUDED.method, amount = EXCLUDED.amount, growth_curve = EXCLUDED.growth_curve,
       recoverable_share = EXCLUDED.recoverable_share, variable_share = EXCLUDED.variable_share,
       monthly_schedule = EXCLUDED.monthly_schedule, is_capitalized = EXCLUDED.is_capitalized,
-      sort_order = EXCLUDED.sort_order, updated_at = now()
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      sort_order = EXCLUDED.sort_order,
+      version = operating_expenses.version + 1,
+      updated_at = now()
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }
 
 export async function upsertGrowthCurve(
@@ -325,16 +341,17 @@ export async function upsertGrowthCurve(
     defaultRate: string;
     byYear?: Array<{ year: number; rate: string }>;
   },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO growth_curves (model_id, code, name, default_rate, by_year)
     VALUES (${input.modelId}, ${input.code}, ${input.name}, ${input.defaultRate},
             ${sql.json((input.byYear ?? []) as never)})
     ON CONFLICT (model_id, code) DO UPDATE SET
-      name = EXCLUDED.name, default_rate = EXCLUDED.default_rate, by_year = EXCLUDED.by_year
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      name = EXCLUDED.name, default_rate = EXCLUDED.default_rate, by_year = EXCLUDED.by_year,
+      version = growth_curves.version + 1
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }
 
 export async function upsertMarketLeasingProfile(
@@ -361,7 +378,7 @@ export async function upsertMarketLeasingProfile(
     recovery?: Record<string, unknown>;
     precedence?: number;
   },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO market_leasing_profiles (
       model_id, code, name, market_rent, market_rent_basis, market_rent_growth_curve,
@@ -396,16 +413,18 @@ export async function upsertMarketLeasingProfile(
       new_lc_percent = EXCLUDED.new_lc_percent,
       renewal_escalation = EXCLUDED.renewal_escalation,
       new_escalation = EXCLUDED.new_escalation,
-      recovery = EXCLUDED.recovery, precedence = EXCLUDED.precedence, updated_at = now()
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      recovery = EXCLUDED.recovery, precedence = EXCLUDED.precedence,
+      version = market_leasing_profiles.version + 1,
+      updated_at = now()
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }
 
 export async function upsertDebtFacility(
   sql: Sql,
   input: Record<string, unknown> & { modelId: string; code: string },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO debt_facilities (
       model_id, code, name, type, commitment, initial_funding, funding_date, draws,
@@ -442,10 +461,11 @@ export async function upsertDebtFacility(
       capitalize_interest = EXCLUDED.capitalize_interest,
       minimum_dscr = EXCLUDED.minimum_dscr, maximum_ltv = EXCLUDED.maximum_ltv,
       maximum_ltc = EXCLUDED.maximum_ltc, minimum_debt_yield = EXCLUDED.minimum_debt_yield,
-      repay_on_sale = EXCLUDED.repay_on_sale
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      repay_on_sale = EXCLUDED.repay_on_sale,
+      version = debt_facilities.version + 1
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }
 
 export async function upsertCapitalItem(
@@ -465,7 +485,7 @@ export async function upsertCapitalItem(
     fundingSource?: string | null;
     sortOrder?: number;
   },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO capital_items (
       model_id, code, name, category, method, amount, start_date, end_date,
@@ -481,10 +501,11 @@ export async function upsertCapitalItem(
       amount = EXCLUDED.amount, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date,
       growth_curve = EXCLUDED.growth_curve, monthly_schedule = EXCLUDED.monthly_schedule,
       capitalized = EXCLUDED.capitalized, funding_source = EXCLUDED.funding_source,
-      sort_order = EXCLUDED.sort_order
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      sort_order = EXCLUDED.sort_order,
+      version = capital_items.version + 1
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }
 
 export async function upsertOtherRevenue(
@@ -501,7 +522,7 @@ export async function upsertOtherRevenue(
     monthlySchedule?: string[];
     sortOrder?: number;
   },
-): Promise<{ id: string }> {
+): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO other_revenue_items (
       model_id, code, name, category, method, amount, growth_curve, vary_with_occupancy,
@@ -516,8 +537,9 @@ export async function upsertOtherRevenue(
       name = EXCLUDED.name, category = EXCLUDED.category, method = EXCLUDED.method,
       amount = EXCLUDED.amount, growth_curve = EXCLUDED.growth_curve,
       vary_with_occupancy = EXCLUDED.vary_with_occupancy,
-      monthly_schedule = EXCLUDED.monthly_schedule, sort_order = EXCLUDED.sort_order
-    RETURNING id
-  `) as unknown as Array<{ id: string }>;
-  return rows[0] as { id: string };
+      monthly_schedule = EXCLUDED.monthly_schedule, sort_order = EXCLUDED.sort_order,
+      version = other_revenue_items.version + 1
+    RETURNING id, version
+  `) as unknown as CollectionRow[];
+  return rows[0] as CollectionRow;
 }

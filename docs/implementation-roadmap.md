@@ -148,12 +148,18 @@ check and the update ran as two autocommit statements, so the row lock was
 released before the write and both simultaneous writers passed. Only the
 `Promise.all` race test caught it.
 
-Still to do: the assumption **collections**, which need their own row-level
-versions rather than a model-wide one; grid virtualisation; cursor pagination on
-the audit log; error monitoring; an audit with a real screen reader; and
-deployment automation with a rollback path. Grid virtualisation and
-cursor pagination once profiling says where. Accessibility audit with a real
-screen reader. Error monitoring. Deployment automation with a rollback path.
+~~The assumption collections~~ — done. Expenses, other revenue, capital, debt,
+growth curves and market leasing profiles each carry a **row-level** version,
+not the model's. That distinction is the point: two analysts editing the same
+expense line collide, and two editing different lines do not. A model-wide
+version could not tell those apart, and one that refuses unrelated edits gets
+worked around rather than heeded. The guard lives in the shared collection
+registration, so a seventh collection would inherit it; a test asserts all six
+are actually covered, because "it is shared" is not evidence.
+
+Still to do: grid virtualisation and cursor pagination on the audit log, once
+profiling says where; error monitoring; an audit with a real screen reader; and
+deployment automation with a rollback path.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 9. Optional extras, only if wanted

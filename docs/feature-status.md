@@ -22,16 +22,16 @@ outstanding: an audit with a real screen reader.
 ## Verification at the last check
 
 ```
-Tests       329 passed  (164 engine regression, 31 engine unit, 18 variance,
+Tests       337 passed  (164 engine regression, 31 engine unit, 18 variance,
                          51 import, 23 authorization, 13 budgets,
-                         7 portfolios, 9 optimistic locking, 13 vertical slice)
+                         7 portfolios, 17 optimistic locking, 13 vertical slice)
 Browser      35 passed  (3 sign-in, 2 underwriting, 2 lease editor,
                          6 permissions, 1 rent-roll import, 5 budgets,
                          6 palette and paste, 10 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (335 kB, 95 kB gzipped)
-Migrations  7 applied against PostgreSQL 16
+Migrations  8 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, 5 valuations reproduced)
@@ -131,7 +131,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Property and space CRUD | Tested | |
 | Model CRUD, clone, transition | Tested | |
 | Lease CRUD | Tested | |
-| Assumption collections | Functional | Six collections, generic handlers |
+| Assumption collections | Tested | Six collections through one generic handler; row-level optimistic locking covered on every one |
 | Calculate, cash flow, trace | Tested | |
 | Sensitivity (one- and two-way) | Functional | Full engine run per cell |
 | Scenario batch | Functional | Queued to the worker |
@@ -271,7 +271,8 @@ notifications, geographic maps, version side-by-side comparison.
 | Performance baseline | Tested | `pnpm benchmark`, 4 cases with budgets, runs in CI |
 | Database load test | Tested | `pnpm load-test`, 5,000 properties / 200,000 leases, runs in CI at 1,000 |
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
-| Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, 9 tests including true races. Assumption collections are not yet protected |
+| Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, true races asserted with `Promise.all` |
+| Optimistic locking, assumption collections | Tested | Row-level `version` on all six collections; same-row writers collide, different-row writers do not. 17 locking tests in total |
 
 ---
 
