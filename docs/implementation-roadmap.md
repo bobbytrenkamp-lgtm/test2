@@ -10,7 +10,7 @@
 | 3. Calculation engine | **Complete.** Calendar, lease revenue, rent steps, vacancy, expenses, recoveries with multiple pools and reconciliation, NOI, capital, traces, 18 regression fixtures. |
 | 4. Valuation and returns | **Complete.** DCF, direct capitalisation, terminal value, sale, IRR, XIRR, equity multiple, NPV, yield metrics. |
 | 5. Debt and equity | **Complete.** Facilities, amortisation, floating rates, covenants, refinancing, equity flows, waterfalls. |
-| 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, one keyboard workflow, now covered by a browser suite. Spreadsheet-grade editing is not built. |
+| 6. Analyst interface | **Substantially complete.** Workspace, cash-flow grid, validation panel, calculation inspector, fund positions, one keyboard workflow, all covered by a browser suite. Spreadsheet-grade editing is not built. |
 | 7. Imports and reports | **Partial.** CSV import with a mapping wizard; Excel and CSV export; nine property reports; print HTML. Excel *import* and server-side PDF are not built. |
 | 8. Scenarios and versions | **Partial.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow. Side-by-side version comparison is not built. |
 | 9. Budgets and asset management | **Substantially complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, interface and tests. Automatic reforecast carry-forward is not built. |
@@ -140,6 +140,12 @@ recallable, and inferring it would be guessing at the partnership agreement),
 fund-level carried interest and catch-up (the deal waterfall settles one
 investment, a fund waterfall settles across the whole portfolio with its own
 hurdle and clawback), and management fee mechanics.
+
+The Funds screen carries all of it: the position, the per-investor breakdown,
+the capital record the return was solved from, and forms for adding an investor
+or recording a call. The demonstration seed creates a fund that is half called,
+deliberately — a fund shown fully drawn hides the unfunded figure, which is the
+one an investor relations team is asked about most often.
 
 **Still to do:** portfolio-level `ReportDefinition`s, and an investor statement
 that can be sent out rather than read on screen.

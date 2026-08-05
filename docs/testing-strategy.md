@@ -23,17 +23,20 @@ pnpm test:e2e                  # the browser suite, on the built bundle
 | --- | --- | --- | --- |
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
-| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 164 | No |
+| Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
+| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 202 | No |
 | Budget variance arithmetic | `packages/calculation-engine/src/variance.test.ts` | 18 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
-| Optimistic locking, leases and models | `tests/lease-concurrency.test.ts` | 9 | Yes |
+| Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
+| Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
+| Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 
-**329 tests in total.**
+**406 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -48,15 +51,19 @@ built bundle:
 | Lease editor validation | `e2e/rent-roll.spec.ts` | 2 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard | `e2e/imports.spec.ts` | 1 |
-| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 10 |
+| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
+| Fund positions | `e2e/funds.spec.ts` | 5 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
 | Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
 
-**35 browser tests in total**, for 364 across the whole repository.
+**41 browser tests in total**, for 447 across the whole repository.
+
+The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
+reports.
 
 ## The regression library
 
-Fifteen independently designed fictional properties:
+Eighteen independently designed fictional properties:
 
 1. Single-tenant industrial, triple net, 3% compounding escalations
 2. Multi-tenant office with base-year recoveries and rollover
@@ -73,6 +80,9 @@ Fifteen independently designed fictional properties:
 13. Renewal option at 60%, extending a three-year term by two years
 14. Termination option at 25%, ending a five-year term mid-2028
 15. Contraction option at 50%, handing back 4,000 of 10,000 sqft
+16. Two recovery pools on one lease, settling on different terms
+17. Recoveries estimated on the prior year and reconciled three months in arrears
+18. A lease covering part of a space, with recoveries
 
 Each fixture stores its inputs (the fixture function), its expected outputs (the
 assertions), the assumptions behind them (comments stating the arithmetic), a
@@ -95,6 +105,14 @@ reference) and the engine version (asserted on every result).
 - A floating rate of index + 250bp binds against its 6.5% floor in years three
   and four, exactly as the index path predicts.
 - A 30-year amortisation matches `B_k = P(1+r)^k − pmt((1+r)^k − 1)/r`.
+- Two pools on one lease: operating costs capped at 5% a year reach 110,250 in
+  the third year while the uncapped tax pool grows unhindered to 181,500. Merged
+  into one capped entitlement the total would have been 275,625 instead of
+  291,750 — the tax recovery would have been capped by a clause that says nothing
+  about taxes.
+- A fund contributing 1,000,000 and receiving 1,500,000 exactly 1,096 days later
+  returns `1.5^(365/1096) − 1`, computed in the test from `Math.pow`, which
+  shares no code with the engine's decimal bisection.
 - The option fixtures are deliberately plain enough to check in one line:
   10,000 sqft at $24.00/sqft/yr is $240,000 a year and exactly $20,000 a month,
   so a 25% termination half way through 2028 gives
@@ -162,7 +180,7 @@ for every test would exhaust that budget and fail for the wrong reason.
 
 ### Accessibility
 
-`@axe-core/playwright` runs against nine screens under `wcag2a`, `wcag2aa`,
+`@axe-core/playwright` runs against ten screens under `wcag2a`, `wcag2aa`,
 `wcag21a` and `wcag21aa`, and **any** violation fails the build. There is no
 allow-list of known failures — one would become permanent within a month.
 
