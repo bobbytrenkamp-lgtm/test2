@@ -30,11 +30,12 @@ Tests       514 passed  (229 engine regression, 31 engine unit, 16 fund,
                          7 version comparison via the API, 10 error monitoring,
                          5 reforecast, 10 comments, 12 tasks,
                          10 portfolio reports, 13 vertical slice)
-Browser      56 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser      64 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
-                         4 tasks, 11 accessibility)
+                         4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
+                         11 accessibility)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -196,7 +197,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 56 Playwright tests in Chromium on the built bundle. Scenarios, reports and the portfolio builder are not yet covered |
+| Automated UI tests | Tested | 64 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
