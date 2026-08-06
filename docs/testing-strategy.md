@@ -90,8 +90,9 @@ built bundle:
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
+| Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**72 browser tests in total**, for 661 across the whole repository.
+**117 browser tests in total**, for 706 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

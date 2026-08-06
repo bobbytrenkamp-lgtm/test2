@@ -10,12 +10,43 @@ strength of a page existing.
 Status values: `Not started` · `Designed` · `In development` · `Functional` ·
 `Tested` · `Production ready` · `Deferred`
 
-Nothing is yet marked **Production ready**. That designation is reserved for
-features that have also passed the production-hardening pass in
-`docs/implementation-roadmap.md` — load testing, an accessibility audit against
-a real screen reader, and a restore drill. The restore drill, an engine
-performance baseline and a database load test all now run in CI. Still
-outstanding: an audit with a real screen reader.
+Nothing is yet marked **Production ready**, and this section says exactly why
+rather than leaving it to be inferred.
+
+The designation is reserved for features that have passed the
+production-hardening pass in `docs/implementation-roadmap.md`. Three things
+block it, and **two of them cannot be closed from a development container**:
+
+1. **An audit with a real screen reader — outstanding, needs a person.**
+   `axe-core` gates fifteen screens, and `e2e/screen-reader.spec.ts` now walks
+   the accessibility tree of eleven screens for the things axe does not check:
+   heading ladders with no skipped level, controls a rotor can tell apart,
+   tables that announce their own name, landmarks to skip into. That found and
+   fixed a real defect — `EmptyState` hard-coded an `h3` at a dozen different
+   depths, so any screen whose empty state sat under the page title announced
+   an `h1 → h3` skip. **None of that is the audit.** No automated check can
+   report whether a valuation is *usable* with JAWS or VoiceOver; that needs
+   somebody who uses one.
+
+2. **The container images have never been built.** `docker compose config`
+   validates, the Dockerfiles have had real defects fixed by review, and the
+   daemon and registry API are both reachable — but the blob CDN
+   `production.cloudfront.docker.com` is refused by this environment's egress
+   policy, so layers cannot be fetched. A deployment artefact that has never
+   been built is not production ready under any reading. One host to allow.
+
+3. **The deploy sequence is documented, not scripted**, and cannot be exercised
+   without the images from (2).
+
+Load testing and the restore drill — the two criteria that *were* in reach —
+both run in CI on every build, along with a concurrency test, a migration
+rollback gate and a documentation-drift gate.
+
+**What would make it production ready:** allow that one host and run
+`docker compose build && docker compose up`; have somebody spend an hour with a
+screen reader on the cash-flow grid, the rent roll and the assumptions editor;
+script the deploy sequence in `docs/deployment-guide.md`. Everything else on
+the hardening list is done and gated.
 
 ---
 
@@ -32,12 +63,12 @@ Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice)
-Browser      72 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     117 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
-                         3 two-factor, 11 accessibility)
+                         3 two-factor, 11 accessibility, 45 accessibility tree)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -199,8 +230,9 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 72 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 117 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
+| Accessibility tree, audited beyond axe | Tested | Heading ladders, rotor-distinguishable controls, named tables and landmarks across eleven screens. Found and fixed an `h1 → h3` skip from a shared component. **Not** a substitute for a screen-reader audit, and the file says so |
 
 **Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
 hiding, saved views, configurable dashboard widgets, notifications, geographic

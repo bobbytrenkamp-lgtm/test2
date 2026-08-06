@@ -42,14 +42,30 @@ export function EmptyState({
   title,
   children,
   action,
+  level = 2,
 }: {
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  /**
+   * Heading level, so the empty state sits correctly in the page's ladder.
+   *
+   * This used to be a hard-coded `h3` in a component used at a dozen different
+   * depths, which put an `h1 → h3` skip on any screen whose empty state sat
+   * directly under the page title. That is valid HTML and passes `axe-core`;
+   * to somebody navigating by heading it reads as a missing section, and they
+   * go looking for content that was never there. Found by
+   * `e2e/screen-reader.spec.ts`, which walks the heading ladder of every screen.
+   *
+   * Defaults to 2 — directly under a page `h1`, which is the common case — and
+   * callers nested inside a card with its own `h2` pass 3.
+   */
+  level?: 2 | 3;
 }): JSX.Element {
+  const Heading = level === 3 ? 'h3' : 'h2';
   return (
     <div className="empty-state">
-      <h3>{title}</h3>
+      <Heading>{title}</Heading>
       <p>{children}</p>
       {action}
     </div>
