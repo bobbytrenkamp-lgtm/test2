@@ -62,9 +62,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version` here on purpose, matching ci.yml: the action reads
+      # `packageManager` from package.json, and specifying both is a hard
+      # error — `Multiple versions of pnpm specified`. This workflow shipped
+      # with `version: 9` and failed on its first real run for exactly that
+      # reason, before the deploy step was ever reached.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
