@@ -379,6 +379,26 @@ Recording these because they are the argument for the approach:
     replacer function, which is not subject to the expansion. This one was
     **not** caught by a test — it was caught by opening the built file, which is
     exactly why the build now checks its own output before writing it.
+15. **Nothing typechecked `scripts/`, and seven errors had accumulated there.**
+    `pnpm typecheck` ran per-package plus the end-to-end config; no config
+    covered the maintenance scripts, so the benchmark, the load and concurrency
+    tests, the restore drill and the profiler were unchecked. Behind that gap:
+    `concurrency-test.ts` imported `FastifyInstance` from `fastify`, which is a
+    dependency of `apps/api` and does not resolve from the workspace root, and
+    the failed import had quietly widened five parameters to `any`. The
+    benchmark's synthetic model carried `code` on its growth curve, leasing
+    profile and both expenses — a field none of those schemas has. zod strips
+    unknown keys silently, so it never failed; it simply was not there, and an
+    `as ModelInputDraft` on the draft hid the mismatch from the compiler.
+    `tsconfig.scripts.json` now covers them and runs in `pnpm typecheck`. The
+    cast is gone, so a wrong property is reported against the property itself
+    rather than as a whole-object conversion error. Confirmed by reinstating
+    `code` and watching the gate fail.
+
+    Worth noting for what it says about documentation drift:
+    `docs/repository-assessment.md` claimed a change to a shared type "is
+    typechecked against every consumer in one command." That was not true while
+    `scripts/` was uncovered. It is true now.
 
 ## Gaps, stated plainly
 

@@ -1,0 +1,20 @@
+{
+  // The maintenance scripts — benchmark, load and concurrency tests, restore
+  // drill, profiler, API inventory, demo build. Every one of them imports from
+  // the packages it exercises, so a type error here is a real signal about the
+  // code under test, not about the script.
+  //
+  // They went untypechecked until now: `pnpm typecheck` runs per-package plus
+  // `tsconfig.e2e.json`, and nothing covered `scripts/`. Seven errors had
+  // accumulated, including a `fastify` import that never resolved and five
+  // parameters silently widened to `any` behind it.
+  //
+  // `lib` includes DOM because `profile-grid.ts` drives a browser page.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["scripts/**/*.ts"]
+}
