@@ -1,0 +1,91 @@
+# Publishes the calculation-engine demonstration to GitHub Pages.
+#
+# ## Why this costs nothing
+#
+# The repository is public, and on a public repository GitHub Actions minutes
+# are free and unlimited — there is no allowance to exceed and therefore no
+# overage to be billed for. GitHub Pages is likewise free for public
+# repositories with no payment method required; when a site exceeds the soft
+# bandwidth limit GitHub asks for the usage to be reduced rather than charging.
+# See `docs/zero-cost-operation.md`.
+#
+# The job is deliberately small: one runner, one build, `ubuntu-latest` only,
+# no matrix, no scheduled trigger, and a timeout so a hung step cannot sit
+# consuming a runner.
+#
+# ## What is published
+#
+# One self-contained HTML file. The calculation engine has no server
+# dependency, so it runs in the reader's browser against the twenty regression
+# fixtures — the real engine, not a recording of it. Nothing else from the
+# platform is published: the database, authentication, audit log, imports and
+# reports all need the server, and the page says so above the fold.
+#
+# **Anything published here is publicly readable.** That is the nature of Pages
+# on a public repository. The demonstration contains only fictional fixture
+# data — no real property, tenant, address or transaction — which is the same
+# guarantee the seed makes.
+
+name: Demo page
+
+on:
+  push:
+    branches: [main]
+    # Only rebuild when something the page is actually made of changes.
+    paths:
+      - 'demo/**'
+      - 'scripts/build-demo.ts'
+      - 'packages/calculation-engine/**'
+      - 'packages/domain-models/**'
+      - '.github/workflows/pages.yml'
+  # Publishable on demand without waiting for a qualifying push.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A superseded run is cancelled rather than left to finish, so two pushes in
+# quick succession cannot race to publish different builds.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The page embeds the engine, so a broken engine must not reach it.
+      # Cheap enough to run here rather than trusting the main CI ordering.
+      - name: Typecheck the engine
+        run: pnpm --filter @cre/calculation-engine run typecheck
+
+      - name: Build the demonstration page
+        run: pnpm build:demo
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo/dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

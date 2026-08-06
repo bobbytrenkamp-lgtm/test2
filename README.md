@@ -33,6 +33,21 @@ anywhere in it.
 
 Requires Node 20.11+ (built on 22), PostgreSQL 16+, pnpm 9.
 
+## The engine, without installing anything
+
+**https://bobbytrenkamp-lgtm.github.io/test2/**
+
+The calculation engine has no server dependency, so it is published as a single
+self-contained page that runs it in your browser against the twenty regression
+fixtures — the real engine, not screenshots. `pnpm build:demo` produces the same
+file locally at `demo/dist/index.html`.
+
+It is deliberately only the engine. Persistence, authentication, the audit log,
+imports, reports and permissions all need the server, and the page says so above
+the fold. There is no hosted deployment of the whole platform: its container
+images have never been built, which `docs/feature-status.md` records as a
+release blocker rather than glosses.
+
 **Nothing in this project costs money.** No paid service, external API, hosted
 dependency or commercially licensed component is used; everything runs locally
 on open-source components. `pnpm licences` fails the build if a dependency ever
