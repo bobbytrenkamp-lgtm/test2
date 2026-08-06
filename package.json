@@ -9,6 +9,8 @@
     "node": ">=20.11"
   },
   "scripts": {
+    "bootstrap": "node scripts/setup.mjs",
+    "start": "node scripts/setup.mjs && pnpm dev",
     "build": "pnpm -r --filter=./packages/** run build && pnpm -r --filter=./apps/** run build",
     "typecheck": "pnpm -r run typecheck && tsc --noEmit -p tsconfig.e2e.json",
     "lint": "eslint . --max-warnings=0",

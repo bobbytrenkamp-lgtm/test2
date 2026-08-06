@@ -52,20 +52,46 @@ the CI workflow is configured to stay inside GitHub's free allowance.
 ## Local development, without Docker (verified)
 
 ```bash
-cp .env.example .env
-# Generate a session secret:
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-# Put it in .env as SESSION_SECRET.
-
 pnpm install
-createdb cre_platform
-pnpm db:migrate
-pnpm db:seed          # fictional demonstration data
-pnpm dev              # api :4000, web :5173, worker
+pnpm start
 ```
 
-Open http://localhost:5173 and sign in with the credentials the seed prints.
-All seeded data is fictional.
+Open http://localhost:5173 and sign in with the credentials it prints. All
+seeded data is fictional.
+
+`pnpm start` runs `scripts/setup.mjs` and then `pnpm dev`. Use `pnpm bootstrap`
+to prepare without starting. The name matters: `pnpm setup` is a built-in pnpm
+command that configures pnpm's own install directory and takes precedence over
+a script of that name, so it would never run this.
+
+### What the script does, and what it refuses to do
+
+It checks Node and `psql`, writes `.env` from `.env.example` with a generated
+`SESSION_SECRET`, creates the PostgreSQL role and database named in
+`DATABASE_URL` if they are missing, migrates, and seeds.
+
+It is idempotent. It never overwrites an existing `.env` — a placeholder secret
+is reported, not silently replaced. It never seeds into a database that already
+holds an organization, so a database being worked in is safe. Where it needs a
+superuser it cannot reach, it prints the two `CREATE` statements to run and
+exits, rather than failing later where the cause is no longer visible.
+
+### The defect it was written for
+
+The previous instructions here were `createdb cre_platform && pnpm db:migrate`.
+On a fresh PostgreSQL install that fails: `.env.example` connects as a role
+named `cre`, and nothing in this repository has ever created that role. The
+error is `password authentication failed for user "cre"`, which describes an
+authentication problem rather than a missing account and sends the reader
+looking in the wrong place. Anyone following the documented quick start on a
+clean machine hit it.
+
+Provisioning searches for a superuser over TCP first, then over the Unix socket
+where peer authentication lives — the only route to the `postgres` role on a
+Linux package install. Socket routes are offered only for a local host and
+always carry the port from `DATABASE_URL`; a socket connection without an
+explicit port reaches whatever server owns the default socket, which is not
+necessarily the one the connection string names.
 
 ## Local development, with Docker (unverified)
 
