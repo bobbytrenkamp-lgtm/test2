@@ -80,15 +80,43 @@ At a $0 limit GitHub *stops* running workflows when the allowance is exhausted;
 it does not bill overage. That is the required "usage stops rather than
 generating a charge" behaviour.
 
+Pages does not degrade as gracefully. **GitHub Pages on a private repository
+requires a paid plan**, so making this repository private would not merely meter
+the demo page — it would stop it publishing until a plan was bought. If the
+repository is ever made private, delete `.github/workflows/pages.yml` and turn
+Pages off in the repository settings rather than leaving a workflow that can
+only succeed by spending money.
+
 ## 2. Codespaces, Pages and deployment
 
 | Item | Finding |
 | --- | --- |
 | `.devcontainer` / `devcontainer.json` | **Absent** — Codespaces cannot start from this repository, so the free allowance cannot be consumed |
-| GitHub Pages | **Disabled** (`"has_pages": false`) |
+| GitHub Pages | **Enabled**, publishing one static page from a public repository. Free with no payment method; GitHub asks for usage to be reduced past the soft bandwidth limit rather than charging. See below |
 | Vercel / Netlify / Render / Fly / Railway / Heroku config | **None present** |
-| Deployment workflow | **None.** Nothing is deployed anywhere |
-| Purchased domain | **None** |
+| Deployment workflow | **Pages only.** The application itself is deployed nowhere; its container images have never been built |
+| Purchased domain | **None.** The site is served from `github.io`, which costs nothing |
+
+### What the Pages workflow publishes, and why it is free
+
+`.github/workflows/pages.yml` builds `demo/dist/index.html` — a single
+self-contained page carrying the calculation engine, which is the one part of
+the platform with no server dependency. It runs the real engine in the reader's
+browser against the twenty regression fixtures.
+
+The cost analysis is the same as for CI and rests on the same fact: **the
+repository is public**, so Actions minutes are free without limit and Pages
+requires no payment method. The workflow is one `ubuntu-latest` job with a
+10-minute timeout, no matrix and **no scheduled trigger** — it runs on a push
+that touches the demo or the engine, or on demand. There is no allowance to
+exceed and therefore nothing to be billed for.
+
+Two things are worth stating plainly. Anything on Pages is **publicly
+readable**; the published page contains only fictional fixture data, the same
+guarantee the seed makes. And making the repository private later would change
+this analysis — Actions minutes become metered, and Pages on a private
+repository needs a paid plan outright. What to do in that case is set out under
+"If this repository is ever made private" above.
 
 ## 3. External services — none
 

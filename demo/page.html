@@ -1,0 +1,740 @@
+<title>CRE calculation engine — running live</title>
+
+<style>
+  /* ---------------------------------------------------------------
+     Tokens. Redefined per theme; components only ever read tokens.
+     --------------------------------------------------------------- */
+  :root {
+    --ground: #faf8f4;
+    --raised: #ffffff;
+    --sunken: #f2eee6;
+    --rule: #ded7c9;
+    --rule-strong: #c3b9a5;
+    --ink: #1a2029;
+    --ink-soft: #5c6472;
+    --ink-faint: #8a8f99;
+    --accent: #9c5f24;
+    --accent-soft: #f0e2cf;
+    --negative: #a8403a;
+    --affirm: #2f6555;
+
+    --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+    --step: clamp(0.5rem, 0.4rem + 0.4vw, 0.85rem);
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101720;
+      --raised: #161f2b;
+      --sunken: #0b1119;
+      --rule: #26313f;
+      --rule-strong: #3a4757;
+      --ink: #e6e4df;
+      --ink-soft: #a3aab6;
+      --ink-faint: #6f7885;
+      --accent: #d69248;
+      --accent-soft: #2a2015;
+      --negative: #e0776e;
+      --affirm: #6fb69c;
+      color-scheme: dark;
+    }
+  }
+
+  /* The viewer's toggle must win over the media query, both directions. */
+  :root[data-theme='dark'] {
+    --ground: #101720;
+    --raised: #161f2b;
+    --sunken: #0b1119;
+    --rule: #26313f;
+    --rule-strong: #3a4757;
+    --ink: #e6e4df;
+    --ink-soft: #a3aab6;
+    --ink-faint: #6f7885;
+    --accent: #d69248;
+    --accent-soft: #2a2015;
+    --negative: #e0776e;
+    --affirm: #6fb69c;
+    color-scheme: dark;
+  }
+  :root[data-theme='light'] {
+    --ground: #faf8f4;
+    --raised: #ffffff;
+    --sunken: #f2eee6;
+    --rule: #ded7c9;
+    --rule-strong: #c3b9a5;
+    --ink: #1a2029;
+    --ink-soft: #5c6472;
+    --ink-faint: #8a8f99;
+    --accent: #9c5f24;
+    --accent-soft: #f0e2cf;
+    --negative: #a8403a;
+    --affirm: #2f6555;
+    color-scheme: light;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    margin: 0;
+    padding: clamp(1.5rem, 1rem + 3vw, 4rem) clamp(1rem, 0.5rem + 3vw, 3rem) 5rem;
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2.75rem;
+  }
+
+  /* --- header ------------------------------------------------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.9rem;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.5rem, 1.1rem + 1.9vw, 2.4rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  .lede {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: 1.02rem;
+    margin: 0;
+  }
+  .lede strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+    margin-top: 1.5rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--rule);
+  }
+  .meta b {
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  /* --- the caveat, stated up front ---------------------------- */
+  .caveat {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 1rem 1.25rem;
+    border-radius: 0 3px 3px 0;
+    font-size: 0.93rem;
+    color: var(--ink);
+    max-width: 72ch;
+  }
+  .caveat p {
+    margin: 0;
+  }
+  .caveat p + p {
+    margin-top: 0.6rem;
+  }
+
+  /* --- instrument panel --------------------------------------- */
+  .panel {
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunken);
+  }
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0;
+    font-weight: 600;
+  }
+  .spacer {
+    flex: 1 1 auto;
+  }
+
+  label.field {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+  select {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    background: var(--raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 0.35rem 0.5rem;
+    max-width: 22rem;
+  }
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .timing {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--ink-faint);
+  }
+  .timing b {
+    color: var(--affirm);
+    font-weight: 600;
+  }
+
+  /* --- figures ------------------------------------------------ */
+  .scroll {
+    overflow-x: auto;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.83rem;
+  }
+  caption {
+    text-align: left;
+    padding: 0.9rem 1.15rem 0;
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+  }
+  th,
+  td {
+    padding: 0.36rem 0.75rem;
+    white-space: nowrap;
+    text-align: right;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule-strong);
+    position: sticky;
+    top: 0;
+    background: var(--raised);
+  }
+  tbody th,
+  thead th:first-child {
+    text-align: left;
+  }
+  tbody th {
+    font-weight: 500;
+    color: var(--ink);
+    font-family: var(--sans);
+    position: sticky;
+    left: 0;
+    background: var(--raised);
+  }
+  td {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+  tbody tr:hover td,
+  tbody tr:hover th {
+    background: var(--sunken);
+  }
+  .indent th {
+    padding-left: 1.75rem;
+    color: var(--ink-soft);
+    font-size: 0.95em;
+  }
+  .subtotal th,
+  .subtotal td {
+    border-top: 1px solid var(--rule);
+    font-weight: 600;
+  }
+  .emphasis th,
+  .emphasis td {
+    border-top: 1px solid var(--rule-strong);
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .neg {
+    color: var(--negative);
+  }
+
+  /* --- summary strip ------------------------------------------ */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border-top: 1px solid var(--rule);
+  }
+  .cell {
+    background: var(--raised);
+    padding: 0.9rem 1.15rem;
+  }
+  .cell dt {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 0.35rem;
+  }
+  .cell dd {
+    margin: 0;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .cell .note {
+    display: block;
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--ink-faint);
+    margin-top: 0.2rem;
+  }
+
+  /* --- prose sections ----------------------------------------- */
+  section > h2 {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin: 0 0 0.9rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  section p {
+    max-width: 68ch;
+    color: var(--ink-soft);
+    margin: 0 0 0.9rem;
+  }
+  section p strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--sunken);
+    padding: 0.1em 0.35em;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+
+  .ledger {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+  }
+  .ledger span {
+    color: var(--affirm);
+  }
+
+  ul.plain {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-width: 68ch;
+  }
+  ul.plain li {
+    padding-left: 1.4rem;
+    position: relative;
+    color: var(--ink-soft);
+  }
+  ul.plain li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+  ul.plain li b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.25rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--ink-faint);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    tbody tr {
+      transition: background 90ms ease;
+    }
+  }
+</style>
+
+<div class="shell">
+  <header>
+    <p class="eyebrow">Commercial real estate · calculation engine</p>
+    <h1>The engine, running in this page</h1>
+    <p class="lede">
+      Every figure below is computed <strong>right now, in your browser</strong>, by the same
+      TypeScript engine the platform runs on the server. Nothing is pre-rendered and nothing is
+      mocked — pick a property and the cash flow is recalculated from its assumptions.
+    </p>
+    <div class="meta">
+      <span>Engine <b id="version">—</b></span>
+      <span><b>34</b> significant digits, half-even</span>
+      <span><b>20</b> regression fixtures</span>
+      <span><b>589</b> tests · <b>117</b> browser tests</span>
+    </div>
+  </header>
+
+  <div class="caveat">
+    <p>
+      <strong>This is the engine, not the platform.</strong> The full application has a PostgreSQL
+      database, authentication with a second factor, an audit log, imports, reports and multi-user
+      permissions — none of which can run in a static page.
+    </p>
+    <p>
+      The engine is the part with no server dependency, so it is the part that can be shown honestly
+      this way. There is no hosted deployment of the whole platform: its container images have never
+      been built, which is recorded as a release blocker rather than glossed.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Cash flow</h2>
+      <label class="field" for="fixture">
+        Property
+        <select id="fixture"></select>
+      </label>
+      <span class="spacer"></span>
+      <span class="timing">computed in <b id="elapsed">—</b></span>
+    </div>
+    <div class="scroll">
+      <table>
+        <caption id="caption">
+          Annual cash flow. Amounts in USD; deductions negative.
+        </caption>
+        <thead>
+          <tr id="head"></tr>
+        </thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+    <dl class="strip" id="strip"></dl>
+  </div>
+
+  <section>
+    <h2>Why these numbers can be trusted</h2>
+    <p>
+      The regression library holds twenty independently designed properties, and
+      <strong
+        >no expected value in it was produced by running the engine and copying the output</strong
+      >. Each is either derived by hand from the fixture's own assumptions, or recomputed in the
+      test by a different method than the engine uses — a closed-form geometric annuity against the
+      engine's per-period loop, a closed-form remaining-balance formula against its amortisation
+      schedule.
+    </p>
+    <p>
+      A test built from the engine's own output agrees with the engine by construction. It would
+      pass on the day a formula silently breaks.
+    </p>
+    <p>
+      Select <em>Single tenant industrial</em> above and read the potential base rent across the
+      first five years. $6.00/sf on 100,000 sf escalating 3% each January is arithmetic anyone can
+      check on paper:
+    </p>
+    <div class="ledger" id="proof">—</div>
+  </section>
+
+  <section>
+    <h2>What the full platform adds</h2>
+    <ul class="plain">
+      <li>
+        <b>Persistence and versioning</b> — immutable model versions, so a valuation issued last
+        quarter still reproduces exactly.
+      </li>
+      <li>
+        <b>Traceability</b> — every figure on the real cash-flow grid opens an inspector showing how
+        the engine derived it.
+      </li>
+      <li>
+        <b>Rent roll and imports</b> — CSV and Excel, with header detection, column mapping and
+        validation before anything is written.
+      </li>
+      <li>
+        <b>Portfolio and fund roll-ups</b> — rates rebuilt from the portfolio's own numerator and
+        denominator, never averaged across assets.
+      </li>
+      <li>
+        <b>Budgets, variance and asset management</b> — trial-balance import, materiality
+        thresholds, commentary that cannot be approved by its own author.
+      </li>
+      <li>
+        <b>Access control</b> — nine roles, capability-checked on every one of 116 routes, with
+        two-factor authentication.
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>What the engine deliberately does not model</h2>
+    <p>
+      Each of these raises a named diagnostic rather than producing a number nobody should act on. A
+      model that says <em>I cannot answer this</em> is worth more than one that guesses.
+    </p>
+    <ul class="plain">
+      <li>
+        <b>Expansion options</b> — the option records how much area is taken but not which space it
+        comes from, so honouring it would either double-count area or invent floor space the
+        property does not have.
+      </li>
+      <li>
+        <b>Cash sweep</b> — applying trapped cash to principal makes the schedule depend on the cash
+        flow that depends on the schedule.
+      </li>
+      <li>
+        <b>Fund-level carry and recallable distributions</b> — documented as unmodelled in the
+        investor statement's own footnotes.
+      </li>
+      <li>
+        <b>Yield capitalisation</b> — term and reversion, hardcore and equivalent yield are not
+        implemented.
+      </li>
+    </ul>
+  </section>
+
+  <footer id="footnote">—</footer>
+</div>
+
+<!--ENGINE-->
+
+<script>
+  (function () {
+    var CRE = window.CRE;
+    var LINES = [
+      ['potentialBaseRent', 'Potential base rent', ''],
+      ['absorptionAndTurnoverVacancy', 'Absorption and turnover vacancy', 'indent'],
+      ['contractualBaseRent', 'Contractual base rent', 'subtotal'],
+      ['freeRent', 'Free rent and abatements', 'indent'],
+      ['scheduledBaseRent', 'Scheduled base rent', 'subtotal'],
+      ['percentageRent', 'Percentage rent', ''],
+      ['expenseRecoveries', 'Expense recoveries', ''],
+      ['otherPropertyRevenue', 'Other property revenue', ''],
+      ['grossPotentialRevenue', 'Gross potential revenue', 'subtotal'],
+      ['generalVacancy', 'General vacancy', 'indent'],
+      ['creditLoss', 'Credit loss', 'indent'],
+      ['effectiveGrossRevenue', 'Effective gross revenue', 'emphasis'],
+      ['operatingExpenses', 'Operating expenses', ''],
+      ['netOperatingIncome', 'Net operating income', 'emphasis'],
+      ['tenantImprovements', 'Tenant improvements', 'indent'],
+      ['leasingCommissions', 'Leasing commissions', 'indent'],
+      ['capitalExpenditures', 'Capital expenditures', 'indent'],
+      ['unleveredCashFlow', 'Unlevered cash flow', 'emphasis'],
+      ['interestExpense', 'Interest expense', 'indent'],
+      ['principalAmortization', 'Principal amortization', 'indent'],
+      ['leveredCashFlow', 'Levered cash flow', 'emphasis'],
+    ];
+
+    function title(key) {
+      var withSpaces = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+      return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+    }
+
+    var money = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+    var compact = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'USD',
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    });
+    var percent = new Intl.NumberFormat(undefined, {
+      style: 'percent',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    var keys = Object.keys(CRE.ALL_FIXTURES);
+    var select = document.getElementById('fixture');
+    keys.forEach(function (key) {
+      var option = document.createElement('option');
+      option.value = key;
+      option.textContent = title(key);
+      select.appendChild(option);
+    });
+
+    document.getElementById('version').textContent = CRE.ENGINE_VERSION;
+
+    function render(key) {
+      var started = performance.now();
+      var result = CRE.calculate(CRE.ALL_FIXTURES[key]());
+      var elapsed = performance.now() - started;
+
+      document.getElementById('elapsed').textContent = elapsed.toFixed(0) + ' ms';
+
+      var years = result.annual;
+      var head = document.getElementById('head');
+      head.textContent = '';
+      var corner = document.createElement('th');
+      corner.scope = 'col';
+      corner.textContent = 'Line item';
+      head.appendChild(corner);
+      years.forEach(function (row) {
+        var cell = document.createElement('th');
+        cell.scope = 'col';
+        cell.textContent = 'FY' + row.fiscalYear;
+        head.appendChild(cell);
+      });
+
+      var body = document.getElementById('body');
+      body.textContent = '';
+      LINES.forEach(function (spec) {
+        var present = years.some(function (row) {
+          return Number(row.lines[spec[0]]) !== 0;
+        });
+        if (!present) return;
+        var tr = document.createElement('tr');
+        if (spec[2]) tr.className = spec[2];
+        var label = document.createElement('th');
+        label.scope = 'row';
+        label.textContent = spec[1];
+        tr.appendChild(label);
+        years.forEach(function (row) {
+          var value = Number(row.lines[spec[0]]);
+          var cell = document.createElement('td');
+          if (value < 0) cell.className = 'neg';
+          cell.textContent = money.format(value);
+          tr.appendChild(cell);
+        });
+        body.appendChild(tr);
+      });
+
+      var dcf = (result.valuations || []).filter(function (v) {
+        return v.method === 'dcf';
+      })[0];
+      var returns = result.returns || {};
+      var strip = document.getElementById('strip');
+      strip.textContent = '';
+      [
+        [
+          'Discounted cash flow',
+          dcf ? compact.format(Number(dcf.value)) : '—',
+          'Sum of discounted flows plus reversion',
+        ],
+        [
+          'Year 1 net operating income',
+          years[0] ? compact.format(Number(years[0].lines.netOperatingIncome)) : '—',
+          '',
+        ],
+        [
+          'Unlevered IRR',
+          returns.unleveredIrr ? percent.format(Number(returns.unleveredIrr)) : 'Not solvable',
+          'Null, never zero, when there is no sign change',
+        ],
+        ['Forecast', years.length + ' fiscal years', ''],
+        [
+          'Diagnostics',
+          String((result.diagnostics || []).length),
+          'Named reasons, not silent approximations',
+        ],
+      ].forEach(function (entry) {
+        var cell = document.createElement('div');
+        cell.className = 'cell';
+        var dt = document.createElement('dt');
+        dt.textContent = entry[0];
+        var dd = document.createElement('dd');
+        dd.textContent = entry[1];
+        if (entry[2]) {
+          var note = document.createElement('span');
+          note.className = 'note';
+          note.textContent = entry[2];
+          dd.appendChild(note);
+        }
+        cell.appendChild(dt);
+        cell.appendChild(dd);
+        strip.appendChild(cell);
+      });
+
+      document.getElementById('caption').textContent =
+        title(key) +
+        ' — annual cash flow. Amounts in ' +
+        (result.currency || 'USD') +
+        '; deductions negative. Rows that are zero throughout are omitted.';
+    }
+
+    // The independently derived progression, read back out of the live result.
+    var proof = CRE.calculate(CRE.ALL_FIXTURES.singleTenantIndustrial());
+    document.getElementById('proof').innerHTML = proof.annual
+      .slice(0, 5)
+      .map(function (row) {
+        return (
+          'FY' +
+          row.fiscalYear +
+          '  <span>' +
+          money.format(Number(row.lines.potentialBaseRent)) +
+          '</span>'
+        );
+      })
+      .join('<br>');
+
+    document.getElementById('footnote').textContent =
+      'Engine ' +
+      CRE.ENGINE_VERSION +
+      ' · computed client-side · all fixture data is fictional — ' +
+      'no real property, tenant, address or transaction appears anywhere in it.';
+
+    select.addEventListener('change', function () {
+      render(select.value);
+    });
+    render(keys[0]);
+  })();
+</script>

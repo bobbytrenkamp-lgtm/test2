@@ -15,23 +15,60 @@ judgement call is documented, with its reasoning, in
 
 ## Quick start
 
+Install **Node 20.11+** (built on 22), **PostgreSQL 16+** and **pnpm 9**, then:
+
+```bash
+pnpm install
+pnpm start
+```
+
+`pnpm start` checks the prerequisites, writes a `.env` with a generated session
+secret, creates the PostgreSQL role and database if they do not exist, applies
+the migrations, loads the demonstration data, and starts the API, web client and
+worker. It is safe to run again: every step checks before it acts, an existing
+`.env` is never overwritten, and a database with data in it is never seeded over.
+
+Open http://localhost:5173 and sign in with the credentials it prints. **All
+seeded data is fictional** — no real property, tenant, address or transaction
+appears anywhere in it.
+
+Use `pnpm bootstrap` to prepare without starting. (Not `pnpm setup` — that is a
+built-in pnpm command and does something else entirely.)
+
+<details>
+<summary>Doing it by hand</summary>
+
 ```bash
 cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 # put that value in .env as SESSION_SECRET
 
-pnpm install
-createdb cre_platform
+# .env connects as a role named "cre", which a fresh PostgreSQL install
+# does not have. Create it, or point DATABASE_URL at a role you do have:
+psql -d postgres -c "CREATE ROLE cre LOGIN PASSWORD 'cre'"
+createdb -O cre cre_platform
+
 pnpm db:migrate
 pnpm db:seed        # fictional demonstration data across five properties
 pnpm dev            # api :4000 · web :5173 · worker
 ```
 
-Open http://localhost:5173. The seed prints sign-in credentials. **All seeded
-data is fictional** — no real property, tenant, address or transaction appears
-anywhere in it.
+</details>
 
-Requires Node 20.11+ (built on 22), PostgreSQL 16+, pnpm 9.
+## The engine, without installing anything
+
+**https://bobbytrenkamp-lgtm.github.io/test2/**
+
+The calculation engine has no server dependency, so it is published as a single
+self-contained page that runs it in your browser against the twenty regression
+fixtures — the real engine, not screenshots. `pnpm build:demo` produces the same
+file locally at `demo/dist/index.html`.
+
+It is deliberately only the engine. Persistence, authentication, the audit log,
+imports, reports and permissions all need the server, and the page says so above
+the fold. There is no hosted deployment of the whole platform: its container
+images have never been built, which `docs/feature-status.md` records as a
+release blocker rather than glosses.
 
 **Nothing in this project costs money.** No paid service, external API, hosted
 dependency or commercially licensed component is used; everything runs locally

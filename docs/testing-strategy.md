@@ -300,6 +300,24 @@ Each database suite creates its own PostgreSQL **schema**, migrates into it, and
 drops it afterwards. Real constraints, real transactions, real SQL. Testing
 organization isolation against a mock would prove nothing.
 
+## The published page checks itself
+
+`pnpm build:demo` inlines the calculation engine into a single static page for
+GitHub Pages. Because that build is the last step before something is published,
+it verifies its own output before writing it: that the bundle survived template
+substitution byte for byte, that the script parses and runs in a bare `node:vm`
+context, that it defines what the page reaches for, and that the engine inside
+it produces `600,000 / 618,000 / 636,540 / 655,636.20 / 675,305.29` for the
+single-tenant industrial lease — the same hand-derived figures as above, taken
+from this document rather than from a previous run.
+
+A failing check throws before `demo/dist/index.html` is written, so a broken
+page leaves nothing behind for a later step to publish. Both assertions were
+confirmed by breaking the build deliberately: reinstating the substitution bug
+below trips the first, and perturbing the fixture's escalation rate trips the
+second. It is not a substitute for opening the page — layout and the page's own
+script are not exercised — but the engine cannot now reach Pages broken.
+
 ## Bugs these tests actually caught
 
 Recording these because they are the argument for the approach:
@@ -351,6 +369,16 @@ Recording these because they are the argument for the approach:
     logarithm and an exponential at 34 digits — once per period, on each of 200
     bisection steps. Caught by the first run of `pnpm benchmark`; 18× faster
     after, with no calculated figure changed.
+14. **The demo build published a corrupt engine and reported success.**
+    `String.prototype.replace` expands `$` patterns in a *string* replacement —
+    `` $` `` means "everything before the match" — and a minified bundle is full
+    of `` $` `` from template literals. Passing the bundle as the replacement
+    therefore spliced the page's own head into the middle of the engine and
+    truncated it; the browser reported `SyntaxError: missing ) after argument
+    list` from deep inside zod, pointing nowhere near the cause. Fixed with a
+    replacer function, which is not subject to the expansion. This one was
+    **not** caught by a test — it was caught by opening the built file, which is
+    exactly why the build now checks its own output before writing it.
 
 ## Gaps, stated plainly
 
