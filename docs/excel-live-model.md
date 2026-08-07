@@ -19,8 +19,9 @@ Measured formula coverage:
 
 | Fixture | Coverage | Notes |
 | --- | --- | --- |
-| `refinanceScenario` (with debt) | **83.4%** | Debt, Expenses, Returns, Summary all 100% |
-| `multiTenantOffice` (no debt) | **65.4%** | Rent Roll 13.5% — per-lease rent is engine-supplied |
+| `refinanceScenario` (with debt) | **83.2%** | Debt, Expenses, Returns, Summary all 100% |
+| `groceryAnchoredRetail` | **61.3%** | Recoveries and rent roll are engine-supplied |
+| `multiTenantOffice` (no debt) | **58.3%** | Rent Roll and Recoveries dominate the gap |
 
 Coverage on the office fixture *fell* from 72.5% when the Rent Roll was added,
 because lease-level rent is engine-supplied and now counted. That is the metric
@@ -64,7 +65,10 @@ reconciles it to the engine.
 | TI, LC, capital expenditure | **No** — engine values |
 | Floating-rate index resolution | **No** — the applied rate is an editable per-period input |
 | Covenant tests, cash traps, refinancing | **No** — engine values reach Cash Flow |
-| Recoveries as their own schedule, waterfall | Not started |
+| Recovery pro-rata share, true-up | **Yes** |
+| Monthly recovery total feeding Revenue | **Yes** |
+| Recovery build-up (before caps, final) | **No** — not universal; see below |
+| Waterfall | Not started |
 
 ## Architecture
 
@@ -245,9 +249,33 @@ payment = balance / n                          r = 0
 
 ## Remaining gaps, in priority order
 
-1. **Recoveries as their own schedule.** Currently engine-supplied, and the
-   largest single block of static cells after per-lease rent. Would also break
-   the acyclic-graph simplification noted above.
+1. **The triple-net recovery rule.** The Recoveries sheet exists and its
+   monthly total drives Revenue, but the build-up itself is imported. Four
+   candidate identities were tested against all 102 detail rows the regression
+   library produces; two hold exactly and are exported as formulas:
+
+   ```
+   share   = tenant area / denominator area        exact, 102 rows
+   true-up = final recovery - estimated recovery   exact, 102 rows
+   ```
+
+   Two do not, and are therefore not exported:
+
+   ```
+   before caps    = grossed-up pool x share - base year - stop
+   final recovery = before caps + cap adjustment + admin fee
+   ```
+
+   Both are exact for base-year and expense-stop leases and wrong for
+   triple-net ones — out by up to $10,742 on the grocery-anchored fixture,
+   where the recovery is **1.15x** what pool x share predicts. That factor is
+   not yet understood. Until it is, those lines stay imported: a formula right
+   for two recovery structures and silently wrong for the third is worse than
+   an honest number.
+
+   Caught by widening the check from five fixtures to all twenty. On the five,
+   both identities looked exact.
+
 2. **Waterfall sheet.** LP/GP tiers, promote, per-partner IRR.
 3. **Floating-rate index resolution.** The applied rate is editable per period
    but is not rebuilt from the index curve, spread, floor and cap.

@@ -5,6 +5,7 @@ import { buildAssumptions } from './sheets/assumptions.js';
 import { buildRentRoll } from './sheets/rent-roll.js';
 import { buildRevenue } from './sheets/revenue.js';
 import { buildExpenses } from './sheets/expenses.js';
+import { buildRecoveries } from './sheets/recoveries.js';
 import { buildDebt } from './sheets/debt.js';
 import { buildCashFlow } from './sheets/cashflow.js';
 import { buildReturns } from './sheets/returns.js';
@@ -45,6 +46,7 @@ export function buildLiveModel(input: ModelInput, result: ModelResult): LiveMode
   buildSummary(workbook, input, result, axis, hasDebt);
   buildAssumptions(workbook, input, result, axis);
   buildRentRoll(workbook, input, result, axis);
+  buildRecoveries(workbook, result, axis);
   buildRevenue(workbook, input, result, axis);
   buildExpenses(workbook, input, result, axis);
   if (hasDebt) buildDebt(workbook, input, result, axis);

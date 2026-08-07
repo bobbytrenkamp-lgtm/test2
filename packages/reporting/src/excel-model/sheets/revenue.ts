@@ -110,7 +110,18 @@ export function buildRevenue(
   );
 
   fromEngine('percentageRent', 'Percentage rent');
-  fromEngine('expenseRecoveries', 'Expense recoveries');
+  // Linked to the Recoveries sheet, which totals the per-lease billing, so a
+  // revenue figure traces to the settlement behind it.
+  seriesRow(
+    sheet,
+    axis,
+    { label: 'Expense recoveries', key: 'revenue.expenseRecoveries', indent: 1 },
+    (period) => ({
+      kind: 'formula',
+      formula: (refs) => refs.ref('recoveries.total', period),
+      cachedValue: engineValue('expenseRecoveries', period),
+    }),
+  );
   fromEngine('otherLeaseRevenue', 'Other lease revenue');
   fromEngine('otherPropertyRevenue', 'Other property revenue');
 

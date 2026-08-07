@@ -129,6 +129,7 @@ describe.skipIf(!hasDatabase)('Excel Live Model export', () => {
         'Summary',
         'Assumptions',
         'Rent Roll',
+        'Recoveries',
         'Revenue',
         'Expenses',
         'Cash Flow',

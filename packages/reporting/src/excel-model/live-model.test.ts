@@ -84,6 +84,7 @@ describe('the workbook builds', () => {
       'Summary',
       'Assumptions',
       'Rent Roll',
+      'Recoveries',
       'Revenue',
       'Expenses',
       'Cash Flow',
@@ -226,6 +227,8 @@ describe('cached values match the engine', () => {
       { key: 'revenue.scheduledBaseRent', line: 'scheduledBaseRent' },
       { key: 'revenue.grossPotentialRevenue', line: 'grossPotentialRevenue' },
       { key: 'revenue.generalVacancy', line: 'generalVacancy' },
+      { key: 'recoveries.total', line: 'expenseRecoveries' },
+      { key: 'revenue.expenseRecoveries', line: 'expenseRecoveries' },
       { key: 'revenue.effectiveGrossRevenue', line: 'effectiveGrossRevenue' },
       { key: 'expenses.total', line: 'operatingExpenses' },
       { key: 'cashFlow.netOperatingIncome', line: 'netOperatingIncome' },
@@ -384,7 +387,7 @@ describe('coverage reporting', () => {
     // Per-lease rent comes from the leasing simulation and cannot be a formula
     // without duplicating it. It must be reported as a gap, not hidden.
     expect(cellFor(workbook, 'rentRoll.base.0#0').kind).toBe('staticDerived');
-    expect(cellFor(workbook, 'revenue.expenseRecoveries#0').kind).toBe('staticDerived');
+    expect(cellFor(workbook, 'recoveries.lease.0#0').kind).toBe('staticDerived');
     expect(coverage.staticDerivedCells).toBeGreaterThan(0);
     expect(coverage.calculatedCells).toBe(coverage.formulaCells + coverage.staticDerivedCells);
   });
@@ -432,6 +435,8 @@ describe('the emitted formulas reproduce the engine', () => {
     { key: 'revenue.grossPotentialRevenue', line: 'grossPotentialRevenue' },
     { key: 'revenue.generalVacancy', line: 'generalVacancy' },
     { key: 'revenue.creditLoss', line: 'creditLoss' },
+    { key: 'recoveries.total', line: 'expenseRecoveries' },
+    { key: 'revenue.expenseRecoveries', line: 'expenseRecoveries' },
     { key: 'revenue.effectiveGrossRevenue', line: 'effectiveGrossRevenue' },
     { key: 'expenses.total', line: 'operatingExpenses' },
     { key: 'cashFlow.netOperatingIncome', line: 'netOperatingIncome' },
@@ -660,5 +665,74 @@ describe('the model checks on the Summary sheet', () => {
 
     const after = new FormulaEvaluator(workbook).value('check.expensesRoll.difference');
     expect(Math.abs(after)).toBeGreaterThan(1);
+  });
+});
+
+describe('the recovery settlement is calculated, not imported', () => {
+  /** Fixtures whose recoveries actually exercise the build-up. */
+  const withRecoveries = Object.keys(ALL_FIXTURES).filter((name) => {
+    const { result } = fixture(name as keyof typeof ALL_FIXTURES);
+    return result.recoveryDetail.length > 0;
+  });
+
+  it('covers base-year, expense-stop, multi-pool and reconciled structures', () => {
+    // A guard on the loop below: these are the shapes the build-up must handle,
+    // and the expense stop is the one that proved the subtraction order.
+    expect(withRecoveries).toEqual(
+      expect.arrayContaining([
+        'baseYearRecovery',
+        'expenseStopRecovery',
+        'multiplePoolRecovery',
+        'reconciledRecovery',
+      ]),
+    );
+  });
+
+  for (const name of withRecoveries) {
+    it(`reconciles the ${name} settlement, row by row`, () => {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      for (const [index, detail] of result.recoveryDetail.entries()) {
+        const key = `recovery.${index}`;
+        // Only the two identities that hold across all 102 detail rows. The
+        // recovery build-up itself is imported; see the sheet documentation.
+        const checks: Array<[string, number]> = [
+          ['share', Number(detail.proRataShare)],
+          ['trueUp', Number(detail.trueUpAmount)],
+        ];
+        for (const [suffix, expected] of checks) {
+          const actual = evaluator.value(`${key}.${suffix}`);
+          expect(Number.isFinite(actual), `${key}.${suffix} did not evaluate`).toBe(true);
+          expect(
+            Math.abs(actual - expected),
+            `${key}.${suffix}: workbook ${actual} vs engine ${expected}`,
+          ).toBeLessThanOrEqual(SUM_TOLERANCE);
+        }
+      }
+    });
+  }
+
+  it('moves the share when a tenant area changes', () => {
+    const { input, result } = fixture('expenseStopRecovery');
+    const { workbook } = buildLiveModel(input, result);
+
+    const before = new FormulaEvaluator(workbook).value('recovery.0.share');
+    const areaCell = cellFor(workbook, 'recovery.0.tenantArea');
+    areaCell.value = Number(areaCell.value) * 2;
+    const after = new FormulaEvaluator(workbook).value('recovery.0.share');
+
+    expect(after).toBeCloseTo(before * 2, 10);
+  });
+
+  it('keeps the recovery build-up imported rather than guessed', () => {
+    // Pinned deliberately. `pool x share - base year - stop` is exact for
+    // base-year and expense-stop leases and wrong for triple-net ones, so these
+    // two lines must stay imported until the triple-net rule is understood.
+    const { input, result } = fixture('groceryAnchoredRetail');
+    const { workbook } = buildLiveModel(input, result);
+    expect(cellFor(workbook, 'recovery.0.beforeCaps').kind).toBe('staticDerived');
+    expect(cellFor(workbook, 'recovery.0.finalRecovery').kind).toBe('staticDerived');
   });
 });
