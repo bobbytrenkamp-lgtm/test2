@@ -10,29 +10,38 @@ import type { TimeAxis } from '../layout.js';
  * most often wants to audit, so they get their own sheet rather than arriving
  * as one number inside Revenue.
  *
- * ## Which parts are formulas, and how that was decided
+ * ## The settlement is calculated, and how the rule was pinned down
  *
- * Four candidate identities were tested against **all 102 detail rows** the
- * regression library produces. Two hold exactly and are exported as formulas:
+ * Every step below is a formula, verified against **all 102 detail rows** the
+ * regression library produces:
  *
- *   share  = tenant area / denominator area          (exact, 102 rows)
- *   true-up = final recovery - estimated recovery    (exact, 102 rows)
+ *   share       = tenant area / denominator area
+ *   entitlement = MAX(grossed-up pool x share - base year - expense stop, 0)
+ *   admin fee   = entitlement x admin fee rate
+ *   before caps = entitlement + admin fee
+ *   final       = before caps + cap adjustment
+ *   true-up     = final - estimated
  *
- * Two do **not** hold and are therefore not exported as formulas:
+ * Getting here took two corrections worth recording, because the first
+ * version looked right.
  *
- *   recovery before caps = grossed-up pool x share - base year - stop
- *   final recovery       = before caps + cap adjustment + admin fee
+ * **The admin fee is already inside "before caps".** The engine computes
+ * `withFee = entitlement + adminFee` and reports *that* as
+ * `recoveryBeforeCaps`, so adding the fee again to reach the final recovery
+ * double-counts it. The first attempt did exactly that. It went unnoticed
+ * because the admin fee is zero on every base-year and expense-stop fixture —
+ * the error only appeared on the grocery-anchored retail rows, whose pools
+ * carry a 15% fee. That is the whole of the mysterious "1.15x": not a special
+ * triple-net rule, just a fee the identity had misplaced.
  *
- * Both are exact for base-year and expense-stop leases and wrong for
- * triple-net ones — out by up to $10,742 on the grocery-anchored fixture,
- * where the recovery is 1.15x what pool x share predicts. Whatever the engine
- * does for a triple-net recovery, it is not that product, so those two lines
- * are imported and counted as coverage gaps.
+ * **The entitlement is floored at zero.** `Decimal.max(..., ZERO)` on the
+ * base-year and expense-stop branches means a pool below the stop recovers
+ * nothing rather than crediting the tenant. The first version omitted the
+ * floor and would have produced negative recoveries in a low-expense year.
  *
- * This was caught by widening the check from five fixtures to all twenty. On
- * the five, both identities looked exact. A formula that is right for two
- * recovery structures and silently wrong for the third is worse than an
- * honest imported number.
+ * One method is deliberately not calculated: `fixed_amount` escalates a stated
+ * amount rather than sharing a pool, and no fixture exercises it, so its rows
+ * fall back to imported values rather than to a formula nothing has checked.
  *
  * ## What stays as engine values, and why
  *
@@ -123,9 +132,11 @@ export function buildRecoveries(
     'Grossed-up pool',
     'Base year',
     'Expense stop',
+    'Entitlement',
+    'Admin fee rate',
+    'Admin fee',
     'Before caps',
     'Cap adjustment',
-    'Admin fee',
     'Final recovery',
     'Estimated',
     'True-up',
@@ -196,21 +207,83 @@ export function buildRecoveries(
       'baseYear',
     );
     put(7, { kind: 'input', value: Number(detail.expenseStopAmount), format: 'currency0' }, 'stop');
+    /*
+     * `fixed_amount` shares no pool, so the pooled formula would be wrong for
+     * it. No fixture exercises that method, so rather than emit a formula
+     * nothing has checked, those rows import their figures.
+     */
+    const pooled = detail.method !== 'fixed_amount';
+
+    // The engine floors the entitlement at zero: a pool below the stop
+    // recovers nothing rather than crediting the tenant.
+    const entitlement = Math.max(
+      Number(detail.grossedUpExpensePool) * Number(detail.proRataShare) -
+        Number(detail.baseYearAmount) -
+        Number(detail.expenseStopAmount),
+      0,
+    );
+
     put(
       8,
+      pooled
+        ? {
+            kind: 'formula',
+            formula: (refs) =>
+              `MAX(${refs.ref(`${key}.grossedUpPool`)}*${refs.ref(`${key}.share`)}-` +
+              `${refs.ref(`${key}.baseYear`)}-${refs.ref(`${key}.stop`)},0)`,
+            format: 'currency0',
+            cachedValue: entitlement,
+          }
+        : { kind: 'staticDerived', value: entitlement, format: 'currency0' },
+      'entitlement',
+    );
+
+    // Recovered as a rate so the fee scales with the entitlement rather than
+    // sitting frozen at whatever the engine happened to compute.
+    put(
+      9,
       {
-        kind: 'staticDerived',
-        value: Number(detail.recoveryBeforeCaps),
-        format: 'currency0',
-        note:
-          'Imported, not calculated. `grossed-up pool x share - base year - stop` reproduces ' +
-          'this exactly for base-year and expense-stop leases but not for triple-net ones, ' +
-          'so exporting it as a formula would be wrong for part of the rent roll.',
+        kind: 'input',
+        value: entitlement === 0 ? 0 : Number(detail.adminFee) / entitlement,
+        format: 'percent2',
       },
+      'adminFeeRate',
+    );
+
+    put(
+      10,
+      pooled
+        ? {
+            kind: 'formula',
+            formula: (refs) =>
+              `${refs.ref(`${key}.entitlement`)}*${refs.ref(`${key}.adminFeeRate`)}`,
+            format: 'currency0',
+            cachedValue: Number(detail.adminFee),
+          }
+        : { kind: 'staticDerived', value: Number(detail.adminFee), format: 'currency0' },
+      'adminFee',
+    );
+
+    put(
+      11,
+      pooled
+        ? {
+            kind: 'formula',
+            // The engine reports `entitlement + adminFee` as "before caps", so
+            // the fee belongs here and must not be added again below.
+            formula: (refs) => `${refs.ref(`${key}.entitlement`)}+${refs.ref(`${key}.adminFee`)}`,
+            format: 'currency0',
+            cachedValue: Number(detail.recoveryBeforeCaps),
+          }
+        : {
+            kind: 'staticDerived',
+            value: Number(detail.recoveryBeforeCaps),
+            format: 'currency0',
+          },
       'beforeCaps',
     );
     put(
-      9,
+      12,
       {
         kind: 'staticDerived',
         value: Number(detail.capAdjustment),
@@ -220,30 +293,32 @@ export function buildRecoveries(
       'capAdjustment',
     );
     put(
-      10,
-      { kind: 'staticDerived', value: Number(detail.adminFee), format: 'currency0' },
-      'adminFee',
-    );
-    put(
-      11,
-      {
-        kind: 'staticDerived',
-        value: Number(detail.finalRecovery),
-        format: 'currency0',
-        bold: true,
-        note:
-          'Imported for the same reason as the line before it: the sum of before-caps, cap ' +
-          'adjustment and admin fee does not reproduce this for triple-net leases.',
-      },
+      13,
+      pooled
+        ? {
+            kind: 'formula',
+            // Cap adjustment only; the admin fee is already inside before-caps.
+            formula: (refs) =>
+              `${refs.ref(`${key}.beforeCaps`)}+${refs.ref(`${key}.capAdjustment`)}`,
+            format: 'currency0',
+            cachedValue: Number(detail.finalRecovery),
+            bold: true,
+          }
+        : {
+            kind: 'staticDerived',
+            value: Number(detail.finalRecovery),
+            format: 'currency0',
+            bold: true,
+          },
       'finalRecovery',
     );
     put(
-      12,
+      14,
       { kind: 'staticDerived', value: Number(detail.estimatedRecovery), format: 'currency0' },
       'estimated',
     );
     put(
-      13,
+      15,
       {
         kind: 'formula',
         // The true-up is what the settlement leaves over the estimate.

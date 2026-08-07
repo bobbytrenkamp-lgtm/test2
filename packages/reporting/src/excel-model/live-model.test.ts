@@ -696,10 +696,13 @@ describe('the recovery settlement is calculated, not imported', () => {
 
       for (const [index, detail] of result.recoveryDetail.entries()) {
         const key = `recovery.${index}`;
-        // Only the two identities that hold across all 102 detail rows. The
-        // recovery build-up itself is imported; see the sheet documentation.
+        // The whole build-up, now that the admin-fee placement and the
+        // zero floor are understood. `fixed_amount` rows import instead.
         const checks: Array<[string, number]> = [
           ['share', Number(detail.proRataShare)],
+          ['adminFee', Number(detail.adminFee)],
+          ['beforeCaps', Number(detail.recoveryBeforeCaps)],
+          ['finalRecovery', Number(detail.finalRecovery)],
           ['trueUp', Number(detail.trueUpAmount)],
         ];
         for (const [suffix, expected] of checks) {
@@ -726,13 +729,143 @@ describe('the recovery settlement is calculated, not imported', () => {
     expect(after).toBeCloseTo(before * 2, 10);
   });
 
-  it('keeps the recovery build-up imported rather than guessed', () => {
-    // Pinned deliberately. `pool x share - base year - stop` is exact for
-    // base-year and expense-stop leases and wrong for triple-net ones, so these
-    // two lines must stay imported until the triple-net rule is understood.
+  it('does not add the admin fee twice', () => {
+    /*
+     * The bug that made triple-net recoveries look like a 1.15x mystery. The
+     * engine reports `entitlement + adminFee` as "before caps", so the final
+     * recovery adds only the cap adjustment. Pinned because the double-count
+     * is invisible on every fixture whose admin fee is zero.
+     */
     const { input, result } = fixture('groceryAnchoredRetail');
     const { workbook } = buildLiveModel(input, result);
-    expect(cellFor(workbook, 'recovery.0.beforeCaps').kind).toBe('staticDerived');
-    expect(cellFor(workbook, 'recovery.0.finalRecovery').kind).toBe('staticDerived');
+
+    const withFee = result.recoveryDetail.findIndex((d) => Number(d.adminFee) !== 0);
+    expect(withFee, 'no fixture row carries an admin fee').toBeGreaterThanOrEqual(0);
+
+    const formula = formulaFor(workbook, `recovery.${withFee}.finalRecovery`);
+    expect(formula).not.toContain(
+      workbook.resolver('Recoveries').ref(`recovery.${withFee}.adminFee`),
+    );
+
+    const evaluator = new FormulaEvaluator(workbook);
+    expect(
+      Math.abs(
+        evaluator.value(`recovery.${withFee}.finalRecovery`) -
+          Number(result.recoveryDetail[withFee]?.finalRecovery),
+      ),
+    ).toBeLessThanOrEqual(SUM_TOLERANCE);
+  });
+
+  it('floors the entitlement at zero', () => {
+    // A pool below the stop recovers nothing; it must not credit the tenant.
+    const { input, result } = fixture('expenseStopRecovery');
+    const { workbook } = buildLiveModel(input, result);
+    expect(formulaFor(workbook, 'recovery.0.entitlement')).toMatch(/^MAX\(/);
+  });
+});
+
+describe('the sensitivity chain a reader will actually try', () => {
+  /**
+   * The four movements the feature was specified against. Each raises an
+   * assumption and checks the figures downstream of it move — and, where the
+   * direction is determined, that they move the right way.
+   */
+  const { input, result } = fixture('refinanceScenario');
+  const last = result.periods.length - 1;
+
+  function reading(workbook: WorkbookModel) {
+    const evaluator = new FormulaEvaluator(workbook);
+    return {
+      revenue: evaluator.value('revenue.effectiveGrossRevenue', last),
+      noi: evaluator.value('cashFlow.netOperatingIncome', last),
+      levered: evaluator.value('cashFlow.leveredCashFlow', last),
+      sale: evaluator.value('returns.grossSalePrice'),
+    };
+  }
+
+  it('rent growth moves revenue, NOI and the sale price', () => {
+    // The one that did not work before the sensitivity lever existed.
+    const { workbook } = buildLiveModel(input, result);
+    const before = reading(workbook);
+
+    const cell = cellFor(workbook, 'assumptions.rentGrowthSensitivity');
+    expect(cell.value, 'must default to zero so the export still reconciles').toBe(0);
+    cell.value = 0.03;
+
+    const after = reading(workbook);
+    expect(after.revenue).toBeGreaterThan(before.revenue);
+    expect(after.noi).toBeGreaterThan(before.noi);
+    expect(after.sale).toBeGreaterThan(before.sale);
+  });
+
+  it('expense growth moves NOI and the sale price, and lowers them', () => {
+    const curve = input.growthCurves[0];
+    if (!curve) return;
+    const { workbook } = buildLiveModel(input, result);
+    const before = reading(workbook);
+
+    const cell = cellFor(workbook, `curve.${curve.id}.rate#3`);
+    cell.value = Number(cell.value) + 0.05;
+
+    const after = reading(workbook);
+    // Higher expenses, so NOI falls and the value with it.
+    expect(after.noi).toBeLessThan(before.noi);
+    expect(after.sale).toBeLessThan(before.sale);
+  });
+
+  it('the interest rate moves levered cash flow but leaves NOI alone', () => {
+    const facility = input.debt[0];
+    if (!facility) return;
+
+    /*
+     * Measured where the loan is actually outstanding, not at the last period.
+     * This facility matures inside the forecast, so at the final month its
+     * interest is zero and raising the rate moves nothing — the first version
+     * of this test failed for that reason, which was the test looking in the
+     * wrong place rather than the model being wrong.
+     */
+    const live = series(result, 'interestExpense').findIndex((value) => value !== 0);
+    expect(live, 'no period carries interest').toBeGreaterThanOrEqual(0);
+
+    const { workbook } = buildLiveModel(input, result);
+    const at = (wb: WorkbookModel, key: string) => new FormulaEvaluator(wb).value(key, live);
+
+    const beforeLevered = at(workbook, 'cashFlow.leveredCashFlow');
+    const beforeNoi = at(workbook, 'cashFlow.netOperatingIncome');
+
+    const cell = cellFor(workbook, `debt.${facility.id}.fixedRate`);
+    cell.value = Number(cell.value) + 0.02;
+
+    expect(at(workbook, 'cashFlow.leveredCashFlow')).toBeLessThan(beforeLevered);
+    // Debt is not an operating cost: NOI must not budge.
+    expect(at(workbook, 'cashFlow.netOperatingIncome')).toBeCloseTo(beforeNoi, 6);
+  });
+
+  it('the exit cap rate moves the sale price but leaves operations alone', () => {
+    const { workbook } = buildLiveModel(input, result);
+    const before = reading(workbook);
+
+    const cell = cellFor(workbook, 'assumptions.exitCapRate');
+    cell.value = Number(cell.value) * 1.5;
+
+    const after = reading(workbook);
+    expect(after.sale).toBeLessThan(before.sale);
+    expect(after.noi).toBeCloseTo(before.noi, 6);
+  });
+
+  it('leaves the model untouched at its defaults', () => {
+    // The lever only earns its place if the exported workbook still equals the
+    // platform when nobody has touched it.
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+    for (let period = 0; period < result.periods.length; period += 1) {
+      expect(evaluator.value('rentRoll.sensitivityFactor', period)).toBe(1);
+      expect(
+        Math.abs(
+          evaluator.value('revenue.contractualBaseRent', period) -
+            (series(result, 'contractualBaseRent')[period] ?? 0),
+        ),
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
   });
 });

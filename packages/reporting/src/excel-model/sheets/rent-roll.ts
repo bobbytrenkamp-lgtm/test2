@@ -89,13 +89,54 @@ export function buildRentRoll(
   seriesRow(
     sheet,
     axis,
-    { label: 'Total contractual base rent', key: 'rentRoll.totalBaseRent', bold: true },
+    { label: 'Contractual base rent, as modelled', key: 'rentRoll.rawBaseRent', bold: true },
     (period) => ({
       kind: 'formula',
       formula: (refs) =>
         leases.length === 0
           ? '0'
           : leases.map((_, index) => refs.ref(`rentRoll.base.${index}`, period)).join('+'),
+      cachedValue: Number(result.monthly.contractualBaseRent[period] ?? '0'),
+    }),
+  );
+
+  /*
+   * The sensitivity lever.
+   *
+   * The exponent is the forecast year less one, computed here because it is a
+   * constant per period — so the formula stays `(1+rate)^3` rather than
+   * wrapping an INT() around a period number the reader would have to decode.
+   *
+   * At the default of zero every factor is 1 and the adjusted total equals the
+   * modelled total exactly, which is why the reconciliation tests still hold.
+   */
+  seriesRow(
+    sheet,
+    axis,
+    {
+      label: 'Rent growth sensitivity factor',
+      key: 'rentRoll.sensitivityFactor',
+      format: 'ratio',
+      indent: 1,
+      total: false,
+      note: 'Driven by RentGrowthSensitivity on the Assumptions sheet. 1.00 means unchanged.',
+    },
+    (period) => ({
+      kind: 'formula',
+      formula: (refs) => `(1+${refs.name('RentGrowthSensitivity')})^${Math.floor(period / 12)}`,
+      cachedValue: 1,
+    }),
+  );
+
+  seriesRow(
+    sheet,
+    axis,
+    { label: 'Total contractual base rent', key: 'rentRoll.totalBaseRent', bold: true },
+    (period) => ({
+      kind: 'formula',
+      formula: (refs) =>
+        `${refs.ref('rentRoll.rawBaseRent', period)}*` +
+        `${refs.ref('rentRoll.sensitivityFactor', period)}`,
       cachedValue: Number(result.monthly.contractualBaseRent[period] ?? '0'),
     }),
   );

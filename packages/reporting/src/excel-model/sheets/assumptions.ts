@@ -157,6 +157,31 @@ export function buildAssumptions(
     'GeneralVacancy',
     'assumptions.generalVacancy',
   );
+  /*
+   * A lever, not a reproduction.
+   *
+   * Contractual rent, escalations, rollover and market leasing come from the
+   * engine's per-occurrence simulation and cannot be rebuilt as formulas
+   * without writing a second engine. But a workbook where changing rent growth
+   * does nothing is not a model, so this applies an *incremental* annual growth
+   * rate on top of the engine's own rent.
+   *
+   * It defaults to zero, which is what keeps the export reconciling to the
+   * platform exactly. Anything non-zero is the reader's own sensitivity, and
+   * the label says so.
+   */
+  scalarInput(
+    sheet,
+    workbook,
+    'Rent growth sensitivity (on top of the model)',
+    0,
+    'percent2',
+    'RentGrowthSensitivity',
+    'assumptions.rentGrowthSensitivity',
+    'Incremental annual growth applied to contractual rent, compounding each ' +
+      'forecast year. Zero reproduces the platform exactly; raise it to test upside.',
+  );
+
   scalarInput(
     sheet,
     workbook,

@@ -19,9 +19,9 @@ Measured formula coverage:
 
 | Fixture | Coverage | Notes |
 | --- | --- | --- |
-| `refinanceScenario` (with debt) | **83.2%** | Debt, Expenses, Returns, Summary all 100% |
-| `groceryAnchoredRetail` | **61.3%** | Recoveries and rent roll are engine-supplied |
-| `multiTenantOffice` (no debt) | **58.3%** | Rent Roll and Recoveries dominate the gap |
+| `refinanceScenario` (with debt) | **84.0%** | Debt, Expenses, Returns, Summary all 100% |
+| `groceryAnchoredRetail` | **64.3%** | Per-lease rent and billing dominate the gap |
+| `multiTenantOffice` (no debt) | **61.3%** | Same, with more leases |
 
 Coverage on the office fixture *fell* from 72.5% when the Rent Roll was added,
 because lease-level rent is engine-supplied and now counted. That is the metric
@@ -65,9 +65,10 @@ reconciles it to the engine.
 | TI, LC, capital expenditure | **No** — engine values |
 | Floating-rate index resolution | **No** — the applied rate is an editable per-period input |
 | Covenant tests, cash traps, refinancing | **No** — engine values reach Cash Flow |
-| Recovery pro-rata share, true-up | **Yes** |
+| Recovery settlement: share, entitlement, admin fee, before caps, final, true-up | **Yes** |
 | Monthly recovery total feeding Revenue | **Yes** |
-| Recovery build-up (before caps, final) | **No** — not universal; see below |
+| Rent growth sensitivity → revenue → NOI → value | **Yes** (a lever; see below) |
+| Recovery method `fixed_amount` | **No** — no fixture exercises it |
 | Waterfall | Not started |
 
 ## Architecture
@@ -225,6 +226,27 @@ oversight.
   cross-sheet linkage, assumption dependency, identities, and formula-level
   reconciliation across three fixtures.
 
+## Rent growth: a lever, not a reproduction
+
+Contractual rent, escalations, rollover and market leasing come from a
+per-occurrence simulation with no closed form. Rebuilding that in Excel would
+be the second engine this design exists to prevent — but a workbook where
+changing rent growth does nothing is not a model.
+
+So the Rent Roll carries an incremental growth factor driven by
+`RentGrowthSensitivity`, compounding each forecast year on top of the engine's
+own rent:
+
+```
+total contractual rent = rent as modelled x (1 + RentGrowthSensitivity)^(forecast year - 1)
+```
+
+**It defaults to zero**, so every factor is 1.00 and the export reconciles to
+the platform exactly; a test asserts both. Anything non-zero is the reader's
+own sensitivity and the row label says so. This is deliberately not presented
+as the platform's market-rent growth assumption, which drives rollover inside
+the engine and is not reproduced here.
+
 ## The debt schedule
 
 The sheet the feature is judged on, and it reconciles **exactly** — zero
@@ -249,39 +271,27 @@ payment = balance / n                          r = 0
 
 ## Remaining gaps, in priority order
 
-1. **The triple-net recovery rule.** The Recoveries sheet exists and its
-   monthly total drives Revenue, but the build-up itself is imported. Four
-   candidate identities were tested against all 102 detail rows the regression
-   library produces; two hold exactly and are exported as formulas:
-
-   ```
-   share   = tenant area / denominator area        exact, 102 rows
-   true-up = final recovery - estimated recovery   exact, 102 rows
-   ```
-
-   Two do not, and are therefore not exported:
-
-   ```
-   before caps    = grossed-up pool x share - base year - stop
-   final recovery = before caps + cap adjustment + admin fee
-   ```
-
-   Both are exact for base-year and expense-stop leases and wrong for
-   triple-net ones — out by up to $10,742 on the grocery-anchored fixture,
-   where the recovery is **1.15x** what pool x share predicts. That factor is
-   not yet understood. Until it is, those lines stay imported: a formula right
-   for two recovery structures and silently wrong for the third is worse than
-   an honest number.
-
-   Caught by widening the check from five fixtures to all twenty. On the five,
-   both identities looked exact.
-
-2. **Waterfall sheet.** LP/GP tiers, promote, per-partner IRR.
+1. **Waterfall sheet.** LP/GP tiers, preferred return, catch-up, promote,
+   per-partner IRR and equity multiple. The engine computes all of it
+   (`ModelResult.waterfall`); none of it is exported.
 3. **Floating-rate index resolution.** The applied rate is editable per period
    but is not rebuilt from the index curve, spread, floor and cap.
 4. **TI, LC and capital** as formulas driven by leasing assumptions.
 5. **Covenant tests, cash traps and refinancing** in the workbook.
 6. **Sensitivity tables and scenarios.**
+
+## The four movements, tested
+
+| Change | Effect | Test |
+| --- | --- | --- |
+| Rent growth sensitivity | revenue, NOI and sale price all rise | ✅ |
+| Expense growth rate | NOI and sale price fall | ✅ |
+| Interest rate | levered cash flow falls, **NOI unchanged** | ✅ |
+| Exit cap rate | sale price falls, **NOI unchanged** | ✅ |
+
+The two "unchanged" assertions matter as much as the others: debt is not an
+operating cost and the exit yield is not an operating input, so a workbook
+where either moved NOI would be wrong.
 
 ## Not verified
 
