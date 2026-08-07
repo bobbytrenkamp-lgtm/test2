@@ -168,6 +168,37 @@ export function buildAssumptions(
   );
 
   /* ---------------------------------------------------------------- */
+  /* Operating expense assumptions                                     */
+  /* ---------------------------------------------------------------- */
+  if (input.expenses.length > 0) {
+    sheet.section('Operating expenses');
+    for (const expense of input.expenses) {
+      const row = sheet.claimRow();
+      sheet.label(row, LABEL_COL, `${expense.name} (${expense.method})`, { indent: 1 });
+      sheet.at(
+        row,
+        TOTAL_COL,
+        { kind: 'input', value: Number(expense.amount), format: amountFormat(expense.method) },
+        `expense.${expense.id}.amount`,
+      );
+      // Placed to the right of the amount rather than on their own rows: they
+      // are modifiers of it, and a reader scanning the column wants the rate
+      // next to the number it scales.
+      sheet.at(
+        row,
+        FIRST_PERIOD_COL,
+        { kind: 'input', value: Number(expense.variableShare), format: 'percent2' },
+        `expense.${expense.id}.variableShare`,
+      );
+      sheet.at(row, FIRST_PERIOD_COL + 1, {
+        kind: 'metadata',
+        value: 'variable share',
+        format: 'text',
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
   /* Growth curves                                                     */
   /* ---------------------------------------------------------------- */
   if (input.growthCurves.length > 0) {
@@ -295,6 +326,14 @@ function scalarInput(
     },
     key,
   );
+}
+
+/**
+ * A percentage method holds a rate; every other method holds an amount.
+ * Formatting a 3% management fee as currency would read as three dollars.
+ */
+function amountFormat(method: string): 'currency' | 'percent2' {
+  return method.startsWith('percent_of_') ? 'percent2' : 'currency';
 }
 
 /** Column the assumption values live in, for callers that need the geometry. */

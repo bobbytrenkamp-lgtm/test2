@@ -1,0 +1,512 @@
+import { describe, expect, it } from 'vitest';
+import ExcelJS from 'exceljs';
+import { ALL_FIXTURES, calculate } from '@cre/calculation-engine';
+import type { CashFlowLine, ModelInput, ModelResult } from '@cre/domain-models';
+import { buildLiveModel, liveModelFilename } from './build.js';
+import { renderWorkbook } from './render.js';
+import type { CellSpec, WorkbookModel } from './model.js';
+import { FormulaEvaluator } from './evaluate.js';
+
+/**
+ * Phase 2 tests: the core property model.
+ *
+ * ## How reconciliation is done, and what it does not prove
+ *
+ * There are two layers here, and the first one alone was not enough.
+ *
+ * The *identity* tests check that the engine's own series satisfy the
+ * relationships the formulas encode. They catch a misreading of the engine —
+ * and they found one: the output series negate every deduction, so each
+ * subtotal is an addition rather than a subtraction.
+ *
+ * They are not sufficient. Reintroducing a sign error on purpose (subtracting
+ * free rent where the engine adds it) left every identity test passing, because
+ * they assert about the engine, not about the formula text emitted.
+ *
+ * So the second layer *evaluates the emitted formulas* through the same
+ * references Excel would follow (`FormulaEvaluator`) and compares the result to
+ * the engine, cell by cell and period by period. Both probes above now fail
+ * loudly, naming the cell and both values.
+ *
+ * What this still does not prove is that Excel itself evaluates identically.
+ * The evaluator implements a small subset — arithmetic, references, SUM, MAX,
+ * IF, IFERROR — and returns NaN for XIRR, XNPV and SUMIF, whose cells are
+ * skipped rather than counted as checked. Opening the workbook in Excel remains
+ * a manual step.
+ */
+
+const CENT = 0.01;
+
+/**
+ * Tolerance for an identity summing several engine lines.
+ *
+ * Each line is rounded to cents on its way out of the engine, so a sum of k
+ * rounded lines can differ from the rounded sum by up to k/2 cents. Asserting
+ * exact equality here would be asserting that rounding does not happen.
+ */
+const SUM_TOLERANCE = 0.05;
+
+function fixture(name: keyof typeof ALL_FIXTURES): { input: ModelInput; result: ModelResult } {
+  const build = ALL_FIXTURES[name];
+  if (!build) throw new Error(`No fixture named ${String(name)}.`);
+  const input = build();
+  return { input, result: calculate(input) };
+}
+
+function series(result: ModelResult, line: CashFlowLine): number[] {
+  return result.monthly[line].map(Number);
+}
+
+/** Finds a placed cell by its registry key. */
+function cellFor(workbook: WorkbookModel, key: string): CellSpec & { sheet: string } {
+  for (const sheet of workbook.sheets) {
+    const found = sheet.cells.find((cell) => cell.key === key);
+    if (found) return found;
+  }
+  throw new Error(`No cell registered under ${key}.`);
+}
+
+/** The formula text a cell would emit, resolved from its own sheet. */
+function formulaFor(workbook: WorkbookModel, key: string): string {
+  const cell = cellFor(workbook, key);
+  if (cell.kind !== 'formula' || !cell.formula) {
+    throw new Error(`${key} is ${cell.kind}, not a formula.`);
+  }
+  return cell.formula(workbook.resolver(cell.sheet));
+}
+
+describe('the workbook builds', () => {
+  it('produces the phase 2 sheets and can be serialised and reopened', async () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook, coverage } = buildLiveModel(input, result);
+
+    expect(workbook.sheets.map((sheet) => sheet.name)).toEqual([
+      'Assumptions',
+      'Revenue',
+      'Expenses',
+      'Cash Flow',
+      'Returns',
+    ]);
+
+    const buffer = await renderWorkbook(workbook);
+    const reopened = new ExcelJS.Workbook();
+    await reopened.xlsx.load(buffer as unknown as ArrayBuffer);
+    expect(reopened.worksheets.map((sheet) => sheet.name)).toContain('Cash Flow');
+
+    // The metric is only useful if it is not trivially 100%: the lease-engine
+    // lines are meant to show up as gaps.
+    expect(coverage.formulaCells).toBeGreaterThan(0);
+    expect(coverage.staticDerivedCells).toBeGreaterThan(0);
+    expect(coverage.formulaCoverage).toBeGreaterThan(0.5);
+  });
+
+  it('builds every regression fixture without a broken reference', () => {
+    // A missing key throws at build time, so this is a structural check across
+    // all twenty properties: no formula names a cell that does not exist.
+    for (const name of Object.keys(ALL_FIXTURES)) {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      for (const sheet of workbook.sheets) {
+        for (const cell of sheet.cells) {
+          if (cell.kind === 'formula' && cell.formula) {
+            expect(() => cell.formula?.(workbook.resolver(sheet.name))).not.toThrow();
+          }
+        }
+      }
+    }
+  });
+
+  it('refuses a model with no periods rather than writing an empty workbook', () => {
+    const { input, result } = fixture('singleTenantIndustrial');
+    expect(() => buildLiveModel(input, { ...result, periods: [] })).toThrow(/no forecast periods/);
+  });
+});
+
+describe('the identities the formulas encode hold in the engine', () => {
+  const { input, result } = fixture('multiTenantOffice');
+  const n = result.periods.length;
+
+  it('contractual base rent is potential less absorption', () => {
+    const potential = series(result, 'potentialBaseRent');
+    const absorption = series(result, 'absorptionAndTurnoverVacancy');
+    const contractual = series(result, 'contractualBaseRent');
+    for (let i = 0; i < n; i += 1) {
+      // The absorption line is stored negative, so the workbook adds it.
+      expect(
+        Math.abs((potential[i] ?? 0) + (absorption[i] ?? 0) - (contractual[i] ?? 0)),
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+
+  it('scheduled base rent is contractual plus free rent, which is reported negative', () => {
+    const contractual = series(result, 'contractualBaseRent');
+    const free = series(result, 'freeRent');
+    const scheduled = series(result, 'scheduledBaseRent');
+    for (let i = 0; i < n; i += 1) {
+      expect(
+        Math.abs((contractual[i] ?? 0) + (free[i] ?? 0) - (scheduled[i] ?? 0)),
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+
+  it('gross potential revenue is the sum of its five components', () => {
+    const parts: CashFlowLine[] = [
+      'scheduledBaseRent',
+      'percentageRent',
+      'expenseRecoveries',
+      'otherLeaseRevenue',
+      'otherPropertyRevenue',
+    ];
+    const gpr = series(result, 'grossPotentialRevenue');
+    for (let i = 0; i < n; i += 1) {
+      const total = parts.reduce((sum, line) => sum + (series(result, line)[i] ?? 0), 0);
+      expect(Math.abs(total - (gpr[i] ?? 0))).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+
+  it('the general vacancy allowance nets off vacancy already modelled, floored at zero', () => {
+    const rate = Number(input.vacancy.generalVacancyRate);
+    const absorption = series(result, 'absorptionAndTurnoverVacancy');
+    const vacancy = series(result, 'generalVacancy');
+    const applies = new Set(input.vacancy.appliesTo);
+
+    for (let i = 0; i < n; i += 1) {
+      let base = 0;
+      if (applies.has('base_rent')) base += series(result, 'scheduledBaseRent')[i] ?? 0;
+      if (applies.has('recoveries')) base += series(result, 'expenseRecoveries')[i] ?? 0;
+      if (applies.has('percentage_rent')) base += series(result, 'percentageRent')[i] ?? 0;
+      if (applies.has('other_revenue')) {
+        base += series(result, 'otherLeaseRevenue')[i] ?? 0;
+        base += series(result, 'otherPropertyRevenue')[i] ?? 0;
+      }
+      // Negated, because the engine reports allowances as deductions.
+      const expected = input.vacancy.netAgainstModelledVacancy
+        ? -Math.max(base * rate + (absorption[i] ?? 0), 0)
+        : -(base * rate);
+      expect(Math.abs(expected - (vacancy[i] ?? 0))).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+
+  it('effective gross revenue, NOI and unlevered cash flow follow their subtractions', () => {
+    const gpr = series(result, 'grossPotentialRevenue');
+    const vacancy = series(result, 'generalVacancy');
+    const credit = series(result, 'creditLoss');
+    const egr = series(result, 'effectiveGrossRevenue');
+    const opex = series(result, 'operatingExpenses');
+    const noi = series(result, 'netOperatingIncome');
+    const ti = series(result, 'tenantImprovements');
+    const lc = series(result, 'leasingCommissions');
+    const capex = series(result, 'capitalExpenditures');
+    const ucf = series(result, 'unleveredCashFlow');
+
+    for (let i = 0; i < n; i += 1) {
+      // Every deduction is already negative on the way out of the engine, so
+      // each subtotal is an addition. This is the convention the workbook uses.
+      expect(
+        Math.abs((gpr[i] ?? 0) + (vacancy[i] ?? 0) + (credit[i] ?? 0) - (egr[i] ?? 0)),
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+      expect(Math.abs((egr[i] ?? 0) + (opex[i] ?? 0) - (noi[i] ?? 0))).toBeLessThanOrEqual(
+        SUM_TOLERANCE,
+      );
+      expect(
+        Math.abs((noi[i] ?? 0) + (ti[i] ?? 0) + (lc[i] ?? 0) + (capex[i] ?? 0) - (ucf[i] ?? 0)),
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+});
+
+describe('cached values match the engine', () => {
+  it('every cached figure equals the engine series it came from', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+
+    const checks: Array<{ key: string; line: CashFlowLine }> = [
+      { key: 'revenue.scheduledBaseRent', line: 'scheduledBaseRent' },
+      { key: 'revenue.grossPotentialRevenue', line: 'grossPotentialRevenue' },
+      { key: 'revenue.generalVacancy', line: 'generalVacancy' },
+      { key: 'revenue.effectiveGrossRevenue', line: 'effectiveGrossRevenue' },
+      { key: 'expenses.total', line: 'operatingExpenses' },
+      { key: 'cashFlow.netOperatingIncome', line: 'netOperatingIncome' },
+      { key: 'cashFlow.unleveredCashFlow', line: 'unleveredCashFlow' },
+    ];
+
+    for (const check of checks) {
+      const expected = series(result, check.line);
+      for (let period = 0; period < result.periods.length; period += 1) {
+        const cell = cellFor(workbook, `${check.key}#${period}`);
+        expect(
+          Math.abs(Number(cell.cachedValue) - (expected[period] ?? 0)),
+          `${check.key}#${period}`,
+        ).toBeLessThanOrEqual(CENT);
+      }
+    }
+  });
+});
+
+describe('the model is formula-driven, not a report', () => {
+  const { input, result } = fixture('multiTenantOffice');
+  const { workbook } = buildLiveModel(input, result);
+
+  it('major calculated lines are formulas, not pasted numbers', () => {
+    // This is the test that fails if somebody later replaces a formula with the
+    // number it happened to produce.
+    for (const key of [
+      'revenue.contractualBaseRent#0',
+      'revenue.scheduledBaseRent#0',
+      'revenue.grossPotentialRevenue#0',
+      'revenue.generalVacancy#0',
+      'revenue.effectiveGrossRevenue#0',
+      'expenses.total#0',
+      'cashFlow.netOperatingIncome#0',
+      'cashFlow.unleveredCashFlow#0',
+      'cashFlow.leveredCashFlow#0',
+      'returns.grossSalePrice',
+      'returns.unleveredXirr',
+      'returns.leveredXirr',
+      'returns.equityMultiple',
+    ]) {
+      expect(cellFor(workbook, key).kind, key).toBe('formula');
+    }
+  });
+
+  it('links cash flow to the schedules rather than recalculating them', () => {
+    expect(formulaFor(workbook, 'cashFlow.effectiveGrossRevenue#5')).toMatch(/^Revenue!/);
+    expect(formulaFor(workbook, 'cashFlow.operatingExpenses#5')).toMatch(/^Expenses!/);
+    // NOI adds two cells on its own sheet rather than restating the revenue
+    // stack — an addition, not a subtraction, because operating expenses are
+    // already negative in the engine's reporting convention.
+    expect(formulaFor(workbook, 'cashFlow.netOperatingIncome#5')).toMatch(/^[A-Z]+\d+\+[A-Z]+\d+$/);
+  });
+
+  it('links returns to the cash flow', () => {
+    expect(formulaFor(workbook, 'returns.terminalNoi')).toContain("'Cash Flow'!");
+    expect(formulaFor(workbook, 'returns.unleveredXirr')).toContain('XIRR(');
+  });
+
+  it('drives the exit valuation from the exit cap rate', () => {
+    // The dependency the user actually tests first: change the cap rate, the
+    // sale price moves.
+    expect(formulaFor(workbook, 'returns.grossSalePrice')).toContain('ExitCapRate');
+    expect(formulaFor(workbook, 'returns.sellingCosts')).toContain('SellingCosts');
+  });
+
+  it('drives vacancy from the vacancy assumptions', () => {
+    expect(formulaFor(workbook, 'revenue.generalVacancy#12')).toContain('GeneralVacancy');
+    expect(formulaFor(workbook, 'revenue.creditLoss#12')).toContain('CreditLoss');
+  });
+
+  it('drives expense growth from the growth curve, which is itself a formula', () => {
+    const growing = input.expenses.find((expense) => expense.growthCurveId);
+    if (!growing) return;
+    // Month 12 is the first period the curve steps, so it is where a broken
+    // growth chain would show.
+    const expenseFormula = formulaFor(workbook, `expenses.${growing.id}#12`);
+    expect(expenseFormula).toContain('Assumptions!');
+    const factor = formulaFor(workbook, `curve.${growing.growthCurveId}.factor#12`);
+    expect(factor).toMatch(/\*\(1\+/);
+  });
+
+  it('computes the growth factor as the engine does', () => {
+    // Period 0 is 1.0, periods 1..11 hold, period 12 steps once.
+    const curve = input.growthCurves[0];
+    if (!curve) return;
+    expect(formulaFor(workbook, `curve.${curve.id}.factor#0`)).toBe('1');
+    expect(formulaFor(workbook, `curve.${curve.id}.factor#5`)).toMatch(/^[A-Z]+\d+$/);
+    expect(formulaFor(workbook, `curve.${curve.id}.factor#12`)).toMatch(/\*\(1\+/);
+  });
+});
+
+describe('structural soundness', () => {
+  it('has no duplicate sheet names and every defined name points somewhere', async () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+
+    const names = workbook.sheets.map((sheet) => sheet.name);
+    expect(new Set(names).size).toBe(names.length);
+
+    for (const entry of workbook.definedNameEntries()) {
+      // A defined name must resolve to a real sheet, or the workbook opens
+      // with every formula using it showing #REF!.
+      const sheetName = entry.ref.split('!')[0]?.replace(/^'|'$/g, '');
+      expect(names).toContain(sheetName);
+    }
+  });
+
+  it('emits no formula that names a sheet the workbook does not have', () => {
+    const { input, result } = fixture('developmentProject');
+    const { workbook } = buildLiveModel(input, result);
+    const names = new Set(workbook.sheets.map((sheet) => sheet.name));
+
+    for (const sheet of workbook.sheets) {
+      for (const cell of sheet.cells) {
+        if (cell.kind !== 'formula' || !cell.formula) continue;
+        const text = cell.formula(workbook.resolver(sheet.name));
+        for (const match of text.matchAll(/'([^']+)'!|(\b[A-Za-z_][A-Za-z0-9_]*)!/g)) {
+          const referenced = match[1] ?? match[2];
+          if (referenced !== undefined) expect(names).toContain(referenced);
+        }
+      }
+    }
+  });
+
+  it('never emits a #REF!', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+    for (const sheet of workbook.sheets) {
+      for (const cell of sheet.cells) {
+        if (cell.kind !== 'formula' || !cell.formula) continue;
+        expect(cell.formula(workbook.resolver(sheet.name))).not.toContain('#REF');
+      }
+    }
+  });
+});
+
+describe('filenames', () => {
+  it('is safe on every platform', () => {
+    const on = new Date('2026-08-06T12:00:00Z');
+    expect(liveModelFilename('Harbour Point', 'Base case', on)).toBe(
+      'Harbour_Point_Base_case_2026-08-06.xlsx',
+    );
+    // A slash must not become a path separator.
+    expect(liveModelFilename('Q1/Q2 Portfolio', '', on)).toBe('Q1Q2_Portfolio_2026-08-06.xlsx');
+    expect(liveModelFilename('', '', on)).toBe('Model_2026-08-06.xlsx');
+    expect(liveModelFilename('../../etc/passwd', '', on)).toBe('etcpasswd_2026-08-06.xlsx');
+  });
+});
+
+describe('coverage reporting', () => {
+  it('counts the lease-engine lines as the gap they are', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook, coverage } = buildLiveModel(input, result);
+
+    // Potential base rent comes from the leasing simulation and cannot be a
+    // formula without duplicating it. It must be reported, not hidden.
+    expect(cellFor(workbook, 'revenue.potentialBaseRent#0').kind).toBe('staticDerived');
+    expect(coverage.staticDerivedCells).toBeGreaterThan(0);
+    expect(coverage.calculatedCells).toBe(coverage.formulaCells + coverage.staticDerivedCells);
+  });
+});
+
+describe('a model with no expenses', () => {
+  it('still totals to zero rather than emitting an empty formula', () => {
+    const { input } = fixture('singleTenantIndustrial');
+    const stripped: ModelInput = { ...input, expenses: [] };
+    const { workbook } = buildLiveModel(stripped, calculate(stripped));
+    expect(formulaFor(workbook, 'expenses.total#0')).toBe('0');
+  });
+});
+
+describe('rounding', () => {
+  it('keeps cached values within a cent of the engine', () => {
+    const { input, result } = fixture('groceryAnchoredRetail');
+    const { workbook } = buildLiveModel(input, result);
+    const noi = series(result, 'netOperatingIncome');
+    for (let period = 0; period < result.periods.length; period += 1) {
+      const cached = Number(cellFor(workbook, `cashFlow.netOperatingIncome#${period}`).cachedValue);
+      expect(Math.abs(cached - (noi[period] ?? 0))).toBeLessThan(CENT);
+    }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Reconciliation, by evaluating the formulas the exporter emits               */
+/* -------------------------------------------------------------------------- */
+
+describe('the emitted formulas reproduce the engine', () => {
+  /**
+   * This is the reconciliation that counts.
+   *
+   * The identity tests above check the engine against itself and, as a probe
+   * proved, keep passing when a formula's sign is wrong. These evaluate the
+   * formula text this exporter actually produces — through the same references
+   * Excel would follow — and compare the result to the engine.
+   */
+  const reconciled: Array<{ key: string; line: CashFlowLine }> = [
+    { key: 'revenue.contractualBaseRent', line: 'contractualBaseRent' },
+    { key: 'revenue.scheduledBaseRent', line: 'scheduledBaseRent' },
+    { key: 'revenue.grossPotentialRevenue', line: 'grossPotentialRevenue' },
+    { key: 'revenue.generalVacancy', line: 'generalVacancy' },
+    { key: 'revenue.creditLoss', line: 'creditLoss' },
+    { key: 'revenue.effectiveGrossRevenue', line: 'effectiveGrossRevenue' },
+    { key: 'expenses.total', line: 'operatingExpenses' },
+    { key: 'cashFlow.netOperatingIncome', line: 'netOperatingIncome' },
+    { key: 'cashFlow.unleveredCashFlow', line: 'unleveredCashFlow' },
+  ];
+
+  for (const name of ['singleTenantIndustrial', 'multiTenantOffice', 'baseYearRecovery'] as const) {
+    it(`reconciles ${name} to the engine, line by line and period by period`, () => {
+      const { input, result } = fixture(name);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      for (const check of reconciled) {
+        const expected = series(result, check.line);
+        for (let period = 0; period < result.periods.length; period += 1) {
+          const actual = evaluator.value(check.key, period);
+          expect(Number.isFinite(actual), `${check.key}#${period} did not evaluate`).toBe(true);
+          expect(
+            Math.abs(actual - (expected[period] ?? 0)),
+            `${check.key}#${period}: workbook ${actual} vs engine ${expected[period]}`,
+          ).toBeLessThanOrEqual(SUM_TOLERANCE);
+        }
+      }
+    });
+  }
+
+  it('reconciles the exit valuation to the engine', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    const sale = result.monthly.grossSaleProceeds.map(Number).find((value) => value !== 0);
+    if (sale === undefined) return;
+    /*
+     * Relative, not absolute. Terminal value is twelve monthly NOI figures —
+     * each rounded to cents by the engine — divided by a cap rate, so the
+     * rounding is divided by the cap rate too: six cents of NOI error becomes
+     * about a dollar of value at a 6% cap. An absolute tolerance would be
+     * tightened or loosened by the cap rate rather than by correctness.
+     */
+    const actual = evaluator.value('returns.grossSalePrice');
+    expect(Math.abs(actual - sale) / sale).toBeLessThan(1e-5);
+  });
+
+  it('moves downstream figures when an assumption changes', () => {
+    // The behaviour the whole feature exists for, checked mechanically:
+    // raise the exit cap rate and the sale price must fall.
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+
+    const capRateCell = cellFor(workbook, 'assumptions.exitCapRate');
+    const before = new FormulaEvaluator(workbook).value('returns.grossSalePrice');
+
+    capRateCell.value = Number(capRateCell.value) * 2;
+    const after = new FormulaEvaluator(workbook).value('returns.grossSalePrice');
+
+    expect(before).toBeGreaterThan(0);
+    expect(after).toBeLessThan(before);
+    // Halving the value for a doubled cap rate is the arithmetic of the
+    // formula, so this also proves nothing intervened.
+    expect(after).toBeCloseTo(before / 2, 4);
+  });
+
+  it('moves net operating income when the expense growth rate changes', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const curve = input.growthCurves[0];
+    if (!curve) return;
+    const { workbook } = buildLiveModel(input, result);
+
+    const lastPeriod = result.periods.length - 1;
+    const before = new FormulaEvaluator(workbook).value('cashFlow.netOperatingIncome', lastPeriod);
+
+    // Year 5's rate, which the cumulative factor compounds into every later
+    // month. A broken growth chain would leave NOI unchanged.
+    const rateCell = cellFor(workbook, `curve.${curve.id}.rate#5`);
+    rateCell.value = Number(rateCell.value) + 0.05;
+    const after = new FormulaEvaluator(workbook).value('cashFlow.netOperatingIncome', lastPeriod);
+
+    expect(after).not.toBeCloseTo(before, 2);
+    // Expenses rose, so NOI must fall.
+    expect(after).toBeLessThan(before);
+  });
+});

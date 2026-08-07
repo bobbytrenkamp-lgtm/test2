@@ -11,35 +11,46 @@ values. Both are wanted. This document is about the formula-driven one.
 
 ## Status, stated plainly
 
-**Phase 1 — the framework — is built and tested. Nothing is exported yet.**
+**Phases 1 and 2 are built and tested. There is still no export route and no
+UI entry point** — the workbook can be built and reconciled in code, but nothing
+in the product offers it yet. That is deliberate: the instruction was that
+nothing be exposed until it reconciles.
 
-There is no export route, no UI entry point and no complete workbook. The
-coverage table below is a plan, not a claim: every row of it says *planned*,
-because no sheet is finished. When a row says *yes*, it will mean there is a
-test asserting the cell holds a formula.
+Measured formula coverage on the multi-tenant office fixture: **72.5%**
+(2,655 formula cells of 3,663 calculated). Expenses and Returns are 100%.
+The shortfall is the lease-engine lines, which is what the metric is for.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Workbook abstraction, cell registry, references, styles, named ranges, renderer, coverage metric | **Built, 18 tests** |
-| 2 | Assumptions, Revenue, Expenses, Cash Flow, Returns | Assumptions sheet drafted; not wired up |
+| 2 | Assumptions, Revenue, Expenses, Cash Flow, Returns | **Built, 29 tests, reconciled to the engine** |
 | 3 | Rent Roll and lease-level detail | Not started |
 | 4 | Debt schedule | Not started |
 | 5 | Recoveries, floating-rate debt, refinance, capital schedules, waterfalls | Not started |
 
 ### Formula coverage by feature
 
+A row says **yes** only where a test evaluates the emitted formula and
+reconciles it to the engine.
+
 | Feature | Excel formula support |
 | --- | --- |
-| Everything below | Planned — no sheet is complete |
-| Growth curves (annual rate → monthly compounding factor) | Designed and drafted; verified against `CurveSet.factors` |
-| Operating expenses | Designed; reproducible exactly (see below) |
-| General vacancy, credit loss | Designed; reproducible exactly |
-| Debt amortisation | Designed; reproducible exactly |
-| Exit value, selling costs, debt payoff | Designed; reproducible exactly |
-| IRR / XIRR / equity multiple | Designed; native Excel over workbook cash flows |
-| Lease-level rollover, downtime, absorption | **Not reproducible as formulas** — see below |
-| Recoveries | Undecided; likely engine-supplied in the first release |
-| Waterfall | Deferred to a later phase |
+| Growth curves (annual rate → monthly compounding factor) | **Yes** |
+| Operating expenses, all six methods | **Yes** |
+| Occupancy-sensitive expense adjustment | **Yes** |
+| Contractual / scheduled base rent | **Yes** |
+| Gross potential revenue | **Yes** |
+| General vacancy, credit loss | **Yes** |
+| Effective gross revenue, NOI, unlevered cash flow | **Yes** |
+| Exit value, selling costs, net sale proceeds | **Yes** |
+| Going-in cap rate | **Yes** |
+| XIRR, XNPV, equity multiple | **Yes** (native Excel; not covered by the evaluator) |
+| Levered cash flow | Yes, but the financing lines are zero until phase 4 |
+| Base rent, free rent, percentage rent, recoveries | **No** — engine values, counted as coverage gaps |
+| TI, LC, capital expenditure | **No** — engine values |
+| Debt schedule | Phase 4 |
+| Rent roll | Phase 3 |
+| Recoveries as their own schedule, waterfall | Phase 5 |
 
 ## Architecture
 
@@ -146,17 +157,60 @@ ExcelJS 4.4.0, already a dependency of `@cre/reporting`, MIT licensed. Nothing
 new was added. The exporter runs locally and the workbook has no external data
 connections, no add-ins and no macros.
 
+## How reconciliation is checked
+
+Two layers, because the first alone proved insufficient.
+
+**Identity tests** assert that the engine's own series satisfy the
+relationships the formulas encode. These caught a real misreading: the engine's
+output series negate every deduction (`operatingExpenses.map(v => v.negated())`),
+so each subtotal is an addition, not a subtraction. Four formulas were wrong.
+
+**They were still not enough.** Reintroducing a sign error deliberately —
+subtracting free rent where the engine adds it — left all 23 identity tests
+passing, because they assert about the engine rather than about the emitted
+formula text.
+
+So a second layer **evaluates the formulas the exporter emits**
+(`evaluate.ts`), following the same references Excel would, and compares the
+result to the engine cell by cell and period by period across three fixtures.
+Both deliberate breakages now fail loudly, naming the cell and both values:
+
+```
+revenue.scheduledBaseRent#9: workbook 203666.67 vs engine 118666.67
+expenses.total#0:            workbook -59799.22 vs engine -56361.72
+```
+
+`evaluate.ts` is a test instrument, not a second engine: it knows arithmetic,
+references and five functions, and encodes no business rule. `XIRR`, `XNPV` and
+`SUMIF` are outside its subset and return `NaN`; those cells are skipped rather
+than counted as checked. **Opening the workbook in Excel remains a manual step
+that has not been performed.**
+
+Tolerances are stated rather than tuned: five cents on a sum of engine lines
+(each rounded to cents), and a relative 1e-5 on the exit valuation, where twelve
+rounded NOI figures are divided by a cap rate and the rounding is divided too.
+
+## A consequence of where the boundary falls
+
+Because recoveries are engine-supplied, effective gross revenue in the workbook
+does not depend on expenses, so the dependency graph is **acyclic** where the
+engine's is circular. A management fee on EGR is therefore a plain formula and
+Excel needs no iterative calculation. The trade is that editing a recoverable
+expense in Excel will not move recoveries. That is a real limitation, not an
+oversight.
+
 ## Tests
 
-`packages/reporting/src/excel-model/excel-model.test.ts` — 18 tests covering
-column arithmetic at the base-26 boundaries, sheet and defined-name quoting,
-registry resolution and its refusals, forward references, the coverage metric,
-and a real .xlsx round trip proving formulas, cached results and defined names
-survive.
+- `excel-model.test.ts` — 18 framework tests.
+- `live-model.test.ts` — 29 tests: build, structure, formula presence,
+  cross-sheet linkage, assumption dependency, identities, and formula-level
+  reconciliation across three fixtures.
 
 ## Next
 
-Phase 2, in order: wire the Assumptions sheet into a build orchestrator, then
-Revenue, Expenses, Cash Flow and Returns, with reconciliation tests against the
-engine for NOI, debt balance, sale value and both IRRs before anything is
-exposed through the API.
+Phase 3 — Rent Roll and lease-level detail. Phase 4 — the debt schedule, after
+which the financing lines on Cash Flow stop being zero and levered returns
+become meaningful. Phase 5 — recoveries, floating rate, refinance, waterfalls.
+The export route and UI come once the debt schedule lands, since levered returns
+are the point of the workbook.

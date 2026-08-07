@@ -62,3 +62,10 @@ export { renderWorkbook } from './render.js';
 export type { RenderOptions } from './render.js';
 
 export { buildAssumptions } from './sheets/assumptions.js';
+export { buildRevenue } from './sheets/revenue.js';
+export { buildExpenses } from './sheets/expenses.js';
+export { buildCashFlow } from './sheets/cashflow.js';
+export { buildReturns } from './sheets/returns.js';
+
+export { buildLiveModel, exportLiveModel, liveModelFilename } from './build.js';
+export type { LiveModelResult } from './build.js';
