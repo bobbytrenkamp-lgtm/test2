@@ -46,27 +46,51 @@ export function buildReturns(
   sheet.section('Exit value');
 
   /*
-   * Forward twelve months of NOI from the sale date, matching
-   * `terminalNoiBasis`. Both bases are a plain SUM over twelve months of the
-   * cash-flow schedule, so the terminal value moves when anything upstream of
-   * NOI moves — which is the whole point of exporting it as a formula.
+   * The terminal NOI window, resolved exactly as the engine resolves it.
+   *
+   * Two rules that a naive "sum twelve months from the sale" misses, both
+   * found by checking every cached value against its own formula:
+   *
+   * 1. **A forward window that does not fit falls back to trailing.** The
+   *    engine requires a full twelve months *after* the sale; with fewer it
+   *    switches basis and warns (`FORWARD_NOI_UNAVAILABLE`). Clamping the
+   *    range instead — which is what this did first — silently produced a
+   *    one-month NOI, and on the renewal-option fixture that understated the
+   *    sale price by $2.36m, exactly twelve-fold.
+   *
+   * 2. **A short trailing window is annualised.** A sale early in the
+   *    forecast has fewer than twelve months behind it, so the engine scales
+   *    by `12 / months available` rather than capitalising a part-year figure.
+   *
+   * Both depend only on the sale month and the forecast length, so they are
+   * settled here and the formula carries the resulting range and multiplier.
    */
-  const forwardStart = Math.min(saleIndex + 1, last);
-  const forwardEnd = Math.min(saleIndex + 12, last);
-  const trailingStart = Math.max(saleIndex - 11, 0);
-  const useForward = input.valuation.terminalNoiBasis === 'forward_12';
+  const monthsAfterSale = axis.count - (saleIndex + 1);
+  const useForward = input.valuation.terminalNoiBasis === 'forward_12' && monthsAfterSale >= 12;
+
+  const windowStart = useForward ? saleIndex + 1 : Math.max(saleIndex - 11, 0);
+  const windowEnd = useForward ? saleIndex + 12 : saleIndex;
+  const windowMonths = useForward ? 12 : Math.min(12, saleIndex + 1);
+  const annualiser = windowMonths > 0 && windowMonths < 12 ? 12 / windowMonths : 1;
+
+  const basisNote =
+    input.valuation.terminalNoiBasis === 'forward_12' && !useForward
+      ? `Basis: trailing_12. A forward window needs 12 months after the sale and only ` +
+        `${monthsAfterSale} are modelled, so the engine falls back — this matches it.`
+      : `Basis: ${useForward ? 'forward_12' : 'trailing_12'}` +
+        (annualiser === 1 ? '.' : `, annualised from ${windowMonths} months.`);
 
   scalar(
     sheet,
     'Terminal NOI',
     {
       kind: 'formula',
-      formula: (refs) =>
-        useForward
-          ? `SUM(${refs.range('cashFlow.netOperatingIncome', forwardStart, forwardEnd)})`
-          : `SUM(${refs.range('cashFlow.netOperatingIncome', trailingStart, saleIndex)})`,
+      formula: (refs) => {
+        const window = `SUM(${refs.range('cashFlow.netOperatingIncome', windowStart, windowEnd)})`;
+        return annualiser === 1 ? window : `${window}*12/${windowMonths}`;
+      },
       format: 'currency0',
-      note: `Basis: ${input.valuation.terminalNoiBasis}.`,
+      note: basisNote,
     },
     'returns.terminalNoi',
   );

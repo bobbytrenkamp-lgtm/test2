@@ -869,3 +869,113 @@ describe('the sensitivity chain a reader will actually try', () => {
     }
   });
 });
+
+describe('every formula reproduces its own cached value', () => {
+  /**
+   * The broadest check in the suite, and the one that has found the most.
+   *
+   * Every formula cell carries the engine's figure as its cached result. If
+   * evaluating the formula does not reproduce that figure, the two disagree —
+   * which means either the formula is wrong or the cached value is, and Excel
+   * will show one thing on open and another after recalculating.
+   *
+   * Unlike the hand-listed reconciliations above, this covers cells nobody
+   * thought to name. It found a $2.36m error in the terminal NOI window on the
+   * renewal-option fixture: a forward-twelve-month window that does not fit
+   * inside the forecast falls back to trailing in the engine, but was being
+   * clamped to a single month here.
+   *
+   * Cells whose formulas use functions outside the evaluator's subset — XIRR,
+   * XNPV, SUMIF — evaluate to NaN and are skipped rather than counted.
+   */
+  it('across every regression fixture, cell by cell', () => {
+    let checked = 0;
+    const divergences: string[] = [];
+
+    for (const name of Object.keys(ALL_FIXTURES)) {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      for (const sheet of workbook.sheets) {
+        for (const cell of sheet.cells) {
+          if (cell.kind !== 'formula' || typeof cell.cachedValue !== 'number') continue;
+
+          let evaluated: number;
+          try {
+            evaluated = evaluator.at(sheet.name, cell.row, cell.col);
+          } catch (error) {
+            divergences.push(`${name} ${sheet.name} ${cell.key ?? ''} threw: ${String(error)}`);
+            continue;
+          }
+          if (!Number.isFinite(evaluated)) continue;
+
+          checked += 1;
+          /*
+           * Absolute five cents or a relative millionth, whichever is looser.
+           * Money is rounded to cents line by line, so a sum of parts can miss
+           * the rounded total by a few; and the sale price divides twelve such
+           * figures by a cap rate, which scales that rounding up with it.
+           */
+          const tolerance = Math.max(0.05, Math.abs(cell.cachedValue) * 1e-6);
+          if (Math.abs(evaluated - cell.cachedValue) > tolerance) {
+            divergences.push(
+              `${name} ${sheet.name} ${cell.key ?? `r${cell.row}c${cell.col}`}: ` +
+                `cached ${cell.cachedValue} vs evaluated ${evaluated}`,
+            );
+          }
+        }
+      }
+    }
+
+    // A guard on the guard: a refactor that stopped writing cached values would
+    // otherwise make this test pass by checking nothing.
+    expect(checked).toBeGreaterThan(20_000);
+    expect(divergences.slice(0, 10), `${divergences.length} divergences`).toEqual([]);
+  });
+});
+
+describe('the terminal NOI window follows the engine', () => {
+  it('falls back to trailing when a forward window does not fit', () => {
+    /*
+     * The engine needs twelve months after the sale for a forward basis and
+     * warns when it has fewer. Clamping instead of falling back understated
+     * the renewal-option sale price twelve-fold.
+     */
+    const { input, result } = fixture('renewalOption');
+    expect(input.valuation.terminalNoiBasis).toBe('forward_12');
+
+    const saleIndex = (input.valuation.saleMonth ?? result.periods.length) - 1;
+    expect(
+      result.periods.length - (saleIndex + 1),
+      'fixture must not fit a forward window',
+    ).toBeLessThan(12);
+
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+    const sale = result.monthly.grossSaleProceeds.map(Number).find((value) => value !== 0);
+    expect(sale).toBeDefined();
+    expect(
+      Math.abs(evaluator.value('returns.grossSalePrice') - (sale ?? 0)) / (sale ?? 1),
+    ).toBeLessThan(1e-5);
+  });
+
+  it('annualises a trailing window that runs short at the start', () => {
+    // A sale early in the forecast has fewer than twelve months behind it, so
+    // the engine scales rather than capitalising a part-year figure.
+    const base = ALL_FIXTURES.singleTenantIndustrial!();
+    const input: ModelInput = {
+      ...base,
+      valuation: { ...base.valuation, saleMonth: 6, terminalNoiBasis: 'trailing_12' },
+    };
+    const result = calculate(input);
+    const { workbook } = buildLiveModel(input, result);
+
+    expect(formulaFor(workbook, 'returns.terminalNoi')).toContain('*12/6');
+
+    const evaluator = new FormulaEvaluator(workbook);
+    const sale = result.monthly.grossSaleProceeds.map(Number).find((value) => value !== 0);
+    if (sale === undefined) return;
+    expect(Math.abs(evaluator.value('returns.grossSalePrice') - sale) / sale).toBeLessThan(1e-5);
+  });
+});
