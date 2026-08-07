@@ -57,21 +57,40 @@ export function buildRevenue(
     }));
   };
 
-  fromEngine('potentialBaseRent', 'Potential base rent');
   fromEngine('absorptionAndTurnoverVacancy', 'Absorption and turnover vacancy');
 
-  // Identity: the engine's potential base rent is contractual plus market rent
-  // on vacant space, and the absorption line is that same figure negated.
+  /*
+   * Contractual base rent adds up the Rent Roll.
+   *
+   * Verified against every fixture: the engine's contractual base rent is
+   * exactly the sum of the per-lease `baseRent` series. Summing the tenants
+   * rather than importing the total is what makes the Rent Roll load-bearing —
+   * a revenue figure traces to the leases behind it.
+   */
   seriesRow(
     sheet,
     axis,
     { label: 'Contractual base rent', key: 'revenue.contractualBaseRent' },
     (period) => ({
       kind: 'formula',
-      formula: (refs) =>
-        `${refs.ref('revenue.potentialBaseRent', period)}+` +
-        `${refs.ref('revenue.absorptionAndTurnoverVacancy', period)}`,
+      formula: (refs) => refs.ref('rentRoll.totalBaseRent', period),
       cachedValue: engineValue('contractualBaseRent', period),
+    }),
+  );
+
+  // Potential base rent is contractual plus market rent on vacant space, and
+  // the absorption line is that same figure negated — so this is a formula
+  // rather than another imported total.
+  seriesRow(
+    sheet,
+    axis,
+    { label: 'Potential base rent', key: 'revenue.potentialBaseRent' },
+    (period) => ({
+      kind: 'formula',
+      formula: (refs) =>
+        `${refs.ref('revenue.contractualBaseRent', period)}-` +
+        `${refs.ref('revenue.absorptionAndTurnoverVacancy', period)}`,
+      cachedValue: engineValue('potentialBaseRent', period),
     }),
   );
 

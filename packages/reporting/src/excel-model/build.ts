@@ -2,10 +2,13 @@ import type { ModelInput, ModelResult } from '@cre/domain-models';
 import { WorkbookModel } from './model.js';
 import { timeAxis } from './layout.js';
 import { buildAssumptions } from './sheets/assumptions.js';
+import { buildRentRoll } from './sheets/rent-roll.js';
 import { buildRevenue } from './sheets/revenue.js';
 import { buildExpenses } from './sheets/expenses.js';
+import { buildDebt } from './sheets/debt.js';
 import { buildCashFlow } from './sheets/cashflow.js';
 import { buildReturns } from './sheets/returns.js';
+import { buildSummary } from './sheets/summary.js';
 import { measureCoverage } from './coverage.js';
 import type { CoverageReport } from './coverage.js';
 import { renderWorkbook } from './render.js';
@@ -17,10 +20,8 @@ import { renderWorkbook } from './render.js';
  * resolution in `WorkbookModel` means a sheet may reference one built after it,
  * so the layout can serve the reader instead of the builder.
  *
- * Phase 2 covers Assumptions, Revenue, Expenses, Cash Flow and Returns. There
- * is no Rent Roll, Debt or Summary sheet yet; `hasDebt` is therefore false and
- * the cash flow's financing lines are zero. `docs/excel-live-model.md` tracks
- * what each remaining phase adds.
+ * Phases 2 and 4 are in: Assumptions, Revenue, Expenses, Debt, Cash Flow and
+ * Returns. `docs/excel-live-model.md` tracks what each remaining phase adds.
  */
 export interface LiveModelResult {
   workbook: WorkbookModel;
@@ -35,14 +36,18 @@ export function buildLiveModel(input: ModelInput, result: ModelResult): LiveMode
 
   const workbook = new WorkbookModel();
 
-  // Debt has its own phase. Until then the schedule does not exist, so the
-  // financing lines are written as explicit zeros rather than as engine values
-  // that no assumption could move.
-  const hasDebt = false;
+  // A model with no facilities gets zeroed financing lines rather than an
+  // empty sheet, so Cash Flow can reference them unconditionally.
+  const hasDebt = input.debt.length > 0;
 
+  // Summary first, so it reads first. It references sheets built after it,
+  // which the two-pass formula resolution makes safe.
+  buildSummary(workbook, input, result, axis, hasDebt);
   buildAssumptions(workbook, input, result, axis);
+  buildRentRoll(workbook, input, result, axis);
   buildRevenue(workbook, input, result, axis);
   buildExpenses(workbook, input, result, axis);
+  if (hasDebt) buildDebt(workbook, input, result, axis);
   buildCashFlow(workbook, result, axis, hasDebt);
   buildReturns(workbook, input, result, axis);
 

@@ -199,6 +199,77 @@ export function buildAssumptions(
   }
 
   /* ---------------------------------------------------------------- */
+  /* Debt                                                              */
+  /* ---------------------------------------------------------------- */
+  if (input.debt.length > 0) {
+    sheet.section('Debt');
+    for (const [index, facility] of input.debt.entries()) {
+      const row = sheet.claimRow();
+      sheet.label(row, LABEL_COL, `${facility.name} — commitment`, { indent: 1 });
+      sheet.at(
+        row,
+        TOTAL_COL,
+        { kind: 'input', value: Number(facility.commitment), format: 'currency0' },
+        `debt.${facility.id}.commitment`,
+      );
+
+      const rateRow = sheet.claimRow();
+      sheet.label(rateRow, LABEL_COL, `${facility.name} — ${facility.rateType} rate`, {
+        indent: 1,
+      });
+      sheet.at(
+        rateRow,
+        TOTAL_COL,
+        {
+          kind: 'input',
+          value: Number(facility.fixedRate),
+          format: 'percent2',
+          // The first facility takes the plain name, so a single-loan model —
+          // which is most of them — reads `InterestRate` in its formulas.
+          definedName: index === 0 ? 'InterestRate' : `InterestRate_${index + 1}`,
+          ...(facility.rateType === 'floating'
+            ? {
+                note:
+                  'This facility floats. The rate actually applied each period is on the Debt ' +
+                  'sheet, where it is editable; this cell is the fixed component only.',
+              }
+            : {}),
+        },
+        `debt.${facility.id}.fixedRate`,
+      );
+
+      const feeRow = sheet.claimRow();
+      sheet.label(feeRow, LABEL_COL, `${facility.name} — origination / exit fee`, { indent: 1 });
+      sheet.at(
+        feeRow,
+        TOTAL_COL,
+        { kind: 'input', value: Number(facility.originationFeePercent), format: 'percent2' },
+        `debt.${facility.id}.originationFee`,
+      );
+      sheet.at(
+        feeRow,
+        FIRST_PERIOD_COL,
+        { kind: 'input', value: Number(facility.exitFeePercent), format: 'percent2' },
+        `debt.${facility.id}.exitFee`,
+      );
+
+      // Structural terms. They shape the schedule rather than scale it, and the
+      // Debt sheet resolves them at build time, so they are shown but not
+      // wired: editing them here would not move the amortisation.
+      const termRow = sheet.claimRow();
+      sheet.label(termRow, LABEL_COL, `${facility.name} — IO / amortisation / term months`, {
+        indent: 1,
+      });
+      sheet.at(termRow, TOTAL_COL, {
+        kind: 'metadata',
+        value: `${facility.interestOnlyMonths} / ${facility.amortizationMonths} / ${facility.termMonths}`,
+        format: 'text',
+        note: 'Structural. The schedule shape is fixed at export; changing these needs a re-export.',
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
   /* Growth curves                                                     */
   /* ---------------------------------------------------------------- */
   if (input.growthCurves.length > 0) {

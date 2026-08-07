@@ -11,22 +11,32 @@ values. Both are wanted. This document is about the formula-driven one.
 
 ## Status, stated plainly
 
-**Phases 1 and 2 are built and tested. There is still no export route and no
-UI entry point** — the workbook can be built and reconciled in code, but nothing
-in the product offers it yet. That is deliberate: the instruction was that
-nothing be exposed until it reconciles.
+**All five phases are built, reconciled and exposed.**
+`GET /api/v1/models/:id/export/live-model`, and an **Excel — Live Model** button
+beside the existing values-only export.
 
-Measured formula coverage on the multi-tenant office fixture: **72.5%**
-(2,655 formula cells of 3,663 calculated). Expenses and Returns are 100%.
-The shortfall is the lease-engine lines, which is what the metric is for.
+Measured formula coverage:
+
+| Fixture | Coverage | Notes |
+| --- | --- | --- |
+| `refinanceScenario` (with debt) | **83.4%** | Debt, Expenses, Returns, Summary all 100% |
+| `multiTenantOffice` (no debt) | **65.4%** | Rent Roll 13.5% — per-lease rent is engine-supplied |
+
+Coverage on the office fixture *fell* from 72.5% when the Rent Roll was added,
+because lease-level rent is engine-supplied and now counted. That is the metric
+working: it got less flattering as the workbook got more complete.
+
+The response carries `x-formula-coverage`, `x-formula-cells` and
+`x-calculated-cells`, so the claim is checkable from outside.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Workbook abstraction, cell registry, references, styles, named ranges, renderer, coverage metric | **Built, 18 tests** |
 | 2 | Assumptions, Revenue, Expenses, Cash Flow, Returns | **Built, 29 tests, reconciled to the engine** |
-| 3 | Rent Roll and lease-level detail | Not started |
-| 4 | Debt schedule | Not started |
-| 5 | Recoveries, floating-rate debt, refinance, capital schedules, waterfalls | Not started |
+| 3 | Rent Roll and lease-level detail | **Built** — Revenue sums it |
+| 4 | Debt schedule | **Built, reconciles exactly on all five debt fixtures** |
+| 5 | Summary, checks, export route, UI | **Built** |
+| 5b | Recoveries as their own schedule, waterfalls | Not started — see below |
 
 ### Formula coverage by feature
 
@@ -45,12 +55,16 @@ reconciles it to the engine.
 | Exit value, selling costs, net sale proceeds | **Yes** |
 | Going-in cap rate | **Yes** |
 | XIRR, XNPV, equity multiple | **Yes** (native Excel; not covered by the evaluator) |
-| Levered cash flow | Yes, but the financing lines are zero until phase 4 |
-| Base rent, free rent, percentage rent, recoveries | **No** — engine values, counted as coverage gaps |
+| Levered cash flow | **Yes** |
+| Debt: balance roll-forward, interest, level payment, principal, fees, payoff | **Yes** — reconciles to the cent |
+| Contractual base rent as a sum of the Rent Roll | **Yes** |
+| Potential base rent | **Yes** |
+| Summary links and model checks | **Yes** |
+| Per-lease base rent, free rent, percentage rent, recoveries | **No** — engine values, counted as gaps |
 | TI, LC, capital expenditure | **No** — engine values |
-| Debt schedule | Phase 4 |
-| Rent roll | Phase 3 |
-| Recoveries as their own schedule, waterfall | Phase 5 |
+| Floating-rate index resolution | **No** — the applied rate is an editable per-period input |
+| Covenant tests, cash traps, refinancing | **No** — engine values reach Cash Flow |
+| Recoveries as their own schedule, waterfall | Not started |
 
 ## Architecture
 
@@ -207,10 +221,44 @@ oversight.
   cross-sheet linkage, assumption dependency, identities, and formula-level
   reconciliation across three fixtures.
 
-## Next
+## The debt schedule
 
-Phase 3 — Rent Roll and lease-level detail. Phase 4 — the debt schedule, after
-which the financing lines on Cash Flow stop being zero and levered returns
-become meaningful. Phase 5 — recoveries, floating rate, refinance, waterfalls.
-The export route and UI come once the debt schedule lands, since levered returns
-are the point of the workbook.
+The sheet the feature is judged on, and it reconciles **exactly** — zero
+difference on balance, interest, principal and payoff across all five debt
+fixtures, including one that capitalises interest, one that floats, and one
+with a covenant cash trap.
+
+The trick is separating structure from amount. Which months amortise, and how
+many amortisation months remain in each, depends only on the funding date, the
+interest-only window and the term — never on the rate. So the structure is
+resolved at export and the amounts are formulas. Raising the rate raises
+interest and lowers principal within a level payment, exactly as the engine
+does, without reshaping the schedule.
+
+The level payment uses the closed form rather than Excel's `PMT`, so the
+reconciliation harness can evaluate it:
+
+```
+payment = balance x r / (1 - (1 + r)^-n)      r > 0
+payment = balance / n                          r = 0
+```
+
+## Remaining gaps, in priority order
+
+1. **Recoveries as their own schedule.** Currently engine-supplied, and the
+   largest single block of static cells after per-lease rent. Would also break
+   the acyclic-graph simplification noted above.
+2. **Waterfall sheet.** LP/GP tiers, promote, per-partner IRR.
+3. **Floating-rate index resolution.** The applied rate is editable per period
+   but is not rebuilt from the index curve, spread, floor and cap.
+4. **TI, LC and capital** as formulas driven by leasing assumptions.
+5. **Covenant tests, cash traps and refinancing** in the workbook.
+6. **Sensitivity tables and scenarios.**
+
+## Not verified
+
+**The workbook has never been opened in Microsoft Excel.** Everything above is
+proved by evaluating the emitted formulas in a harness that implements a subset
+of Excel's semantics. That is a strong check — it catches sign errors, broken
+links and wrong operators — but it is not Excel, and `XIRR`, `XNPV` and `SUMIF`
+are outside the subset and are skipped rather than counted as checked.

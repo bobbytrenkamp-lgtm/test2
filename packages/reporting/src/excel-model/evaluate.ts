@@ -138,7 +138,8 @@ export function parseAddress(
  * Grammar, loosest binding first:
  *   expression := term (('+' | '-') term)*
  *   term       := unary (('*' | '/') unary)*
- *   unary      := '-'? primary
+ *   unary      := '-'? power
+ *   power      := primary ('^' unary)?
  *   primary    := number | function | reference | '(' expression ')'
  */
 class Parser {
@@ -204,13 +205,25 @@ class Parser {
     this.skipSpace();
     if (this.text[this.pos] === '-') {
       this.pos += 1;
+      // Excel binds unary minus tighter than `^`: `-2^2` is 4, not -4.
       return -this.unary();
     }
     if (this.text[this.pos] === '+') {
       this.pos += 1;
       return this.unary();
     }
-    return this.primary();
+    return this.power();
+  }
+
+  /** `^` is right-associative and binds tighter than `*` and `/`. */
+  private power(): number {
+    const base = this.primary();
+    this.skipSpace();
+    if (this.text[this.pos] === '^') {
+      this.pos += 1;
+      return base ** this.unary();
+    }
+    return base;
   }
 
   private primary(): number {

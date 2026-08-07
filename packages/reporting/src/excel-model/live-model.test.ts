@@ -81,7 +81,9 @@ describe('the workbook builds', () => {
     const { workbook, coverage } = buildLiveModel(input, result);
 
     expect(workbook.sheets.map((sheet) => sheet.name)).toEqual([
+      'Summary',
       'Assumptions',
+      'Rent Roll',
       'Revenue',
       'Expenses',
       'Cash Flow',
@@ -379,9 +381,10 @@ describe('coverage reporting', () => {
     const { input, result } = fixture('multiTenantOffice');
     const { workbook, coverage } = buildLiveModel(input, result);
 
-    // Potential base rent comes from the leasing simulation and cannot be a
-    // formula without duplicating it. It must be reported, not hidden.
-    expect(cellFor(workbook, 'revenue.potentialBaseRent#0').kind).toBe('staticDerived');
+    // Per-lease rent comes from the leasing simulation and cannot be a formula
+    // without duplicating it. It must be reported as a gap, not hidden.
+    expect(cellFor(workbook, 'rentRoll.base.0#0').kind).toBe('staticDerived');
+    expect(cellFor(workbook, 'revenue.expenseRecoveries#0').kind).toBe('staticDerived');
     expect(coverage.staticDerivedCells).toBeGreaterThan(0);
     expect(coverage.calculatedCells).toBe(coverage.formulaCells + coverage.staticDerivedCells);
   });
@@ -422,7 +425,9 @@ describe('the emitted formulas reproduce the engine', () => {
    * Excel would follow — and compare the result to the engine.
    */
   const reconciled: Array<{ key: string; line: CashFlowLine }> = [
+    { key: 'rentRoll.totalBaseRent', line: 'contractualBaseRent' },
     { key: 'revenue.contractualBaseRent', line: 'contractualBaseRent' },
+    { key: 'revenue.potentialBaseRent', line: 'potentialBaseRent' },
     { key: 'revenue.scheduledBaseRent', line: 'scheduledBaseRent' },
     { key: 'revenue.grossPotentialRevenue', line: 'grossPotentialRevenue' },
     { key: 'revenue.generalVacancy', line: 'generalVacancy' },
@@ -508,5 +513,152 @@ describe('the emitted formulas reproduce the engine', () => {
     expect(after).not.toBeCloseTo(before, 2);
     // Expenses rose, so NOI must fall.
     expect(after).toBeLessThan(before);
+  });
+});
+
+describe('the debt schedule amortises in the workbook', () => {
+  /** Every regression fixture that carries a facility. */
+  const withDebt = Object.keys(ALL_FIXTURES).filter(
+    (name) => ALL_FIXTURES[name as keyof typeof ALL_FIXTURES]!().debt.length > 0,
+  );
+
+  it('covers the debt shapes that matter', () => {
+    // Guards the loop below: if the fixtures ever stop including an amortising
+    // loan, a floating one and one that capitalises interest, these tests would
+    // quietly stop proving what they claim to.
+    const inputs = withDebt.map((name) => ALL_FIXTURES[name as keyof typeof ALL_FIXTURES]!());
+    expect(inputs.some((input) => input.debt.some((f) => f.amortizationMonths > 0))).toBe(true);
+    expect(inputs.some((input) => input.debt.some((f) => f.rateType === 'floating'))).toBe(true);
+    expect(inputs.some((input) => input.debt.some((f) => f.capitalizeInterest))).toBe(true);
+  });
+
+  for (const name of withDebt) {
+    it(`reconciles ${name}: balance, interest, principal and payoff`, () => {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      for (let period = 0; period < result.periods.length; period += 1) {
+        const engineBalance = input.debt.reduce((sum, facility) => {
+          const schedule = result.debtSchedules.find((s) => s.facilityId === facility.id);
+          return sum + Number(schedule?.rows[period]?.endingBalance ?? '0');
+        }, 0);
+
+        expect(
+          Math.abs(evaluator.value('debt.endingBalance', period) - engineBalance),
+          `ending balance at ${period}`,
+        ).toBeLessThanOrEqual(SUM_TOLERANCE);
+
+        for (const [key, line] of [
+          ['debt.interest', 'interestExpense'],
+          ['debt.principal', 'principalAmortization'],
+          ['debt.payoffSigned', 'debtPayoff'],
+          ['debt.proceeds', 'debtProceeds'],
+        ] as Array<[string, CashFlowLine]>) {
+          expect(
+            Math.abs(evaluator.value(key, period) - (series(result, line)[period] ?? 0)),
+            `${key} at ${period}`,
+          ).toBeLessThanOrEqual(SUM_TOLERANCE);
+        }
+      }
+    });
+  }
+
+  it('moves interest, and therefore levered cash flow, when the rate changes', () => {
+    // The dependency chain the feature is judged on.
+    const { input, result } = fixture('refinanceScenario');
+    const { workbook } = buildLiveModel(input, result);
+    const facility = input.debt[0];
+    if (!facility) return;
+
+    const period = 6;
+    const before = {
+      interest: new FormulaEvaluator(workbook).value('debt.interest', period),
+      levered: new FormulaEvaluator(workbook).value('cashFlow.leveredCashFlow', period),
+    };
+
+    const rateCell = cellFor(workbook, `debt.${facility.id}.fixedRate`);
+    rateCell.value = Number(rateCell.value) + 0.02;
+
+    const after = {
+      interest: new FormulaEvaluator(workbook).value('debt.interest', period),
+      levered: new FormulaEvaluator(workbook).value('cashFlow.leveredCashFlow', period),
+    };
+
+    // Interest is reported negative, so a higher rate makes it more negative.
+    expect(after.interest).toBeLessThan(before.interest);
+    expect(after.levered).toBeLessThan(before.levered);
+  });
+
+  it('keeps the balance rolling forward: ending equals beginning plus draws less principal', () => {
+    const { input, result } = fixture('refinanceScenario');
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+    const facility = input.debt[0];
+    if (!facility) return;
+
+    for (let period = 1; period < result.periods.length; period += 1) {
+      const previousEnding = evaluator.value(`debt.ending.${facility.id}`, period - 1);
+      const beginning = evaluator.value(`debt.beginning.${facility.id}`, period);
+      expect(Math.abs(beginning - previousEnding), `roll-forward at ${period}`).toBeLessThan(1e-6);
+    }
+  });
+});
+
+describe('the model checks on the Summary sheet', () => {
+  /**
+   * Each check is a difference that must be near zero. Evaluating the
+   * difference cells proves the workbook is internally consistent — that
+   * revenue really does roll into cash flow, that the rent roll really does
+   * total to contractual base rent, and that the debt is actually retired.
+   *
+   * A check that always reads OK proves nothing, so the probe below breaks one
+   * deliberately and confirms it trips.
+   */
+  const checkKeys = [
+    'check.revenueRolls',
+    'check.expensesRoll',
+    'check.rentRollRolls',
+    'check.noi',
+    'check.saleOnce',
+  ];
+
+  for (const name of ['multiTenantOffice', 'refinanceScenario', 'developmentProject'] as const) {
+    it(`every check reads OK for ${name}`, () => {
+      const { input, result } = fixture(name);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      const keys = [...checkKeys];
+      if (input.debt.length > 0) keys.push('check.debtRepaid', 'check.debtBalances');
+
+      for (const key of keys) {
+        const difference = evaluator.value(`${key}.difference`);
+        expect(Number.isFinite(difference), `${key} did not evaluate`).toBe(true);
+        // The sale check and the debt checks carry a wider tolerance in the
+        // workbook itself; a dollar covers all of them.
+        expect(Math.abs(difference), `${key} is off by ${difference}`).toBeLessThanOrEqual(1);
+      }
+    });
+  }
+
+  it('a check trips when the thing it checks is broken', () => {
+    const { input, result } = fixture('multiTenantOffice');
+    const { workbook } = buildLiveModel(input, result);
+
+    // Corrupt one lease's rent. The rent-roll check compares the sum of the
+    // leases against contractual base rent, which links to that same sum, so
+    // the check that must move is NOI — revenue now disagrees with itself
+    // downstream. Use the cash-flow roll-up check instead, which compares two
+    // independently reached totals.
+    const before = new FormulaEvaluator(workbook).value('check.expensesRoll.difference');
+    expect(Math.abs(before)).toBeLessThanOrEqual(1);
+
+    // Break the link: make cash flow's expense line ignore the Expenses sheet.
+    const cell = cellFor(workbook, 'cashFlow.operatingExpenses#0');
+    cell.formula = () => '0';
+
+    const after = new FormulaEvaluator(workbook).value('check.expensesRoll.difference');
+    expect(Math.abs(after)).toBeGreaterThan(1);
   });
 });
