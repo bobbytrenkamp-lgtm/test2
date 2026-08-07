@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       685 passed  (229 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -62,7 +62,10 @@ Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          5 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
-                         10 portfolio reports, 13 vertical slice)
+                         10 portfolio reports, 13 vertical slice,
+                         18 Excel Live Model framework,
+                         73 Excel Live Model reconciliation,
+                         5 Excel Live Model export)
 Browser     117 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,

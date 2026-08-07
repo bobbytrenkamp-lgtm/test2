@@ -62,8 +62,11 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
+| Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 73 | No |
+| Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 
-**589 tests in total.**
+**685 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -92,7 +95,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**117 browser tests in total**, for 706 across the whole repository.
+**117 browser tests in total**, for 802 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -379,6 +382,26 @@ Recording these because they are the argument for the approach:
     replacer function, which is not subject to the expansion. This one was
     **not** caught by a test — it was caught by opening the built file, which is
     exactly why the build now checks its own output before writing it.
+15. **Nothing typechecked `scripts/`, and seven errors had accumulated there.**
+    `pnpm typecheck` ran per-package plus the end-to-end config; no config
+    covered the maintenance scripts, so the benchmark, the load and concurrency
+    tests, the restore drill and the profiler were unchecked. Behind that gap:
+    `concurrency-test.ts` imported `FastifyInstance` from `fastify`, which is a
+    dependency of `apps/api` and does not resolve from the workspace root, and
+    the failed import had quietly widened five parameters to `any`. The
+    benchmark's synthetic model carried `code` on its growth curve, leasing
+    profile and both expenses — a field none of those schemas has. zod strips
+    unknown keys silently, so it never failed; it simply was not there, and an
+    `as ModelInputDraft` on the draft hid the mismatch from the compiler.
+    `tsconfig.scripts.json` now covers them and runs in `pnpm typecheck`. The
+    cast is gone, so a wrong property is reported against the property itself
+    rather than as a whole-object conversion error. Confirmed by reinstating
+    `code` and watching the gate fail.
+
+    Worth noting for what it says about documentation drift:
+    `docs/repository-assessment.md` claimed a change to a shared type "is
+    typechecked against every consumer in one command." That was not true while
+    `scripts/` was uncovered. It is true now.
 
 ## Gaps, stated plainly
 

@@ -53,44 +53,56 @@ function syntheticModel(options: {
   const { leases, stepsPerLease, months } = options;
   const areaEach = 2500;
 
-  const spaces = Array.from({ length: leases }, (_, index) => ({
-    id: `S${index}`,
-    code: `Suite ${index + 1}`,
-    area: String(areaEach),
-    spaceType: 'office',
-  }));
+  // Typed from the draft rather than inferred: an inferred object literal
+  // widens 'office' to `string`, which is why this whole draft used to be
+  // forced through `as ModelInputDraft` — and that cast then hid three
+  // properties that do not exist in the schema at all.
+  const spaces: NonNullable<ModelInputDraft['spaces']> = Array.from(
+    { length: leases },
+    (_, index) => ({
+      id: `S${index}`,
+      code: `Suite ${index + 1}`,
+      area: String(areaEach),
+      spaceType: 'office',
+    }),
+  );
 
   const tenants = Array.from({ length: leases }, (_, index) => ({
     id: `T${index}`,
     name: `Tenant ${index + 1}`,
   }));
 
-  const leaseRecords = Array.from({ length: leases }, (_, index) => {
-    // Terms of 3 to 9 years, commencing across a six-year window before and
-    // inside the forecast, so expiries land throughout it.
-    const startYear = 2022 + (index % 6);
-    const termYears = 3 + (index % 7);
-    const steps = Array.from({ length: stepsPerLease }, (_, step) => ({
-      startDate: `${startYear + step + 1}-01-01`,
-      amount: String(30 + step),
-      basis: 'per_area_per_year',
-    }));
+  const leaseRecords: NonNullable<ModelInputDraft['leases']> = Array.from(
+    { length: leases },
+    (_, index) => {
+      // Terms of 3 to 9 years, commencing across a six-year window before and
+      // inside the forecast, so expiries land throughout it.
+      const startYear = 2022 + (index % 6);
+      const termYears = 3 + (index % 7);
+      // `as const` so the basis stays the literal the schema expects rather
+      // than widening to `string` on its way out of this callback.
+      const steps = Array.from({ length: stepsPerLease }, (_, step) => ({
+        startDate: `${startYear + step + 1}-01-01`,
+        amount: String(30 + step),
+        basis: 'per_area_per_year' as const,
+      }));
 
-    return {
-      id: `L${index}`,
-      tenantId: `T${index}`,
-      spaceIds: [`S${index}`],
-      status: 'occupied',
-      area: String(areaEach),
-      commencementDate: `${startYear}-01-01`,
-      expirationDate: `${startYear + termYears}-12-31`,
-      baseRent: '30.00',
-      baseRentBasis: 'per_area_per_year',
-      escalation: { type: 'fixed_percent', rate: '0.03', frequencyMonths: 12, compounding: true },
-      recovery: { method: 'base_year' },
-      rentSteps: steps,
-    };
-  });
+      return {
+        id: `L${index}`,
+        tenantId: `T${index}`,
+        spaceIds: [`S${index}`],
+        status: 'occupied',
+        area: String(areaEach),
+        commencementDate: `${startYear}-01-01`,
+        expirationDate: `${startYear + termYears}-12-31`,
+        baseRent: '30.00',
+        baseRentBasis: 'per_area_per_year',
+        escalation: { type: 'fixed_percent', rate: '0.03', frequencyMonths: 12, compounding: true },
+        recovery: { method: 'base_year' },
+        rentSteps: steps,
+      };
+    },
+  );
 
   const draft: ModelInputDraft = {
     modelId: 'benchmark',
@@ -110,11 +122,16 @@ function syntheticModel(options: {
     spaces,
     tenants,
     leases: leaseRecords,
-    growthCurves: [{ id: 'CPI', code: 'CPI', name: 'Inflation', defaultRate: '0.025' }],
+    // No `code` on these, nor on the expenses below. Growth curves are
+    // referenced by `growthCurveId` and leasing profiles by
+    // `marketLeasingProfileId`, both matching `id`; only spaces have a `code`
+    // at all. zod strips unknown keys silently, so the extra properties never
+    // failed — they simply were not there, and the `as ModelInputDraft` this
+    // object used to carry hid the mismatch from the compiler.
+    growthCurves: [{ id: 'CPI', name: 'Inflation', defaultRate: '0.025' }],
     marketLeasingProfiles: [
       {
         id: 'MLA',
-        code: 'MLA',
         name: 'Benchmark office',
         marketRent: '32.00',
         marketRentBasis: 'per_area_per_year',
@@ -134,7 +151,6 @@ function syntheticModel(options: {
     expenses: [
       {
         id: 'E1',
-        code: 'OPEX',
         name: 'Operating expenses',
         category: 'other',
         method: 'per_area_per_year',
@@ -144,7 +160,6 @@ function syntheticModel(options: {
       },
       {
         id: 'E2',
-        code: 'MGT',
         name: 'Management fee',
         category: 'management',
         method: 'percent_of_effective_gross_revenue',
@@ -162,7 +177,7 @@ function syntheticModel(options: {
       acquisitionPrice: String(areaEach * leases * 300),
       acquisitionCosts: '0',
     },
-  } as ModelInputDraft;
+  };
 
   return parseModelInput(draft);
 }

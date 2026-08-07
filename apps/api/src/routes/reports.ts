@@ -4,7 +4,9 @@ import { buildModelInput, getLatestCalculation, getModel, getProperty } from '@c
 import { ENGINE_VERSION } from '@cre/calculation-engine';
 import {
   REPORTS,
+  exportLiveModel,
   findReport,
+  liveModelFilename,
   reportToCsv,
   reportToPrintableHtml,
   reportToWorkbook,
@@ -120,6 +122,52 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       'content-disposition',
       `attachment; filename="${slug(reportContext.propertyName)}-model.xlsx"`,
     );
+    return reply.send(buffer);
+  });
+
+  /**
+   * The Excel Live Model: a formula-driven workbook.
+   *
+   * Distinct from `/export/workbook`, which writes the same figures as static
+   * values. This one exports the assumptions as editable cells and the
+   * calculations as Excel formulas, so changing a cap rate in Excel moves the
+   * sale price and the return without coming back to the platform.
+   *
+   * The formula-coverage figure is returned as a response header rather than
+   * being hidden in a log: anyone can see how much of the workbook is genuinely
+   * calculated, which is the honest form of the claim this feature makes.
+   */
+  app.get('/models/:id/export/live-model', async (request, reply) => {
+    const context = requireCapability(request, 'export:run');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) throw unprocessable('This model has not been calculated yet.');
+
+    // The workbook needs the assumptions, not only the results: the whole point
+    // is that the inputs arrive as editable cells.
+    const modelInput = await buildModelInput(request.db, context.organizationId, id);
+    const property = await getProperty(request.db, context.organizationId, model.property_id);
+
+    const { buffer, coverage } = await exportLiveModel(modelInput, latest.result);
+
+    reply.header(
+      'content-type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    reply.header(
+      'content-disposition',
+      `attachment; filename="${liveModelFilename(
+        property?.name ?? 'Property',
+        model.name,
+        new Date(),
+      )}"`,
+    );
+    reply.header('x-formula-coverage', coverage.formulaCoverage.toFixed(4));
+    reply.header('x-formula-cells', String(coverage.formulaCells));
+    reply.header('x-calculated-cells', String(coverage.calculatedCells));
     return reply.send(buffer);
   });
 
