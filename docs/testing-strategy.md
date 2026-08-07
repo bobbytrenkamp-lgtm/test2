@@ -63,10 +63,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
-| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 66 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 73 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 
-**678 tests in total.**
+**685 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -95,7 +95,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**117 browser tests in total**, for 795 across the whole repository.
+**117 browser tests in total**, for 802 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

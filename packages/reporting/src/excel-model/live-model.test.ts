@@ -979,3 +979,98 @@ describe('the terminal NOI window follows the engine', () => {
     expect(Math.abs(evaluator.value('returns.grossSalePrice') - sale) / sale).toBeLessThan(1e-5);
   });
 });
+
+describe('the partnership waterfall', () => {
+  const withWaterfall = Object.keys(ALL_FIXTURES).filter(
+    (name) => fixture(name as keyof typeof ALL_FIXTURES).result.waterfall.length > 0,
+  );
+
+  it('covers a real promote structure, not just a pro-rata split', () => {
+    // A guard on the loop below: a fixture set with only pro-rata splits would
+    // exercise none of the tier logic the sheet exists to show.
+    const tiers = withWaterfall.flatMap((name) =>
+      fixture(name as keyof typeof ALL_FIXTURES).result.waterfall.flatMap((partner) =>
+        partner.byTier.map((tier) => tier.tierName),
+      ),
+    );
+    expect(tiers.some((name) => /preferred/i.test(name))).toBe(true);
+    expect(tiers.some((name) => /catch.?up/i.test(name))).toBe(true);
+  });
+
+  for (const name of withWaterfall) {
+    it(`reconciles ${name}: distributions, profit and multiple per partner`, () => {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+
+      for (const [index, partner] of result.waterfall.entries()) {
+        const key = `waterfall.${index}`;
+        expect(
+          Math.abs(evaluator.value(`${key}.distributions`) - Number(partner.distributions)),
+          `${key} distributions`,
+        ).toBeLessThanOrEqual(SUM_TOLERANCE);
+        expect(
+          Math.abs(evaluator.value(`${key}.profit`) - Number(partner.profit)),
+          `${key} profit`,
+        ).toBeLessThanOrEqual(SUM_TOLERANCE);
+        if (partner.equityMultiple !== null) {
+          expect(
+            Math.abs(evaluator.value(`${key}.multiple`) - Number(partner.equityMultiple)),
+            `${key} multiple`,
+          ).toBeLessThan(1e-6);
+        }
+      }
+    });
+  }
+
+  it('moves a partner’s multiple when their contribution changes', () => {
+    const name = withWaterfall[0];
+    if (!name) return;
+    const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+    const { workbook } = buildLiveModel(input, result);
+
+    const before = new FormulaEvaluator(workbook).value('waterfall.0.multiple');
+    const cell = cellFor(workbook, 'waterfall.0.contributions');
+    cell.value = Number(cell.value) * 2;
+    const after = new FormulaEvaluator(workbook).value('waterfall.0.multiple');
+
+    // Twice the capital for the same distribution halves the multiple.
+    expect(after).toBeCloseTo(before / 2, 8);
+  });
+
+  it('marks the partner IRR as imported rather than calculated', () => {
+    /*
+     * Pinned deliberately. The property returns on the Returns sheet are
+     * computed by Excel from the workbook's own cash flows; a partner IRR
+     * cannot be, because the engine reports the partnership only as totals.
+     * Presenting it as a formula would misrepresent where it came from.
+     */
+    const name = withWaterfall[0];
+    if (!name) return;
+    const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+    const { workbook } = buildLiveModel(input, result);
+    expect(cellFor(workbook, 'waterfall.0.irr').kind).toBe('staticDerived');
+  });
+
+  it('is omitted entirely from a model with no partnership', () => {
+    const { input, result } = fixture('singleTenantIndustrial');
+    expect(result.waterfall).toHaveLength(0);
+    const { workbook } = buildLiveModel(input, result);
+    expect(workbook.sheets.map((sheet) => sheet.name)).not.toContain('Waterfall');
+  });
+
+  it('refuses to render partners whose tiers disagree', () => {
+    // One table cannot describe two different tier structures, and rendering
+    // it anyway would put different meanings in the same column.
+    const { input, result } = fixture(withWaterfall[0] as keyof typeof ALL_FIXTURES);
+    const mangled: ModelResult = {
+      ...result,
+      waterfall: result.waterfall.map((partner, index) =>
+        index === 0
+          ? partner
+          : { ...partner, byTier: [{ tierId: 'x', tierName: 'Different', amount: '1' }] },
+      ),
+    };
+    expect(() => buildLiveModel(input, mangled)).toThrow(/different waterfall tiers/);
+  });
+});

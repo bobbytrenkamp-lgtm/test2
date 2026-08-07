@@ -69,7 +69,8 @@ reconciles it to the engine.
 | Monthly recovery total feeding Revenue | **Yes** |
 | Rent growth sensitivity → revenue → NOI → value | **Yes** (a lever; see below) |
 | Recovery method `fixed_amount` | **No** — no fixture exercises it |
-| Waterfall | Not started |
+| Waterfall: distributions, profit, equity multiple | **Yes** |
+| Waterfall tier amounts, partner IRR | **No** — imported; see below |
 
 ## Architecture
 
@@ -271,9 +272,18 @@ payment = balance / n                          r = 0
 
 ## Remaining gaps, in priority order
 
-1. **Waterfall sheet.** LP/GP tiers, preferred return, catch-up, promote,
-   per-partner IRR and equity multiple. The engine computes all of it
-   (`ModelResult.waterfall`); none of it is exported.
+1. **Per-partner cash flows from the engine.** The Waterfall sheet exists and
+   its distributions, profit and equity multiple are formulas, but each
+   partner's IRR is imported. `ModelResult.waterfall` reports the partnership
+   as totals, so there is no dated series for Excel's `XIRR` to work from.
+   Exposing per-period partner cash flows would make partner IRRs as live as
+   the property returns already are. That is a change to the engine's output
+   shape, not to the exporter, so it is recorded here rather than worked
+   around.
+
+2. **Tier amounts.** The split across a preferred return, return of capital,
+   a catch-up and a residual promote is a sequential draw-down against a
+   running balance period by period, not a closed form.
 3. **Floating-rate index resolution.** The applied rate is editable per period
    but is not rebuilt from the index curve, spread, floor and cap.
 4. **TI, LC and capital** as formulas driven by leasing assumptions.

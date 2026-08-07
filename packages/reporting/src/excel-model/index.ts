@@ -70,6 +70,7 @@ export { buildDebt } from './sheets/debt.js';
 export { buildCashFlow } from './sheets/cashflow.js';
 export { buildReturns } from './sheets/returns.js';
 export { buildSummary } from './sheets/summary.js';
+export { buildWaterfall } from './sheets/waterfall.js';
 
 export { buildLiveModel, exportLiveModel, liveModelFilename } from './build.js';
 export type { LiveModelResult } from './build.js';

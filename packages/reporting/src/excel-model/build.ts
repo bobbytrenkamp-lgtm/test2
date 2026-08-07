@@ -10,6 +10,7 @@ import { buildDebt } from './sheets/debt.js';
 import { buildCashFlow } from './sheets/cashflow.js';
 import { buildReturns } from './sheets/returns.js';
 import { buildSummary } from './sheets/summary.js';
+import { buildWaterfall } from './sheets/waterfall.js';
 import { measureCoverage } from './coverage.js';
 import type { CoverageReport } from './coverage.js';
 import { renderWorkbook } from './render.js';
@@ -43,7 +44,7 @@ export function buildLiveModel(input: ModelInput, result: ModelResult): LiveMode
 
   // Summary first, so it reads first. It references sheets built after it,
   // which the two-pass formula resolution makes safe.
-  buildSummary(workbook, input, result, axis, hasDebt);
+  buildSummary(workbook, input, result, axis, hasDebt, result.waterfall.length > 0);
   buildAssumptions(workbook, input, result, axis);
   buildRentRoll(workbook, input, result, axis);
   buildRecoveries(workbook, result, axis);
@@ -52,6 +53,8 @@ export function buildLiveModel(input: ModelInput, result: ModelResult): LiveMode
   if (hasDebt) buildDebt(workbook, input, result, axis);
   buildCashFlow(workbook, result, axis, hasDebt);
   buildReturns(workbook, input, result, axis);
+  // Only when the model has a partnership; most single-asset models do not.
+  buildWaterfall(workbook, result);
 
   return { workbook, coverage: measureCoverage(workbook) };
 }

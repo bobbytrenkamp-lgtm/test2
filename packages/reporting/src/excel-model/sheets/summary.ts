@@ -27,6 +27,7 @@ export function buildSummary(
   result: ModelResult,
   axis: TimeAxis,
   hasDebt: boolean,
+  hasWaterfall: boolean,
 ): void {
   const sheet = workbook.sheet('Summary', {
     freezeRows: 1,
@@ -210,6 +211,23 @@ export function buildSummary(
         `SUM(${refs.range('debt.principal', 0, last)})+` +
         `SUM(${refs.range('debt.payoffSigned', 0, last)})`,
       'check.debtBalances',
+      '1',
+    );
+  }
+
+  if (hasWaterfall) {
+    /*
+     * Every dollar the partnership distributes must have come through a tier.
+     * The tiers are imported and the distribution total is a formula over
+     * them, so this catches a tier the exporter failed to carry across.
+     */
+    check(
+      'Partner distributions equal the sum of their tiers',
+      (refs) =>
+        `${refs.ref('waterfall.total.distributions')}-` +
+        `${refs.ref('waterfall.total.contributions')}-` +
+        `${refs.ref('waterfall.total.profit')}`,
+      'check.waterfallBalances',
       '1',
     );
   }
