@@ -35,13 +35,17 @@ import type { TimeAxis } from '../layout.js';
  *   payment = balance x r / (1 - (1 + r)^-n)      (r > 0)
  *   payment = balance / n                          (r = 0)
  *
- * ## What is not reproduced
+ * ## Floating rates
  *
- * A floating rate's index path comes from a growth curve the engine resolves
- * per period, with an optional floor and cap. The applied rate is exported as
- * an editable per-period input rather than rebuilt from the curve, so it stays
- * changeable without this sheet reimplementing rate resolution. Fixed-rate
- * facilities reference a single named rate.
+ * Rebuilt, not imported. `MIN(MAX(index + spread, floor), cap)` is a closed
+ * form, so the applied rate is a formula over the index curve's own editable
+ * rate cell on the Assumptions sheet and the facility's spread, floor and cap
+ * beside it. Moving the index curve moves interest, debt service and the
+ * levered return — which is the lever a floating deal is underwritten on, and
+ * it did nothing while the rate was an imported per-period input. Fixed-rate
+ * facilities reference a single named rate. See `floatingRate` below.
+ *
+ * ## What is not reproduced
  *
  * Covenant testing, cash traps and refinancing are not modelled here; the
  * engine's own figures for those still reach Cash Flow. See
@@ -209,23 +213,23 @@ function buildFacility(
       indent: 1,
       total: false,
       note: isFloating
-        ? 'Floating: the index path, spread, floor and cap are resolved by the engine and ' +
-          'exported here as an editable rate per period.'
+        ? 'Floating: MIN(MAX(index + spread, floor), cap), over the index curve and the ' +
+          'spread, floor and cap on the Assumptions sheet. Zero outside the facility term, ' +
+          'where the balance is zero and no rate applies.'
         : undefined,
     },
-    (period) =>
-      isFloating
-        ? {
-            kind: 'input',
-            value: Number(schedule?.rows[period]?.appliedRate ?? '0'),
-            format: 'percent2',
-          }
-        : {
-            kind: 'formula',
-            formula: (refs) =>
-              active(period) ? refs.absRef(`debt.${facility.id}.fixedRate`) : '0',
-            format: 'percent2',
-          },
+    (period) => ({
+      kind: 'formula',
+      formula: (refs) => {
+        if (!active(period)) return '0';
+        if (!isFloating) return refs.absRef(`debt.${facility.id}.fixedRate`);
+        return floatingRate(refs, facility, period);
+      },
+      format: 'percent2',
+      // The engine's own applied rate, so the global cached-value check
+      // compares this formula against it on every period of every fixture.
+      cachedValue: Number(schedule?.rows[period]?.appliedRate ?? '0'),
+    }),
   );
 
   seriesRow(
@@ -405,4 +409,47 @@ function buildFacility(
       cachedValue: Number(schedule?.rows[period]?.endingBalance ?? '0'),
     }),
   );
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A floating facility's applied rate, resolved the way the engine resolves it:
+ *
+ *   MIN(MAX(index[forecast year] + spread, floor), cap)
+ *
+ * A closed form, so it is a formula rather than an import. The index rate is
+ * the same editable cell the growth curves use on the Assumptions sheet, which
+ * means moving the curve moves interest, debt service and the levered return —
+ * the lever a floating-rate deal is actually underwritten on.
+ *
+ * Three things the engine does that a naive reading misses, all matched here:
+ *
+ * - The forecast year is `floor(period / 12) + 1`: blocks of twelve months from
+ *   the forecast start, not calendar years.
+ * - Year 1 *is* included. Growth curves skip it, because a factor of 1.0 in the
+ *   first year is what "no growth yet" means; an index rate carries no such
+ *   convention and applies from the first month.
+ * - A facility naming no curve, or one absent from the model, resolves the
+ *   index to nil rather than failing, so the rate is the spread alone — floored
+ *   and capped as usual.
+ */
+function floatingRate(
+  refs: import('../model.js').RefResolver,
+  facility: DebtFacility,
+  period: number,
+): string {
+  const year = Math.floor(period / 12) + 1;
+  const curveKey = `curve.${facility.indexCurveId ?? ''}.rate`;
+  const index =
+    facility.indexCurveId && refs.has(curveKey, year) ? refs.absRef(curveKey, year) : '0';
+
+  let rate = `${index}+${refs.absRef(`debt.${facility.id}.spread`)}`;
+  if (facility.rateFloor !== null && facility.rateFloor !== undefined) {
+    rate = `MAX(${rate},${refs.absRef(`debt.${facility.id}.rateFloor`)})`;
+  }
+  if (facility.rateCap !== null && facility.rateCap !== undefined) {
+    rate = `MIN(${rate},${refs.absRef(`debt.${facility.id}.rateCap`)})`;
+  }
+  return rate;
 }

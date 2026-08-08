@@ -67,7 +67,7 @@ reconciles it to the engine.
 | Summary links and model checks | **Yes** |
 | Per-lease base rent, free rent, percentage rent, recoveries | **No** — engine values, counted as gaps |
 | TI, LC, capital expenditure | **No** — engine values |
-| Floating-rate index resolution | **No** — the applied rate is an editable per-period input |
+| Floating-rate index resolution | **Yes** — `MIN(MAX(index + spread, floor), cap)` |
 | Covenant tests, cash traps, refinancing | **No** — engine values reach Cash Flow |
 | Recovery settlement: share, entitlement, admin fee, before caps, final, true-up | **Yes** |
 | Monthly recovery total feeding Revenue | **Yes** |
@@ -307,6 +307,35 @@ it. Both were reporting limitations in their own right.
 skipped rather than checked. What is checked is the chain beneath them: the
 formula references the right range, and editing a flow moves the total.
 
+## Floating rates
+
+`MIN(MAX(index + spread, floor), cap)` is a closed form, so the applied rate is
+a formula rather than an import. The index rate is the same editable cell the
+growth curves already use on the Assumptions sheet, and the spread, floor and
+cap sit beside the facility's other terms. Moving the index curve therefore
+moves interest, debt service and the levered return — the lever a floating deal
+is actually underwritten on, and one that did nothing while the rate was an
+imported per-period number.
+
+Three details of the engine's resolution are matched rather than assumed:
+
+- The forecast year is `floor(period / 12) + 1` — twelve-month blocks from the
+  forecast start, not calendar years.
+- Year 1 *is* included. Growth curves skip it, because a factor of 1.0 in the
+  first year is what "no growth yet" means. An index rate carries no such
+  convention and applies from the first month.
+- A facility naming no curve resolves the index to nil, so the rate is the
+  spread alone, floored and capped as usual.
+
+A floor or cap the facility does not have is written as a dash, not left blank:
+a blank cell inside `MAX` is zero, which would floor a negative index at nil.
+
+`floatingRateDebt` is built so the floor is live for part of the term and dead
+for the rest — the index path falls from 5% to 3% against a 2.5% spread and a
+6.5% floor — so both branches are exercised. No fixture sets a cap, so the `MIN`
+branch is tested against a capped facility run back through the engine, and
+reconciled to that rather than to a figure worked out by hand.
+
 ## Remaining gaps, in priority order
 
 1. **Per-period tier amounts and partner flows.** The split across a preferred
@@ -321,11 +350,9 @@ formula references the right range, and editing a flow moves the total.
    amount, because the tiers are non-linear. A plainly labelled imported cell is
    worth more than a formula that is quietly approximate.
 
-2. **Floating-rate index resolution.** The applied rate is editable per period
-   but is not rebuilt from the index curve, spread, floor and cap.
-3. **TI, LC and capital** as formulas driven by leasing assumptions.
-4. **Covenant tests, cash traps and refinancing** in the workbook.
-5. **Sensitivity tables and scenarios.**
+2. **TI, LC and capital** as formulas driven by leasing assumptions.
+3. **Covenant tests, cash traps and refinancing** in the workbook.
+4. **Sensitivity tables and scenarios.**
 
 ## The four movements, tested
 

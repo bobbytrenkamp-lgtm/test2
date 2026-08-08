@@ -870,6 +870,104 @@ describe('the sensitivity chain a reader will actually try', () => {
   });
 });
 
+describe('a floating rate is resolved, not imported', () => {
+  const { input, result } = fixture('floatingRateDebt');
+  const facility = input.debt[0];
+
+  it('is a formula over the index curve, the spread and the floor', () => {
+    if (!facility) return;
+    const { workbook } = buildLiveModel(input, result);
+    const cell = cellFor(workbook, `debt.rate.${facility.id}#0`);
+    expect(cell.kind).toBe('formula');
+
+    const refs = workbook.resolver('Debt');
+    const resolved = cell.formula?.(refs) ?? '';
+    // Absolute references, so a reader dragging the row sideways does not
+    // silently walk off the assumption.
+    expect(resolved).toContain(refs.absRef(`curve.${facility.indexCurveId}.rate`, 1));
+    expect(resolved).toContain(refs.absRef(`debt.${facility.id}.spread`));
+    expect(resolved).toMatch(/^MAX\(/);
+  });
+
+  it('applies the floor only in the years it binds', () => {
+    /*
+     * The fixture is built so the floor is live for part of the term and dead
+     * for the rest: the index path falls from 5% to 3% while the spread is
+     * 2.5% and the floor 6.5%. Years 1 and 2 clear it; years 3 and 4 do not.
+     *
+     * Both branches therefore matter, and asserting on only one would leave a
+     * formula that ignored the floor entirely looking correct.
+     */
+    if (!facility) return;
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+    const rate = (period: number): number => evaluator.value(`debt.rate.${facility.id}`, period);
+
+    expect(rate(0)).toBeCloseTo(0.075, 10);
+    expect(rate(12)).toBeCloseTo(0.07, 10);
+    expect(rate(24)).toBeCloseTo(0.065, 10);
+    expect(rate(36)).toBeCloseTo(0.065, 10);
+  });
+
+  it('moves interest when the index curve moves', () => {
+    /*
+     * The point of the whole change. While the applied rate was an imported
+     * per-period input, editing the index curve did nothing at all — the
+     * workbook showed a floating loan that did not float.
+     */
+    if (!facility) return;
+    const { workbook } = buildLiveModel(input, result);
+    const live = series(result, 'interestExpense').findIndex((value) => value !== 0);
+    expect(live, 'no period carries interest').toBeGreaterThanOrEqual(0);
+
+    const at = (key: string): number => new FormulaEvaluator(workbook).value(key, live);
+    const beforeInterest = at('cashFlow.interestExpense');
+    const beforeNoi = at('cashFlow.netOperatingIncome');
+
+    const year = Math.floor(live / 12) + 1;
+    const cell = cellFor(workbook, `curve.${facility.indexCurveId}.rate#${year}`);
+    cell.value = Number(cell.value) + 0.02;
+
+    // Interest is stored negative, so more interest is a smaller number.
+    expect(at('cashFlow.interestExpense')).toBeLessThan(beforeInterest);
+    expect(at('cashFlow.netOperatingIncome')).toBeCloseTo(beforeNoi, 6);
+  });
+
+  it('caps the rate when the facility carries a cap', () => {
+    /*
+     * No fixture sets a cap, so the `MIN` branch would otherwise ship
+     * unexercised. Rather than assert against a number worked out by hand, the
+     * capped facility is run back through the engine and the workbook is
+     * reconciled to *that* — the same standard as every other reconciliation
+     * here, on an input the fixture set does not happen to contain.
+     */
+    if (!facility) return;
+    const capped: ModelInput = {
+      ...input,
+      debt: input.debt.map((entry, index) =>
+        index === 0 ? { ...entry, rateCap: '0.068' } : entry,
+      ),
+    };
+    const cappedResult = calculate(capped);
+    const { workbook } = buildLiveModel(capped, cappedResult);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    const schedule = cappedResult.debtSchedules.find((s) => s.facilityId === facility.id);
+    expect(schedule).toBeDefined();
+
+    for (let period = 0; period < cappedResult.periods.length; period += 1) {
+      const expected = Number(schedule?.rows[period]?.appliedRate ?? '0');
+      expect(evaluator.value(`debt.rate.${facility.id}`, period), `period ${period}`).toBeCloseTo(
+        expected,
+        10,
+      );
+    }
+
+    // And the cap actually bit: year 1 was 7.5% uncapped.
+    expect(Number(schedule?.rows[0]?.appliedRate)).toBeCloseTo(0.068, 10);
+  });
+});
+
 describe('every formula reproduces its own cached value', () => {
   /**
    * The broadest check in the suite, and the one that has found the most.

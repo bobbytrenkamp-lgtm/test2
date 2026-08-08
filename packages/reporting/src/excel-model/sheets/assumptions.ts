@@ -263,6 +263,50 @@ export function buildAssumptions(
         `debt.${facility.id}.fixedRate`,
       );
 
+      /*
+       * The floating components, each editable.
+       *
+       * The applied rate on the Debt sheet is
+       * `MIN(MAX(index + spread, floor), cap)` over these, so widening a
+       * spread or lifting a cap moves interest through the whole schedule.
+       * A floor or cap the facility does not have is written as a dash rather
+       * than as an empty cell: a blank would read as zero inside `MAX`, which
+       * would silently floor a negative index at nil.
+       */
+      if (facility.rateType === 'floating') {
+        const floatRow = sheet.claimRow();
+        sheet.label(floatRow, LABEL_COL, `${facility.name} — spread / floor / cap`, { indent: 1 });
+        sheet.at(
+          floatRow,
+          TOTAL_COL,
+          {
+            kind: 'input',
+            value: Number(facility.spread),
+            format: 'percent2',
+            note: `Over ${
+              facility.indexCurveId
+                ? `the "${facility.indexCurveId}" index curve below`
+                : 'a nil index — this facility names no curve, so the applied rate is the spread'
+            }.`,
+          },
+          `debt.${facility.id}.spread`,
+        );
+        bound(
+          sheet,
+          floatRow,
+          FIRST_PERIOD_COL,
+          facility.rateFloor,
+          `debt.${facility.id}.rateFloor`,
+        );
+        bound(
+          sheet,
+          floatRow,
+          FIRST_PERIOD_COL + 1,
+          facility.rateCap,
+          `debt.${facility.id}.rateCap`,
+        );
+      }
+
       const feeRow = sheet.claimRow();
       sheet.label(feeRow, LABEL_COL, `${facility.name} — origination / exit fee`, { indent: 1 });
       sheet.at(
@@ -422,6 +466,28 @@ function scalarInput(
     },
     key,
   );
+}
+
+/**
+ * A rate floor or cap, which a facility may simply not have.
+ *
+ * Registered either way so the Debt sheet can ask whether it exists, but only
+ * an actual bound is an editable number. An absent one is a dash: a blank cell
+ * inside `MAX` is zero, which would floor a negative index rate at nil and
+ * quietly overstate interest.
+ */
+function bound(
+  sheet: ReturnType<WorkbookModel['sheet']>,
+  row: number,
+  col: number,
+  value: string | null | undefined,
+  key: string,
+): void {
+  if (value === null || value === undefined) {
+    sheet.at(row, col, { kind: 'metadata', value: '—', format: 'text' }, key);
+    return;
+  }
+  sheet.at(row, col, { kind: 'input', value: Number(value), format: 'percent2' }, key);
 }
 
 /**
