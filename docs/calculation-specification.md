@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.2.0** — `packages/calculation-engine`.
+Engine version **3.3.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -798,13 +798,52 @@ inspector reads them directly; it recomputes nothing.
 `ENGINE_VERSION` is semantic:
 
 - **Patch** — a fix that leaves every existing model's numbers unchanged.
-- **Minor** — additive behaviour reachable only through new inputs.
+- **Minor** — additive behaviour reachable only through new inputs, or new
+  fields on the result where nothing already reported changes.
 - **Major** — any change that would alter an existing model's output.
 
 Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+That is why a purely additive field still moves the minor version: the recorded
+version is what tells a consumer which fields a stored result will have.
+
+### 3.3.0
+
+**Per-partner cash flows, and the partner return on both bases.**
+
+`WaterfallDistribution` described a partner only by totals — contributions,
+distributions, profit, a rate of return. A partnership cannot be audited from
+those. An investor statement has to say *when* capital was called and when it
+came back, and anything discounting a partner's position needs the dated series
+rather than a pair of sums. The engine already tracked the series in order to
+solve each partner's IRR and simply never reported it.
+
+| Field | Meaning |
+| --- | --- |
+| `initialFlow` | The partner's share of the equity funded at closing, negative |
+| `flows` | One entry per forecast period; negative is a capital call, positive a distribution |
+| `xirr` | Annual effective rate on actual/365 day counts |
+
+Contributions and distributions never share a period: a period needing cash is
+funded before any tier is paid, so the sign of a flow says unambiguously which
+it was. The positive entries sum to `distributions`, the negative entries
+including `initialFlow` sum to `-contributions`, and the whole row sums to
+`profit`.
+
+`xirr` exists because partners previously reported only `irr`, solved on uniform
+monthly periods, while the property beside them reported both that and a
+day-count `leveredXirr`. Comparing a partner's return to the deal's therefore
+crossed conventions unless the reader knew to pick `leveredIrr`. Both bases are
+now reported for both, dated identically — closing on the first period's start,
+every later flow on its period end. They differ by a fraction of a basis point
+on a monthly series, which is small enough to be invisible and large enough to
+matter to anyone reconciling to a spreadsheet.
+
+Additive: no existing figure changes and every pre-existing regression assertion
+passes unaltered.
 
 ### 3.2.0
 

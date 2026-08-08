@@ -54,7 +54,7 @@ export function buildLiveModel(input: ModelInput, result: ModelResult): LiveMode
   buildCashFlow(workbook, result, axis, hasDebt);
   buildReturns(workbook, input, result, axis);
   // Only when the model has a partnership; most single-asset models do not.
-  buildWaterfall(workbook, result);
+  buildWaterfall(workbook, input, result, axis);
 
   return { workbook, coverage: measureCoverage(workbook) };
 }

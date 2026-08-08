@@ -62,7 +62,7 @@ async function recalculate(page: Page): Promise<void> {
    * Awaited on the response, not on anything the page renders.
    *
    * The status banner cannot serve as the signal: it reads
-   * `Calculated with engine 3.2.0.` after every successful run, so once one
+   * `Calculated with engine 3.3.0.` after every successful run, so once one
    * calculation has happened, waiting for that text matches the *previous*
    * result instantly.
    *

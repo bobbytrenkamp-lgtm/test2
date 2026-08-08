@@ -1038,18 +1038,133 @@ describe('the partnership waterfall', () => {
     expect(after).toBeCloseTo(before / 2, 8);
   });
 
-  it('marks the partner IRR as imported rather than calculated', () => {
+  it('calculates the partner IRR from the partner’s own cash-flow row', () => {
     /*
-     * Pinned deliberately. The property returns on the Returns sheet are
-     * computed by Excel from the workbook's own cash flows; a partner IRR
-     * cannot be, because the engine reports the partnership only as totals.
-     * Presenting it as a formula would misrepresent where it came from.
+     * Pinned deliberately, and it used to be pinned the other way. The engine
+     * reported the partnership only as totals, so the IRR was imported. It now
+     * surfaces each partner's dated flows, so the cell is an `XIRR` over the
+     * row below it — the same construction the Returns sheet uses for the
+     * property, and for the same reason: an IRR that does not move when the
+     * cash flows move is a caption, not a result.
      */
     const name = withWaterfall[0];
     if (!name) return;
     const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
     const { workbook } = buildLiveModel(input, result);
-    expect(cellFor(workbook, 'waterfall.0.irr').kind).toBe('staticDerived');
+
+    const cell = cellFor(workbook, 'waterfall.0.irr');
+    expect(cell.kind).toBe('formula');
+
+    const resolved = cell.formula?.(workbook.resolver('Waterfall')) ?? '';
+    expect(resolved).toMatch(/^IFERROR\(XIRR\(/);
+    // Over the partner's own flow row and the shared date row, spanning
+    // closing plus every forecast month.
+    const refs = workbook.resolver('Waterfall');
+    const flowRange = refs.range('waterfall.0.flow', 0, result.periods.length);
+    const dateRange = refs.range('waterfall.date', 0, result.periods.length);
+    expect(resolved).toContain(flowRange);
+    expect(resolved).toContain(dateRange);
+  });
+
+  for (const name of withWaterfall) {
+    it(`carries every partner cash flow for ${name}, signed and dated`, () => {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const evaluator = new FormulaEvaluator(workbook);
+      const count = result.periods.length;
+
+      for (const [index, partner] of result.waterfall.entries()) {
+        const key = `waterfall.${index}`;
+
+        /*
+         * Two independent routes to the same number. The flows come across
+         * period by period; profit is a formula over the tiers less the
+         * contribution. A dropped period or a flipped sign breaks the tie.
+         */
+        expect(
+          Math.abs(evaluator.value(`${key}.flowTotal`) - Number(partner.profit)),
+          `${key} flow total vs profit`,
+        ).toBeLessThanOrEqual(SUM_TOLERANCE);
+
+        // Positives are distributions, negatives are capital calls, and the
+        // engine never puts both in one month.
+        const flows = [Number(partner.initialFlow), ...partner.flows.map(Number)];
+        expect(flows).toHaveLength(count + 1);
+        const paidIn = -flows.filter((flow) => flow < 0).reduce((a, b) => a + b, 0);
+        const paidOut = flows.filter((flow) => flow > 0).reduce((a, b) => a + b, 0);
+        expect(Math.abs(paidIn - Number(partner.contributions))).toBeLessThanOrEqual(SUM_TOLERANCE);
+        expect(Math.abs(paidOut - Number(partner.distributions))).toBeLessThanOrEqual(
+          SUM_TOLERANCE,
+        );
+
+        // And the workbook carries each one, in order, at the right column.
+        for (let i = 0; i <= count; i += 1) {
+          expect(Number(cellFor(workbook, `${key}.flow#${i}`).value), `${key}.flow#${i}`).toBe(
+            flows[i],
+          );
+        }
+      }
+
+      // The dates line up with the schedule: closing, then each month end.
+      expect(cellFor(workbook, 'waterfall.date#0').value).toBe(
+        input.valuation.acquisitionDate ?? input.forecast.startDate,
+      );
+      for (let period = 0; period < count; period += 1) {
+        expect(cellFor(workbook, `waterfall.date#${period + 1}`).value).toBe(
+          result.periods[period]?.endDate,
+        );
+      }
+    });
+  }
+
+  it('moves a partner’s IRR when one of their cash flows changes', () => {
+    /*
+     * The dependency the XIRR exists for. `FormulaEvaluator` does not implement
+     * XIRR, so this checks the chain the IRR sits on instead: editing a flow
+     * cell must move the row total, which is what XIRR reads. If the flow row
+     * were disconnected from the IRR the range assertion above would fail, and
+     * if it were disconnected from the total this would.
+     */
+    const name = withWaterfall[0];
+    if (!name) return;
+    const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+    const { workbook } = buildLiveModel(input, result);
+
+    const before = new FormulaEvaluator(workbook).value('waterfall.0.flowTotal');
+    const cell = cellFor(workbook, 'waterfall.0.flow#1');
+    cell.value = Number(cell.value) + 1_000_000;
+    const after = new FormulaEvaluator(workbook).value('waterfall.0.flowTotal');
+
+    expect(after - before).toBeCloseTo(1_000_000, 6);
+  });
+
+  for (const name of withWaterfall) {
+    it(`the partner cash-flow tie-out check reads clean for ${name}`, () => {
+      const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+      const { workbook } = buildLiveModel(input, result);
+      const difference = new FormulaEvaluator(workbook).value('check.waterfallFlows.difference');
+      expect(Number.isFinite(difference)).toBe(true);
+      expect(Math.abs(difference)).toBeLessThanOrEqual(1);
+    });
+  }
+
+  it('trips the tie-out check when a partner cash flow is dropped', () => {
+    // The probe: a check nobody has watched fail is not a check. Zeroing the
+    // closing capital call leaves the tier table untouched, so the two routes
+    // to profit must now disagree by exactly that call.
+    const name = withWaterfall[0];
+    if (!name) return;
+    const { input, result } = fixture(name as keyof typeof ALL_FIXTURES);
+    const { workbook } = buildLiveModel(input, result);
+
+    const cell = cellFor(workbook, 'waterfall.0.flow#0');
+    const dropped = Number(cell.value);
+    expect(dropped).toBeLessThan(0);
+    cell.value = 0;
+
+    const difference = new FormulaEvaluator(workbook).value('check.waterfallFlows.difference');
+    expect(difference).toBeCloseTo(-dropped, 6);
+    expect(Math.abs(difference)).toBeGreaterThan(1);
   });
 
   it('is omitted entirely from a model with no partnership', () => {

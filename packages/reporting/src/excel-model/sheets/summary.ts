@@ -230,6 +230,21 @@ export function buildSummary(
       'check.waterfallBalances',
       '1',
     );
+    /*
+     * The dated partner cash-flow rows and the tier table are two independent
+     * routes to the same number: the flows come across period by period, while
+     * profit is a formula over the tiers less contributions. They must agree,
+     * and they only agree if every period was carried and signed correctly.
+     *
+     * This is the check that makes the partner IRRs trustworthy — an XIRR over
+     * a row missing a month is perfectly well-formed and simply wrong.
+     */
+    check(
+      'Partner cash flows tie to partner profit',
+      (refs) => `${refs.ref('waterfall.total.flowTotal')}-${refs.ref('waterfall.total.profit')}`,
+      'check.waterfallFlows',
+      '1',
+    );
   }
 
   check(

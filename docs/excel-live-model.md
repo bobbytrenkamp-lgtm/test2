@@ -20,12 +20,16 @@ Measured formula coverage:
 | Fixture | Coverage | Notes |
 | --- | --- | --- |
 | `refinanceScenario` (with debt) | **84.0%** | Debt, Expenses, Returns, Summary all 100% |
+| `sponsorFeeBases` (waterfall) | **78.4%** | Debt 100%; partner flows imported |
+| `lpGpWaterfall` | **69.7%** | Waterfall sheet 11.7% — the flow rows |
 | `groceryAnchoredRetail` | **64.3%** | Per-lease rent and billing dominate the gap |
 | `multiTenantOffice` (no debt) | **61.3%** | Same, with more leases |
 
-Coverage on the office fixture *fell* from 72.5% when the Rent Roll was added,
-because lease-level rent is engine-supplied and now counted. That is the metric
-working: it got less flattering as the workbook got more complete.
+Coverage has *fallen* three times as the workbook got more complete: 72.5% on
+the office fixture when the Rent Roll landed, again when Recoveries did, and
+72.6% → 69.7% on `lpGpWaterfall` when the partner cash-flow rows arrived. Each
+time the new cells were honestly-labelled imports. That is the metric working —
+it is a measure of how much is genuinely live, not a score to maximise.
 
 The response carries `x-formula-coverage`, `x-formula-cells` and
 `x-calculated-cells`, so the claim is checkable from outside.
@@ -37,7 +41,7 @@ The response carries `x-formula-coverage`, `x-formula-cells` and
 | 3 | Rent Roll and lease-level detail | **Built** — Revenue sums it |
 | 4 | Debt schedule | **Built, reconciles exactly on all five debt fixtures** |
 | 5 | Summary, checks, export route, UI | **Built** |
-| 5b | Recoveries as their own schedule, waterfalls | Not started — see below |
+| 5b | Recoveries as their own schedule, the partnership waterfall | **Built** — recovery settlement and partner IRRs are formulas |
 
 ### Formula coverage by feature
 
@@ -70,7 +74,8 @@ reconciles it to the engine.
 | Rent growth sensitivity → revenue → NOI → value | **Yes** (a lever; see below) |
 | Recovery method `fixed_amount` | **No** — no fixture exercises it |
 | Waterfall: distributions, profit, equity multiple | **Yes** |
-| Waterfall tier amounts, partner IRR | **No** — imported; see below |
+| Partner IRR | **Yes** — native `XIRR` over the partner's own dated flow row |
+| Waterfall tier amounts, per-period partner flows | **No** — imported; see below |
 
 ## Architecture
 
@@ -270,25 +275,57 @@ payment = balance x r / (1 - (1 + r)^-n)      r > 0
 payment = balance / n                          r = 0
 ```
 
+## The partnership waterfall
+
+Each partner gets a dated cash-flow row — their share of the equity funded at
+closing, then one column per forecast month — and their IRR is an `XIRR` over
+that row, exactly as the property's levered return is an `XIRR` over the Cash
+Flow sheet. An IRR that does not move when the cash flows move is a caption, not
+a result.
+
+The flows themselves are imported: contributions and distributions never share a
+month (a period needing cash is funded before any tier is paid), but the split
+of a distribution across tiers is a sequential draw-down and not a closed form.
+So the sheet is honest in two directions at once — the IRR is genuinely
+calculated by Excel, and the row it reads is genuinely imported.
+
+What makes that trustworthy is the tie-out. The row total is a `SUM`, and it
+must equal the partner's profit, which is a formula over the tier amounts less
+their contribution. Those are two independent routes to the same number, so a
+dropped period or a flipped sign shows up as `CHECK` on the Summary sheet rather
+than as a well-formed and quietly wrong IRR. A test drops a flow on purpose and
+confirms the check trips by exactly the amount dropped.
+
+The engine gained three fields to make this possible — `initialFlow`, `flows`
+and `xirr` on `WaterfallDistribution` (engine 3.3.0). That was not a change made
+for the exporter's convenience: a partnership reported only as totals cannot be
+audited or discounted by anything, and the partner IRR had been solved on a
+different day-count convention from the property's `leveredXirr` sitting beside
+it. Both were reporting limitations in their own right.
+
+`XIRR` is outside the reconciliation evaluator's subset, so the IRR cells are
+skipped rather than checked. What is checked is the chain beneath them: the
+formula references the right range, and editing a flow moves the total.
+
 ## Remaining gaps, in priority order
 
-1. **Per-partner cash flows from the engine.** The Waterfall sheet exists and
-   its distributions, profit and equity multiple are formulas, but each
-   partner's IRR is imported. `ModelResult.waterfall` reports the partnership
-   as totals, so there is no dated series for Excel's `XIRR` to work from.
-   Exposing per-period partner cash flows would make partner IRRs as live as
-   the property returns already are. That is a change to the engine's output
-   shape, not to the exporter, so it is recorded here rather than worked
-   around.
+1. **Per-period tier amounts and partner flows.** The split across a preferred
+   return, return of capital, a catch-up and a residual promote is a sequential
+   draw-down against running accrual balances, period by period — not a closed
+   form. Both the tier totals and each partner's monthly flow are therefore
+   imported and counted against coverage.
 
-2. **Tier amounts.** The split across a preferred return, return of capital,
-   a catch-up and a residual promote is a sequential draw-down against a
-   running balance period by period, not a closed form.
-3. **Floating-rate index resolution.** The applied rate is editable per period
+   Making them *look* live would be easy and is deliberately refused: scaling
+   each partner's flow by the period's equity cash flow while holding their
+   share fixed produces a row that moves in the right direction by the wrong
+   amount, because the tiers are non-linear. A plainly labelled imported cell is
+   worth more than a formula that is quietly approximate.
+
+2. **Floating-rate index resolution.** The applied rate is editable per period
    but is not rebuilt from the index curve, spread, floor and cap.
-4. **TI, LC and capital** as formulas driven by leasing assumptions.
-5. **Covenant tests, cash traps and refinancing** in the workbook.
-6. **Sensitivity tables and scenarios.**
+3. **TI, LC and capital** as formulas driven by leasing assumptions.
+4. **Covenant tests, cash traps and refinancing** in the workbook.
+5. **Sensitivity tables and scenarios.**
 
 ## The four movements, tested
 

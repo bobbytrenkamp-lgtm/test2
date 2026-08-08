@@ -52,6 +52,29 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 3.3.0
+ *
+ * Per-partner cash flows, and the partner return on both bases.
+ *
+ * `WaterfallDistribution` described a partner only by totals: what they put in,
+ * what they took out, and a rate of return. That is not enough to audit a
+ * partnership. An investor statement has to say *when* capital was called and
+ * when it came back, and anything discounting or re-rating a partner's position
+ * needs the dated series rather than a pair of sums. The engine already tracked
+ * the series to solve each partner's IRR; it simply never reported it. It is
+ * now surfaced as `initialFlow` and `flows`.
+ *
+ * The same partners also carried an IRR solved on uniform monthly periods while
+ * the property beside them reported both that and a day-count `leveredXirr`.
+ * Comparing a partner's return to the deal's therefore crossed conventions
+ * unless the reader knew to pick `leveredIrr`. Partners now report `xirr` too,
+ * on the same actual/365 basis, dated from the first period's start exactly as
+ * the property's is.
+ *
+ * Additive throughout: no existing figure changes, and every previously
+ * reported field keeps its value. Minor rather than patch because a stored
+ * result's engine version is what tells a consumer which fields to expect.
+ *
  * ## 3.2.0
  *
  * Development and refinance fee bases. Both fee types have been in the schema
@@ -173,7 +196,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '3.2.0';
+export const ENGINE_VERSION = '3.3.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

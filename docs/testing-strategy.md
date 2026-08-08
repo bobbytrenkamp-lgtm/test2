@@ -38,7 +38,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
-| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 229 | No |
+| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
@@ -63,10 +63,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
-| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 73 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 79 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 
-**685 tests in total.**
+**713 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -95,7 +95,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**117 browser tests in total**, for 802 across the whole repository.
+**117 browser tests in total**, for 830 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

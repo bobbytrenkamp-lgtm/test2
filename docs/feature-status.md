@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 3.2.0 · Last verified 2026-08-05**
+**Engine version 3.3.0 · Last verified 2026-08-05**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       685 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       713 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,

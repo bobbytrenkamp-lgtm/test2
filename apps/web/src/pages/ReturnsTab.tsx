@@ -277,6 +277,15 @@ export function ReturnsTab(): JSX.Element {
               </tbody>
             </table>
           </div>
+          <p className="field-hint">
+            The IRR column is solved on uniform monthly periods, matching the levered IRR above. On
+            actual dates:{' '}
+            {waterfall
+              .map((partner) => `${partner.partnerName} ${formatPercent(partner.xirr)}`)
+              .join(', ')}
+            . The Excel live-model export calculates the partner IRR on this basis, because that is
+            what a spreadsheet&rsquo;s XIRR uses.
+          </p>
         </div>
       )}
 

@@ -181,7 +181,17 @@ export function buildReturns(
     TOTAL_COL,
     {
       kind: 'metadata',
-      value: input.valuation.acquisitionDate ?? input.forecast.startDate,
+      /*
+       * The first period's start, which is where the engine dates the
+       * acquisition outflow when it computes `unleveredXirr` and `leveredXirr`.
+       *
+       * This used to read the acquisition date. No fixture sets one that
+       * differs from the forecast start, so the two always agreed and nothing
+       * caught it — but a model closing mid-forecast would have made Excel
+       * discount over a different day count from the engine, and the resulting
+       * IRR gap would have looked like a formula error rather than a date one.
+       */
+      value: axis.periods[0]?.startDate ?? input.forecast.startDate,
       format: 'text',
     },
     'returns.date#0',
