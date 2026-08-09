@@ -23,9 +23,7 @@ async function openICSummary(page: Page): Promise<void> {
     timeout: 120_000,
   });
   await page.getByRole('link', { name: 'IC summary', exact: true }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Investment committee summary' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Investment committee summary' })).toBeVisible();
 }
 
 test('states the same returns the Returns tab shows', async ({ page }) => {
@@ -83,9 +81,7 @@ test('the print button does not navigate away', async ({ page }) => {
     };
   });
   await page.getByRole('button', { name: 'Print' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Investment committee summary' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Investment committee summary' })).toBeVisible();
 });
 
 test('is accessible', async ({ page }) => {
