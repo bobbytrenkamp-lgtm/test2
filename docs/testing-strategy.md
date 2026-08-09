@@ -68,8 +68,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
+| Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
 
-**774 tests in total.**
+**803 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -84,9 +85,10 @@ built bundle:
 | Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
 | Spreadsheet editing on the rent roll | `e2e/rent-roll-grid.spec.ts` | 11 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
+| Structured record editors | `e2e/record-editors.spec.ts` | 11 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
-| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
+| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
 | Fund positions | `e2e/funds.spec.ts` | 5 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
@@ -100,7 +102,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**135 browser tests in total**, for 909 across the whole repository.
+**147 browser tests in total**, for 950 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

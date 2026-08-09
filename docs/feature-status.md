@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       774 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       803 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -66,15 +66,17 @@ Tests       774 passed  (251 engine regression, 31 engine unit, 16 fund,
                          18 Excel Live Model framework,
                          83 Excel Live Model reconciliation,
                          5 Excel Live Model export, 40 grid behaviour,
-                         8 batch lease writes, 9 batched assumptions)
-Browser     135 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         8 batch lease writes, 9 batched assumptions,
+                         29 record-editor specs)
+Browser     147 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
-                         7 assumption spreadsheet editing, 6 permissions,
+                         7 assumption spreadsheet editing,
+                         11 record editors, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
-                         3 two-factor, 11 accessibility, 45 accessibility tree)
+                         3 two-factor, 12 accessibility, 45 accessibility tree)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -221,7 +223,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
 | Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
 | Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |
-| Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Structured records — schedules, draws, covenants — are still edited as JSON in the record editor. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
+| Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
+| Structured record editors | Tested | Operating expenses, market leasing and debt open a sectioned form instead of a JSON blob: only the fields the chosen method reads are shown, every CRE term carries an explanation where it is used, and a summary panel reads the record back — labelled as arithmetic, not a calculation. 29 spec tests, 11 browser tests, and the debt form is in the axe sweep. Capital, other revenue and growth curves have no spec yet and still use the raw record |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
@@ -242,11 +245,12 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 | Accessibility tree, audited beyond axe | Tested | Heading ladders, rotor-distinguishable controls, named tables and landmarks across eleven screens. Found and fixed an `h1 → h3` skip from a shared component. **Not** a substitute for a screen-reader audit, and the file says so |
 
-**Still edited as JSON:** the structured parts of a record — a custom monthly
-schedule, a draw schedule, an escalation, a recovery structure, lease options.
-Each is a record rather than a value, so none belongs in a cell; they are
-reached through "Edit in full" beside each grid. Purpose-built editors for them
-are the next piece of work, not a claim already met.
+**Still edited as raw JSON:** capital items, other property revenue and growth
+curves, which have no `RecordSpec` yet, and a lease's own options and free-rent
+periods. The raw view is also deliberately kept behind a control on the three
+collections that *do* have a form, because a spec can only offer the fields
+somebody thought to put in it, and removing the escape hatch would make the
+product less capable than the thing it replaced.
 
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder

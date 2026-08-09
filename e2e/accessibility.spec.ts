@@ -120,6 +120,26 @@ test.describe('signed in', () => {
     await audit(page);
   });
 
+  test('a structured record editor', async ({ page }) => {
+    /*
+     * The densest new form in the product, and the one most likely to
+     * reintroduce an unlabelled control: it renders whatever a spec declares,
+     * so a field added without a label would slip through review.
+     */
+    await page.goto('/properties');
+    await page.getByRole('link', { name: SEED.office.property }).click();
+    await page.getByRole('link', { name: SEED.office.model }).click();
+    await page.getByRole('link', { name: 'Assumptions' }).click();
+    const card = page
+      .locator('.card')
+      .filter({ has: page.getByRole('heading', { name: 'Debt facilities', exact: true }) });
+    await page.getByRole('grid', { name: 'Debt facilities' }).focus();
+    await page.keyboard.press('Control+ArrowUp');
+    await card.getByRole('button', { name: /in full$/ }).click();
+    await expect(page.getByRole('group', { name: 'Loan terms' })).toBeVisible();
+    await audit(page);
+  });
+
   test('the fund position', async ({ page }) => {
     // The newest screen, and the one with the densest table, so it is the most
     // likely to reintroduce an unlabelled control or a header that names

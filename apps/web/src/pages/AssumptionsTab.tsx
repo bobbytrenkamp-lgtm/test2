@@ -6,6 +6,9 @@ import {
   withPendingAssumption,
   type AssumptionRow,
 } from './assumption-columns.js';
+import { RecordEditor } from './record-editors/RecordEditor.js';
+import { RECORD_SPECS } from './record-editors/specs.js';
+import type { RecordValues } from './record-editors/spec.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
 import { formatPercent, titleCase } from '../format.js';
 import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
@@ -355,6 +358,14 @@ function Collection({
   );
   const [focused, setFocused] = useState<AssumptionRow | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /*
+   * The record the structured editor opened, camelCased and stripped of the
+   * columns nobody edits. Held apart from the JSON draft so switching between
+   * the two views does not lose what has been typed into the other.
+   */
+  const [editingRecord, setEditingRecord] = useState<RecordValues | null>(null);
+  const [rawJson, setRawJson] = useState(false);
+  const recordSpec = RECORD_SPECS[segment] ?? null;
   const [draft, setDraft] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   // Held outside the draft because it is not something anyone edits: it is the
@@ -371,6 +382,7 @@ function Collection({
 
   function beginEdit(row: Record<string, unknown> | null): void {
     setParseError(null);
+    setRawJson(false);
     if (row) {
       const {
         id: _id,
@@ -380,12 +392,15 @@ function Collection({
         version,
         ...rest
       } = row as Record<string, unknown>;
+      const camel = toCamel(rest);
       setEditing(String(row.code));
       setOpenedVersion(typeof version === 'number' ? version : null);
-      setDraft(JSON.stringify(toCamel(rest), null, 2));
+      setEditingRecord(camel);
+      setDraft(JSON.stringify(camel, null, 2));
     } else {
       setEditing('');
       setOpenedVersion(null);
+      setEditingRecord(null);
       setDraft(JSON.stringify({ code: '', name: '' }, null, 2));
     }
   }
@@ -561,41 +576,86 @@ function Collection({
         ))
       )}
 
-      {editing !== null && (
-        <form onSubmit={submit} style={{ marginTop: 12 }}>
-          {save.error?.status === 409 ? (
-            <div className="message error" role="alert">
-              <strong>{save.error.message}</strong>
-              <p style={{ marginBottom: 0 }}>
-                Nothing has been saved. Cancel and reopen the row to see their change, then reapply
-                yours. Saving over them would discard work you cannot see from here.
-              </p>
+      {editing !== null &&
+        (recordSpec && !rawJson ? (
+          <RecordEditor
+            spec={recordSpec}
+            initial={editingRecord}
+            expectedVersion={openedVersion}
+            saving={save.pending}
+            error={save.error}
+            onCancel={() => setEditing(null)}
+            onSave={async (values) => {
+              const code = String(values.code ?? '');
+              if (!code) {
+                setParseError('A code is required.');
+                return;
+              }
+              if (await save.run(code, values)) {
+                setEditing(null);
+                resource.reload();
+                onSaved();
+              }
+            }}
+          />
+        ) : (
+          <form onSubmit={submit} style={{ marginTop: 12 }}>
+            {save.error?.status === 409 ? (
+              <div className="message error" role="alert">
+                <strong>{save.error.message}</strong>
+                <p style={{ marginBottom: 0 }}>
+                  Nothing has been saved. Cancel and reopen the row to see their change, then
+                  reapply yours. Saving over them would discard work you cannot see from here.
+                </p>
+              </div>
+            ) : (
+              <ErrorMessage error={save.error} />
+            )}
+            <Field
+              label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
+              error={parseError ?? undefined}
+              hint="Field names use camelCase, matching the API. Amounts and rates are decimal strings."
+            >
+              <textarea
+                rows={12}
+                value={draft}
+                spellCheck={false}
+                onChange={(event) => setDraft(event.target.value)}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+              />
+            </Field>
+            <div className="row end">
+              {recordSpec && (
+                <button type="button" className="subtle" onClick={() => setRawJson(false)}>
+                  Back to the form
+                </button>
+              )}
+              <button type="button" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary" disabled={save.pending}>
+                {save.pending ? 'Saving…' : 'Save'}
+              </button>
             </div>
-          ) : (
-            <ErrorMessage error={save.error} />
-          )}
-          <Field
-            label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
-            error={parseError ?? undefined}
-            hint="Field names use camelCase, matching the API. Amounts and rates are decimal strings."
-          >
-            <textarea
-              rows={12}
-              value={draft}
-              spellCheck={false}
-              onChange={(event) => setDraft(event.target.value)}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
-            />
-          </Field>
-          <div className="row end">
-            <button type="button" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-            <button type="submit" className="primary" disabled={save.pending}>
-              {save.pending ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
+          </form>
+        ))}
+
+      {/*
+       * The JSON view is kept, behind a control, rather than deleted.
+       *
+       * A structured form can only offer the fields somebody thought to put in
+       * the spec. When a collection grows a field the spec has not caught up
+       * with, or when somebody is debugging what the API actually stored, the
+       * raw record is the only way to see it — and taking that away would make
+       * the product less capable than the thing it replaced.
+       */}
+      {editing !== null && recordSpec && !rawJson && (
+        <p className="field-hint" style={{ marginTop: 8 }}>
+          <button type="button" className="subtle" onClick={() => setRawJson(true)}>
+            Edit the raw record instead
+          </button>{' '}
+          — every stored field, including any this form does not show.
+        </p>
       )}
     </div>
   );
