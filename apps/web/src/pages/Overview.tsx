@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PortfolioSummary, Property } from '../api.js';
-import { BarChart, EmptyState, ErrorMessage, Loading, StatusBadge } from '../components.js';
+import {
+  BarChart,
+  EmptyState,
+  ErrorMessage,
+  FavouriteButton,
+  Loading,
+  StatusBadge,
+} from '../components.js';
+import { useFavourites } from '../favourites.js';
 import {
   formatCurrency,
+  formatDate,
   formatDateTime,
   formatMultiple,
   formatNumber,
@@ -11,6 +20,7 @@ import {
   titleCase,
 } from '../format.js';
 import { useResource } from '../hooks.js';
+import { readRecents, type Recent } from '../recents.js';
 import { useSession } from '../session.js';
 
 /** Organization dashboard. */
@@ -43,6 +53,8 @@ export function DashboardPage(): JSX.Element {
       </div>
 
       <ErrorMessage error={properties.error} />
+
+      {rows.length > 0 && <PinnedAndRecent />}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -131,6 +143,113 @@ export function DashboardPage(): JSX.Element {
   );
 }
 
+/**
+ * The two ways back to what somebody was actually doing, side by side.
+ *
+ * Deliberately kept as one glance rather than two separate cards: a favourite
+ * is a decision and a recent is a trace of activity, and a reader comparing
+ * them is exactly the point — "the thing I pinned last month" against "the
+ * thing I opened ten minutes ago" is a useful contrast, not a redundant one.
+ */
+function PinnedAndRecent(): JSX.Element | null {
+  const { session } = useSession();
+  const { favourites, loading } = useFavourites();
+  const recents: Recent[] =
+    session?.user.id && session.organizationId
+      ? readRecents(session.user.id, session.organizationId)
+      : [];
+
+  if (loading || (favourites.length === 0 && recents.length === 0)) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="pinned-recent-grid">
+        <div>
+          <h2>Favourites</h2>
+          {favourites.length === 0 ? (
+            <p className="field-hint">
+              Pin a property or model with the star beside its name to keep it here.
+            </p>
+          ) : (
+            <ul className="pinned-list">
+              {favourites.map((entry) => (
+                <li key={`${entry.entity_type}-${entry.entity_id}`}>
+                  <FavouriteButton
+                    entityType={entry.entity_type}
+                    entityId={entry.entity_id}
+                    name={entry.name}
+                  />
+                  <Link
+                    to={
+                      entry.entity_type === 'property'
+                        ? `/properties/${entry.entity_id}`
+                        : `/models/${entry.entity_id}`
+                    }
+                  >
+                    {entry.name}
+                  </Link>
+                  {entry.context && <span className="field-hint"> · {entry.context}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <h2>Recently viewed</h2>
+          {recents.length === 0 ? (
+            <p className="field-hint">
+              Properties and models you open appear here, on this device.
+            </p>
+          ) : (
+            <ul className="pinned-list">
+              {recents.map((entry) => (
+                <li key={`${entry.entityType}-${entry.entityId}`}>
+                  <Link
+                    to={
+                      entry.entityType === 'property'
+                        ? `/properties/${entry.entityId}`
+                        : `/models/${entry.entityId}`
+                    }
+                  >
+                    {entry.name}
+                  </Link>
+                  {entry.context && <span className="field-hint"> · {entry.context}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <p className="field-hint" style={{ marginTop: 12, marginBottom: 0 }}>
+        Recently viewed is kept on this device only, so it can be different on your laptop and your
+        desk machine; favourites follow you to wherever you sign in.
+      </p>
+    </div>
+  );
+}
+
+interface TenantExposureResponse {
+  portfolio: { id: string; name: string };
+  tenants: Array<{
+    tenantId: string;
+    tenantName: string;
+    parentCompany: string | null;
+    industry: string | null;
+    creditRating: string | null;
+    isAnchor: boolean;
+    annualBaseRent: string;
+    occupiedArea: string;
+    shareOfRent: string;
+    shareOfArea: string;
+    properties: Array<{ propertyId: string; propertyName: string }>;
+    leaseCount: number;
+    earliestExpiration: string | null;
+  }>;
+  totalAnnualBaseRent: string;
+  totalOccupiedArea: string;
+  propertyCount: number;
+}
+
 interface AggregateResponse {
   portfolio: { id: string; name: string };
   aggregate: {
@@ -166,6 +285,12 @@ export function PortfoliosPage(): JSX.Element {
   const [selected, setSelected] = useState<string | null>(null);
   const aggregate = useResource<AggregateResponse>(
     selected ? `/portfolios/${selected}/aggregate` : null,
+  );
+  // Only fetched once the roll-up itself has succeeded: a portfolio with no
+  // calculated property has nothing to aggregate and nothing to attribute to
+  // a tenant either, and the same excluded-property message already covers it.
+  const tenantExposure = useResource<TenantExposureResponse>(
+    selected && aggregate.data ? `/portfolios/${selected}/tenant-exposure` : null,
   );
 
   return (
@@ -385,9 +510,103 @@ export function PortfoliosPage(): JSX.Element {
               </div>
             </div>
           )}
+
+          <TenantExposurePanel exposure={tenantExposure.data} loading={tenantExposure.loading} />
         </>
       )}
     </>
+  );
+}
+
+/**
+ * The full picture behind the "Tenant concentration" glance above: not the
+ * top 20 by name, but every tenant matched by id, every property they
+ * occupy, and the credit profile a reviewer actually asks about.
+ *
+ * A national tenant that is 8% of one asset and 8% of three others is 25%+ of
+ * the portfolio's income, and that fact is invisible from any single
+ * property's own rent roll — which is the reason this exists as a roll-up
+ * rather than something to read off six separate screens.
+ */
+function TenantExposurePanel({
+  exposure,
+  loading,
+}: {
+  exposure: TenantExposureResponse | null;
+  loading: boolean;
+}): JSX.Element | null {
+  if (loading) return <Loading label="Rolling up tenant exposure" />;
+  if (!exposure || exposure.tenants.length === 0) return null;
+
+  return (
+    <div className="card">
+      <h2>Tenant exposure across the portfolio</h2>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        Matched by tenant, not by name, and summed across every property in{' '}
+        {exposure.portfolio.name}. A rollover branch the engine generated because a lease has not
+        renewed yet counts as that tenant, weighted by their probability of staying; a branch
+        representing whoever eventually re-lets the space if they do not is not a tenant and is left
+        out.
+      </p>
+      <div className="table-scroll" tabIndex={0} style={{ maxHeight: 420 }}>
+        <table>
+          <caption className="visually-hidden">
+            Tenant exposure across {exposure.propertyCount} propert
+            {exposure.propertyCount === 1 ? 'y' : 'ies'}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Tenant</th>
+              <th scope="col">Properties</th>
+              <th scope="col" className="numeric">
+                Leases
+              </th>
+              <th scope="col" className="numeric">
+                Occupied area
+              </th>
+              <th scope="col" className="numeric">
+                Year 1 base rent
+              </th>
+              <th scope="col" className="numeric">
+                Share of rent
+              </th>
+              <th scope="col">Credit rating</th>
+              <th scope="col">Earliest expiration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exposure.tenants.map((tenant) => (
+              <tr key={tenant.tenantId}>
+                <th scope="row">
+                  {tenant.tenantName}
+                  {tenant.isAnchor && (
+                    <span className="badge accent" style={{ marginLeft: 6 }}>
+                      Anchor
+                    </span>
+                  )}
+                  {tenant.parentCompany && <div className="field-hint">{tenant.parentCompany}</div>}
+                </th>
+                <td>
+                  {tenant.properties.map((property) => (
+                    <div key={property.propertyId}>
+                      <Link to={`/properties/${property.propertyId}`}>{property.propertyName}</Link>
+                    </div>
+                  ))}
+                </td>
+                <td className="numeric">{tenant.leaseCount}</td>
+                <td className="numeric">{formatNumber(tenant.occupiedArea, 0)}</td>
+                <td className="numeric">{formatCurrency(tenant.annualBaseRent, 'USD')}</td>
+                <td className="numeric">
+                  <strong>{formatPercent(tenant.shareOfRent)}</strong>
+                </td>
+                <td>{tenant.creditRating ?? '—'}</td>
+                <td>{formatDate(tenant.earliestExpiration)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

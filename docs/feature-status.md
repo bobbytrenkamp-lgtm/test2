@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 3.2.0 · Last verified 2026-08-05**
+**Engine version 3.3.1 · Last verified 2026-08-05**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
+Tests       863 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -62,13 +62,28 @@ Tests       589 passed  (229 engine regression, 31 engine unit, 16 fund,
                          5 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
-                         10 portfolio reports, 13 vertical slice)
-Browser     117 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         4 lease editor, search and sort, 6 permissions,
+                         10 portfolio reports, 13 vertical slice,
+                         18 Excel Live Model framework,
+                         83 Excel Live Model reconciliation,
+                         5 Excel Live Model export, 40 grid behaviour,
+                         8 batch lease writes, 9 batched assumptions,
+                         29 record-editor specs,
+                         22 health and drivers,
+                         14 the assumption input contract,
+                         12 assumption proposals via the API,
+                         7 favourites, 5 tenant exposure)
+Browser     186 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         4 lease editor, search and sort,
+                         11 rent-roll spreadsheet editing,
+                         7 assumption spreadsheet editing,
+                         11 record editors, 8 explainability,
+                         11 health, drivers and timeline,
+                         6 assumption provenance, 4 favourites,
+                         5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
-                         3 two-factor, 11 accessibility, 45 accessibility tree)
+                         3 two-factor, 12 accessibility, 45 accessibility tree)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -209,14 +224,23 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Dashboard | Functional | Metrics, type allocation, recent assets |
 | Property list, search, filter, create | Functional | |
 | Property workspace | Functional | Overview, spaces, models |
-| Model workspace with tabs | Functional | Nine tabs |
+| Model workspace with tabs | Functional | Twelve tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
-| Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
-| Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser. Searchable by lease, tenant or suite, and sortable on six columns with `aria-sort`; area and rent sort numerically, which a browser test pins with a lease whose text order differs from its numeric order |
-| Assumptions, six collections | Tested | Common fields tabulated; full record edited as JSON. A browser test changes the discount rate and requires the valuation to fall, so the number is proved to reach the engine rather than merely to reach the form |
+| Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Opens from the cash flow and from the traced return metrics. Leads with what made the number up — the contributing tenants, read from the stored calculation — then the formula and its inputs, then links to the lease or record to change. Copies as text. 8 browser tests, including one that follows a link to a rent roll already filtered to the named lease |
+| Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
+| Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
+| Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |
+| Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
+| Structured record editors | Tested | Operating expenses, market leasing and debt open a sectioned form instead of a JSON blob: only the fields the chosen method reads are shown, every CRE term carries an explanation where it is used, and a summary panel reads the record back — labelled as arithmetic, not a calculation. 29 spec tests, 11 browser tests, and the debt form is in the axe sweep. Capital, other revenue and growth curves have no spec yet and still use the raw record |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
+| Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
+| Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
+| Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
+| Investment committee summary | Tested | One printable page built from the same stored calculation the Returns and Health tabs read — nothing is recomputed, so the summary cannot disagree with the detail behind it. Leads with the Health tab's own warnings rather than a score, each carrying the threshold it crossed. Screen and print only; no PDF export or emailed digest yet. 5 browser tests, in the axe sweep |
+| Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 14 contract tests, 12 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
+| Favourites and recently viewed | Tested | A star pins a property or model server-side, per person and organization, so it follows a reviewer to wherever they sign in; recently viewed is deliberately kept in the browser's own storage instead, since it is a trace of one device's activity rather than a decision, and is cleared on sign-out so a shared machine cannot leak it to the next person. Both surface on the dashboard and, unprompted, at the top of the command palette. A deleted property or model disappears from the pinned list on its own. 7 API tests, 4 browser tests, in the axe sweep |
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser tests import a part-invalid CSV and a multi-sheet workbook, and check what reached the rent roll. The sheet is chosen in the wizard, not guessed for you |
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
@@ -224,20 +248,32 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
 | Mention notifications, activity feed | Not started | A mention is recorded on the comment and shown in the thread; nobody is told out of band |
 | Portfolio roll-up | Functional | |
+| Tenant exposure across a portfolio | Tested | Rolls every property's leading model up by tenant identity rather than by name, so a tenant occupying space in several assets shows its true combined share instead of appearing separately on each one's own rent roll. A rollover branch the engine generated counts as that tenant only when it resolves to a real row in `tenants` — checked by matching against the table itself rather than trusting the branch's `scenario` label, which a nested round of speculative rollover can carry (`renewal`) while still describing no real tenant at all. Distinct from the "Tenant concentration" summary folded into every roll-up: that one is a top-20 glance keyed by name; this is the full breakdown, keyed by id, with every property occupied, lease count, credit profile and earliest expiration. 5 API tests, 5 browser tests, in the axe sweep |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
 | Keyboard shortcuts, unsaved-change warning | Tested | Ctrl/Cmd+Enter recalculates; Ctrl/Cmd+K opens the command palette |
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 117 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 126 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 | Accessibility tree, audited beyond axe | Tested | Heading ladders, rotor-distinguishable controls, named tables and landmarks across eleven screens. Found and fixed an `h1 → h3` skip from a shared component. **Not** a substitute for a screen-reader audit, and the file says so |
 
-**Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
-hiding, saved views, configurable dashboard widgets, notifications, geographic
-maps. (Comments, tasks and side-by-side version comparison were on this list and
-have since shipped; the rows above are the current state.)
+**Still edited as raw JSON:** capital items, other property revenue and growth
+curves, which have no `RecordSpec` yet, and a lease's own options and free-rent
+periods. The raw view is also deliberately kept behind a control on the three
+collections that *do* have a form, because a spec can only offer the fields
+somebody thought to put in it, and removing the escape hatch would make the
+product less capable than the thing it replaced.
+
+**Not started in the interface:** named saved views (column layout and density
+persist per model, but cannot yet be named, listed or shared), drag-to-reorder
+columns and drag-fill handles (reordering is button-driven and keyboard-first),
+bulk edit as an explicit "apply to N selected" dialog (fill-down and
+paste-one-value cover the same ground today), configurable dashboard widgets,
+notifications, geographic maps. (Comments, tasks and side-by-side version
+comparison were on this list and have since shipped; the rows above are the
+current state.)
 
 ## 5. Reporting and imports
 

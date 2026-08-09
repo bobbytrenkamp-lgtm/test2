@@ -1,4 +1,7 @@
+import { useState } from 'react';
+import type { Lease } from '../api.js';
 import { EmptyState, Loading } from '../components.js';
+import { CalculationInspector, type InspectorTarget } from '../components/CalculationInspector.js';
 import {
   formatCurrency,
   formatMonth,
@@ -6,6 +9,7 @@ import {
   formatPercent,
   titleCase,
 } from '../format.js';
+import { useResource } from '../hooks.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /**
@@ -16,6 +20,8 @@ import { useModelContext } from './ModelWorkspace.js';
  */
 export function ReturnsTab(): JSX.Element {
   const { cashFlow, cashFlowError, calculate, calculating, model } = useModelContext();
+  const [inspect, setInspect] = useState<InspectorTarget | null>(null);
+  const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
 
   if (cashFlowError) {
     return (
@@ -61,8 +67,31 @@ export function ReturnsTab(): JSX.Element {
             value={formatCurrency(returns.netPresentValue, currency, { compact: true })}
             note="Unlevered, at the model discount rate"
           />
-          <Metric label="Going-in cap rate" value={formatPercent(returns.goingInCapRate)} />
-          <Metric label="Exit cap rate" value={formatPercent(returns.exitCapRate)} />
+          <Metric
+            label="Going-in cap rate"
+            value={formatPercent(returns.goingInCapRate)}
+            onExplain={() =>
+              setInspect({
+                line: 'netOperatingIncome',
+                period: 1,
+                periodEnd: 12,
+                label: 'Going-in cap rate',
+                value: formatPercent(returns.goingInCapRate),
+              })
+            }
+          />
+          <Metric
+            label="Exit cap rate"
+            value={formatPercent(returns.exitCapRate)}
+            onExplain={() =>
+              setInspect({
+                line: 'grossSaleProceeds',
+                period: null,
+                label: 'Exit cap rate and sale price',
+                value: formatPercent(returns.exitCapRate),
+              })
+            }
+          />
           <Metric label="Yield on cost" value={formatPercent(returns.yieldOnCost)} />
           <Metric label="Minimum DSCR" value={formatFixed(returns.minimumDscr)} />
           <Metric label="Year 1 debt yield" value={formatPercent(returns.debtYieldYear1)} />
@@ -277,7 +306,27 @@ export function ReturnsTab(): JSX.Element {
               </tbody>
             </table>
           </div>
+          <p className="field-hint">
+            The IRR column is solved on uniform monthly periods, matching the levered IRR above. On
+            actual dates:{' '}
+            {waterfall
+              .map((partner) => `${partner.partnerName} ${formatPercent(partner.xirr)}`)
+              .join(', ')}
+            . The Excel live-model export calculates the partner IRR on this basis, because that is
+            what a spreadsheet&rsquo;s XIRR uses.
+          </p>
         </div>
+      )}
+
+      {inspect && (
+        <CalculationInspector
+          modelId={model.id}
+          target={inspect}
+          cashFlow={cashFlow}
+          leases={leases.data?.leases ?? []}
+          currency={currency}
+          onClose={() => setInspect(null)}
+        />
       )}
 
       {debtSchedules.length === 0 && waterfall.length === 0 && (
@@ -294,23 +343,44 @@ export function ReturnsTab(): JSX.Element {
   );
 }
 
+/**
+ * One return metric.
+ *
+ * A metric with an `explain` is a button, not text. Making every number
+ * clickable was tempting and wrong: a figure that opens an empty inspector
+ * teaches people that clicking numbers does nothing. Only the ones whose
+ * derivation the engine actually traces carry the affordance, and the rest read
+ * as what they are.
+ */
 function Metric({
   label,
   value,
   note,
+  onExplain,
 }: {
   label: string;
   value: string;
   note?: string;
+  onExplain?: () => void;
 }): JSX.Element {
+  const body =
+    value === '—' ? <span style={{ fontSize: 14, fontWeight: 500 }}>Not available</span> : value;
   return (
     <div className="metric">
       <dt>{label}</dt>
       <dd>
-        {value === '—' ? (
-          <span style={{ fontSize: 14, fontWeight: 500 }}>Not available</span>
+        {onExplain && value !== '—' ? (
+          <button
+            type="button"
+            className="metric-explain"
+            onClick={onExplain}
+            aria-label={`How ${label} was calculated`}
+            title={`How ${label} was calculated`}
+          >
+            {body}
+          </button>
         ) : (
-          value
+          body
         )}
         {note && <div className="metric-note">{note}</div>}
       </dd>

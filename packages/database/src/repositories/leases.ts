@@ -80,6 +80,15 @@ export interface LeaseRow {
   market_leasing_profile_id: string | null;
   exclude_from_rollover: boolean;
   notes: string | null;
+  /**
+   * Incremented on every write; see migration 0006.
+   *
+   * Selected by every read here (`SELECT *` / `RETURNING *`) and relied on by
+   * the editor and the grid to detect a collision, but it was missing from this
+   * interface — so callers were reaching a column TypeScript did not believe
+   * existed.
+   */
+  version: number;
 }
 
 export async function listLeases(
@@ -172,97 +181,121 @@ export class LeaseVersionConflict extends Error {
 }
 
 /**
- * Writes a lease and its child rows in one transaction. Rent steps and space
- * assignments are replaced wholesale rather than diffed: a lease is edited as a
- * unit in the grid, and a partial write would leave a half-updated schedule.
+ * Writes a lease and its child rows. Rent steps and space assignments are
+ * replaced wholesale rather than diffed: a lease is edited as a unit, and a
+ * partial write would leave a half-updated schedule.
+ *
+ * Opens its own transaction. A caller that already holds one must use
+ * `upsertLeaseWithin` — see the note there.
  */
 export async function upsertLease(sql: Sql, input: UpsertLeaseInput): Promise<LeaseRow> {
-  return (await sql.begin(async (tx) => {
-    // The check and the write share one transaction, and the row is locked
-    // while it happens. Reading the version in a separate statement would leave
-    // exactly the race this exists to close.
-    if (input.expectedVersion !== undefined && input.expectedVersion !== null) {
-      const existing = (await tx`
-        SELECT version FROM leases
-        WHERE model_id = ${input.modelId} AND code = ${input.code}
-        FOR UPDATE
-      `) as unknown as Array<{ version: number }>;
-      const current = existing[0]?.version;
-      // A lease that does not exist yet cannot have been changed by anyone, so
-      // a version on a creation is simply ignored rather than refused.
-      if (current !== undefined && current !== input.expectedVersion) {
-        throw new LeaseVersionConflict(input.code, input.expectedVersion, current);
-      }
+  return (await sql.begin(async (tx) =>
+    upsertLeaseWithin(tx as unknown as Sql, input),
+  )) as LeaseRow;
+}
+
+/**
+ * The same write, against a handle the caller already has open.
+ *
+ * Exists because postgres.js does not expose `begin` on a transaction handle —
+ * only `savepoint` — so calling `upsertLease` inside an open transaction throws
+ * at runtime while typechecking perfectly. That is exactly how the batch lease
+ * endpoint first failed, and a type cannot catch it, so the two entry points
+ * are named apart instead.
+ *
+ * No savepoint is taken per lease, deliberately: a batch is one operation, and
+ * a failure part-way through must abort all of it rather than leave the rows
+ * before the failure standing.
+ *
+ * The version check and the write share the caller's transaction, with the row
+ * locked for its duration, which is the race this guards.
+ */
+export async function upsertLeaseWithin(tx: Sql, input: UpsertLeaseInput): Promise<LeaseRow> {
+  // The check and the write share one transaction, and the row is locked
+  // while it happens. Reading the version in a separate statement would leave
+  // exactly the race this exists to close.
+  if (input.expectedVersion !== undefined && input.expectedVersion !== null) {
+    const existing = (await tx`
+      SELECT version FROM leases
+      WHERE model_id = ${input.modelId} AND code = ${input.code}
+      FOR UPDATE
+    `) as unknown as Array<{ version: number }>;
+    const current = existing[0]?.version;
+    // A lease that does not exist yet cannot have been changed by anyone, so
+    // a version on a creation is simply ignored rather than refused.
+    if (current !== undefined && current !== input.expectedVersion) {
+      throw new LeaseVersionConflict(input.code, input.expectedVersion, current);
     }
+  }
 
-    const rows = (await tx`
-      INSERT INTO leases (
-        model_id, tenant_id, code, status, area, unit_count, commencement_date,
-        rent_start_date, expiration_date, base_rent, base_rent_basis, escalation,
-        free_rent, percentage_rent, recovery, options, leasing_costs, other_revenue,
-        market_leasing_profile_id, exclude_from_rollover, notes
-      ) VALUES (
-        ${input.modelId}, ${input.tenantId}, ${input.code}, ${input.status}, ${input.area},
-        ${input.unitCount ?? 0}, ${input.commencementDate}, ${input.rentStartDate ?? null},
-        ${input.expirationDate}, ${input.baseRent}, ${input.baseRentBasis},
-        ${tx.json((input.escalation ?? {}) as never)},
-        ${tx.json((input.freeRent ?? []) as never)},
-        ${tx.json((input.percentageRent ?? {}) as never)},
-        ${tx.json((input.recovery ?? {}) as never)},
-        ${tx.json((input.options ?? []) as never)},
-        ${tx.json((input.leasingCosts ?? {}) as never)},
-        ${tx.json((input.otherRevenue ?? []) as never)},
-        ${input.marketLeasingProfileId ?? null}, ${input.excludeFromRollover ?? false},
-        ${input.notes ?? null}
-      )
-      ON CONFLICT (model_id, code) DO UPDATE SET
-        tenant_id = EXCLUDED.tenant_id,
-        status = EXCLUDED.status,
-        area = EXCLUDED.area,
-        unit_count = EXCLUDED.unit_count,
-        commencement_date = EXCLUDED.commencement_date,
-        rent_start_date = EXCLUDED.rent_start_date,
-        expiration_date = EXCLUDED.expiration_date,
-        base_rent = EXCLUDED.base_rent,
-        base_rent_basis = EXCLUDED.base_rent_basis,
-        escalation = EXCLUDED.escalation,
-        free_rent = EXCLUDED.free_rent,
-        percentage_rent = EXCLUDED.percentage_rent,
-        recovery = EXCLUDED.recovery,
-        options = EXCLUDED.options,
-        leasing_costs = EXCLUDED.leasing_costs,
-        other_revenue = EXCLUDED.other_revenue,
-        market_leasing_profile_id = EXCLUDED.market_leasing_profile_id,
-        exclude_from_rollover = EXCLUDED.exclude_from_rollover,
-        notes = EXCLUDED.notes,
-        version = leases.version + 1,
-        updated_at = now()
-      RETURNING *
-    `) as unknown as LeaseRow[];
-    const lease = rows[0] as LeaseRow;
+  const rows = (await tx`
+    INSERT INTO leases (
+      model_id, tenant_id, code, status, area, unit_count, commencement_date,
+      rent_start_date, expiration_date, base_rent, base_rent_basis, escalation,
+      free_rent, percentage_rent, recovery, options, leasing_costs, other_revenue,
+      market_leasing_profile_id, exclude_from_rollover, notes
+    ) VALUES (
+      ${input.modelId}, ${input.tenantId}, ${input.code}, ${input.status}, ${input.area},
+      ${input.unitCount ?? 0}, ${input.commencementDate}, ${input.rentStartDate ?? null},
+      ${input.expirationDate}, ${input.baseRent}, ${input.baseRentBasis},
+      ${tx.json((input.escalation ?? {}) as never)},
+      ${tx.json((input.freeRent ?? []) as never)},
+      ${tx.json((input.percentageRent ?? {}) as never)},
+      ${tx.json((input.recovery ?? {}) as never)},
+      ${tx.json((input.options ?? []) as never)},
+      ${tx.json((input.leasingCosts ?? {}) as never)},
+      ${tx.json((input.otherRevenue ?? []) as never)},
+      ${input.marketLeasingProfileId ?? null}, ${input.excludeFromRollover ?? false},
+      ${input.notes ?? null}
+    )
+    ON CONFLICT (model_id, code) DO UPDATE SET
+      tenant_id = EXCLUDED.tenant_id,
+      status = EXCLUDED.status,
+      area = EXCLUDED.area,
+      unit_count = EXCLUDED.unit_count,
+      commencement_date = EXCLUDED.commencement_date,
+      rent_start_date = EXCLUDED.rent_start_date,
+      expiration_date = EXCLUDED.expiration_date,
+      base_rent = EXCLUDED.base_rent,
+      base_rent_basis = EXCLUDED.base_rent_basis,
+      escalation = EXCLUDED.escalation,
+      free_rent = EXCLUDED.free_rent,
+      percentage_rent = EXCLUDED.percentage_rent,
+      recovery = EXCLUDED.recovery,
+      options = EXCLUDED.options,
+      leasing_costs = EXCLUDED.leasing_costs,
+      other_revenue = EXCLUDED.other_revenue,
+      market_leasing_profile_id = EXCLUDED.market_leasing_profile_id,
+      exclude_from_rollover = EXCLUDED.exclude_from_rollover,
+      notes = EXCLUDED.notes,
+      version = leases.version + 1,
+      updated_at = now()
+    RETURNING *
+  `) as unknown as LeaseRow[];
+  const lease = rows[0] as LeaseRow;
 
-    await tx`DELETE FROM lease_rent_steps WHERE lease_id = ${lease.id}`;
-    for (const [index, step] of (input.rentSteps ?? []).entries()) {
-      await tx`
-        INSERT INTO lease_rent_steps (lease_id, start_date, amount, basis, sort_order)
-        VALUES (${lease.id}, ${step.startDate}, ${step.amount}, ${step.basis}, ${index})
-      `;
-    }
+  await tx`DELETE FROM lease_rent_steps WHERE lease_id = ${lease.id}`;
+  for (const [index, step] of (input.rentSteps ?? []).entries()) {
+    await tx`
+      INSERT INTO lease_rent_steps (lease_id, start_date, amount, basis, sort_order)
+      VALUES (${lease.id}, ${step.startDate}, ${step.amount}, ${step.basis}, ${index})
+    `;
+  }
 
-    await tx`DELETE FROM lease_spaces WHERE lease_id = ${lease.id}`;
-    for (const spaceCode of input.spaceIds ?? []) {
-      await tx`
-        INSERT INTO lease_spaces (lease_id, space_id)
-        SELECT ${lease.id}, s.id
-        FROM spaces s
-        JOIN models m ON m.property_id = s.property_id
-        WHERE m.id = ${input.modelId} AND s.code = ${spaceCode}
-        ON CONFLICT DO NOTHING
-      `;
-    }
+  await tx`DELETE FROM lease_spaces WHERE lease_id = ${lease.id}`;
+  for (const spaceCode of input.spaceIds ?? []) {
+    await tx`
+      INSERT INTO lease_spaces (lease_id, space_id)
+      SELECT ${lease.id}, s.id
+      FROM spaces s
+      JOIN models m ON m.property_id = s.property_id
+      WHERE m.id = ${input.modelId} AND s.code = ${spaceCode}
+      ON CONFLICT DO NOTHING
+    `;
+  }
 
-    return lease;
-  })) as LeaseRow;
+  return lease;
+  return lease;
 }
 
 export async function deleteLease(sql: Sql, modelId: string, code: string): Promise<boolean> {

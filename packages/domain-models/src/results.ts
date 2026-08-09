@@ -193,9 +193,41 @@ export interface WaterfallDistribution {
   contributions: string;
   distributions: string;
   profit: string;
+  /**
+   * Annual effective rate solved on uniform monthly periods — the same basis as
+   * `ReturnMetrics.leveredIrr`, so the two are directly comparable.
+   */
   irr: string | null;
+  /**
+   * Annual effective rate solved on actual day counts over a 365-day year — the
+   * same basis as `ReturnMetrics.leveredXirr`, and the one a spreadsheet's
+   * `XIRR` uses.
+   *
+   * Both bases are reported for the same reason the property reports both: they
+   * differ by a fraction of a basis point on a monthly series, and a reader
+   * comparing a partner's return to the deal's needs to know they are comparing
+   * like with like. Reporting only one would leave the partnership on a
+   * different convention from the asset it holds.
+   */
+  xirr: string | null;
   equityMultiple: string | null;
   byTier: Array<{ tierId: string; tierName: string; amount: string }>;
+  /**
+   * The partner's cash flow before the first forecast period: their share of
+   * the equity funded at closing, as a negative.
+   */
+  initialFlow: string;
+  /**
+   * The partner's cash flow in each forecast period. Negative is a capital
+   * call, positive a distribution.
+   *
+   * Reported because a partnership described only by totals cannot be audited:
+   * an investor statement wants to know *when* capital went in and came back,
+   * not just how much, and any consumer wanting to discount or re-rate the
+   * partner's position needs the dated series. The engine already tracked this
+   * to compute each partner's IRR; it was simply not surfaced.
+   */
+  flows: string[];
 }
 
 /**

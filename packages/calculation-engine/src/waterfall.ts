@@ -1,7 +1,8 @@
 import type { EquityStructure, WaterfallDistribution } from '@cre/domain-models';
 import { Decimal, ONE, TWELVE, ZERO, d, zeros } from './decimal.js';
 import type { ForecastCalendar } from './calendar.js';
-import { equityMultiple, irrMonthly } from './metrics.js';
+import { equityMultiple, irrMonthly, xirr } from './metrics.js';
+import type { DatedCashFlow } from './metrics.js';
 import { TraceRecorder, traceInputs } from './trace.js';
 
 /**
@@ -195,9 +196,28 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
     }
   }
 
+  /*
+   * Dates for the day-count IRR: closing sits on the first period's start, and
+   * every later flow on its period end. This is exactly how the property's own
+   * `leveredXirr` is dated, which is what makes the two comparable.
+   */
+  const zeroDate = calendar.periods[0]?.start;
+  const datesFor = (flows: Decimal[], initial: Decimal): DatedCashFlow[] | null => {
+    if (!zeroDate) return null;
+    const dated: DatedCashFlow[] = [{ date: zeroDate, amount: initial }];
+    for (let i = 0; i < flows.length; i += 1) {
+      const end = calendar.periods[i]?.end;
+      if (!end) return null;
+      dated.push({ date: end, amount: flows[i] as Decimal });
+    }
+    return dated;
+  };
+
   return partners.map((partner) => {
     const flows = partner.flows;
     const irr = irrMonthly(flows, partner.initialFlow);
+    const dated = datesFor(flows, partner.initialFlow);
+    const annual = dated === null ? null : xirr(dated);
     const all = [partner.initialFlow, ...flows];
     return {
       partnerId: partner.id,
@@ -206,12 +226,15 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
       distributions: partner.distributions.toString(),
       profit: partner.distributions.minus(partner.contributions).toString(),
       irr: irr ? irr.toString() : null,
+      xirr: annual ? annual.toString() : null,
       equityMultiple: equityMultiple(all)?.toString() ?? null,
       byTier: [...partner.byTier.entries()].map(([tierId, amount]) => ({
         tierId,
         tierName: ctx.structure.tiers.find((tier) => tier.id === tierId)?.name ?? tierId,
         amount: amount.toString(),
       })),
+      initialFlow: partner.initialFlow.toString(),
+      flows: flows.map((flow) => flow.toString()),
     };
   });
 }

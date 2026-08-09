@@ -52,7 +52,7 @@ test('analyses, reports findings, and imports only the sound rows', async ({ pag
   // The wizard's own report is not evidence that anything was stored. The rent
   // roll is.
   await page.getByRole('link', { name: 'Rent roll' }).click();
-  const table = page.getByRole('table', { name: 'Leases on this model' });
+  const table = page.getByRole('grid', { name: 'Leases on this model' });
   await expect(table.getByRole('row').filter({ hasText: 'E2E-IMPORT-GOOD' })).toBeVisible();
   await expect(table.getByRole('row').filter({ hasText: 'E2E-IMPORT-BAD' })).toHaveCount(0);
 });

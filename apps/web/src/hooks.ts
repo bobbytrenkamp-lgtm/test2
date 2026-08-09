@@ -132,6 +132,41 @@ export function useShortcut(key: string, handler: () => void, withMeta = true): 
   }, [key, handler, withMeta]);
 }
 
+/**
+ * A Ctrl/Cmd shortcut that yields to whatever field has focus.
+ *
+ * Separate from `useShortcut` because the policy is genuinely different, not
+ * because of a flag. `Cmd+K` and `Cmd+Enter` should open the palette and
+ * recalculate from anywhere, including mid-sentence in a notes field — they are
+ * navigation. `Cmd+Z` must not: inside an open cell editor it belongs to the
+ * text being typed, and stealing it would undo somebody's paste while they were
+ * correcting a tenant name.
+ *
+ * The handler receives the event so it can read `shiftKey`, which is how one
+ * binding covers undo and redo.
+ */
+export function useEditShortcut(key: string, handler: (event: KeyboardEvent) => void): void {
+  useEffect(() => {
+    const listener = (event: KeyboardEvent): void => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() !== key.toLowerCase()) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      event.preventDefault();
+      handler(event);
+    };
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [key, handler]);
+}
+
 /** Persists a small value locally, e.g. a saved view or column preference. */
 export function useLocalState<T>(key: string, initial: T): [T, (value: T) => void] {
   const [value, setValue] = useState<T>(() => {

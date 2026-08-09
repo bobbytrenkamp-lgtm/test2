@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import type { Capability } from '@cre/domain-models';
 import { ApiError, api, type Session } from './api.js';
+import { clearRecents } from './recents.js';
 
 interface SessionContextValue {
   session: Session | null;
@@ -51,6 +52,10 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
   const signOut = useCallback(async () => {
     await api.post('/auth/logout');
     setSession(null);
+    // Every recents list this origin holds, not only the one that was active:
+    // a shared machine must not hand the next person signing in a trace of
+    // this one's afternoon.
+    clearRecents();
   }, []);
 
   const switchOrganization = useCallback(

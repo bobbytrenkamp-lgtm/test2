@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CashFlowLine } from '@cre/domain-models';
-import { api, type TraceResponse } from '../api.js';
+import type { Lease } from '../api.js';
 import { BarChart, EmptyState, Loading } from '../components.js';
+import { CalculationInspector, type InspectorTarget } from '../components/CalculationInspector.js';
 import { formatCurrency, formatMonth, formatPercent, isNegative } from '../format.js';
-import { useLocalState } from '../hooks.js';
+import { useLocalState, useResource } from '../hooks.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /**
@@ -134,9 +135,13 @@ export function CashFlowTab(): JSX.Element {
     'cre.cashflow.granularity',
     'annual',
   );
-  const [inspect, setInspect] = useState<{ line: string; period: number; label: string } | null>(
-    null,
-  );
+  /*
+   * Leases are loaded here only so the inspector can turn the trace's lease ids
+   * into codes and tenant names. Without them the "where to change it" links
+   * would read `lease:9f3c…`, which is an identifier, not an answer.
+   */
+  const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
+  const [inspect, setInspect] = useState<InspectorTarget | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // Counted before the early returns below, because a hook cannot be called
   // conditionally. Zero while the cash flow is still loading, which is the
@@ -300,15 +305,7 @@ export function CashFlowTab(): JSX.Element {
                           type="button"
                           className="cell-button"
                           onClick={() =>
-                            setInspect({
-                              line: line.key,
-                              period: isAnnual
-                                ? (cashFlow.periods.find(
-                                    (period) => String(period.fiscalYear) === column.key,
-                                  )?.index ?? 1)
-                                : Number(column.key),
-                              label: `${line.label}, ${column.label}`,
-                            })
+                            setInspect(inspectorTarget(cashFlow, isAnnual, column, line, shown))
                           }
                           aria-label={`Explain ${line.label} for ${column.label}: ${shown}`}
                         >
@@ -348,9 +345,10 @@ export function CashFlowTab(): JSX.Element {
       {inspect && (
         <CalculationInspector
           modelId={model.id}
-          line={inspect.line}
-          period={inspect.period}
-          label={inspect.label}
+          target={inspect}
+          cashFlow={cashFlow}
+          leases={leases.data?.leases ?? []}
+          currency={model.currency}
           onClose={() => setInspect(null)}
         />
       )}
@@ -359,125 +357,41 @@ export function CashFlowTab(): JSX.Element {
 }
 
 /**
- * Calculation inspector.
+ * What the inspector should look at for a clicked cell.
  *
- * Reads the engine trace stored with the calculation run. Nothing is
- * recomputed here: what the panel shows is exactly what the engine recorded
- * while producing the number, including which assumption it came from.
+ * A fiscal-year column is twelve months, so it is asked for as a *span*. The
+ * first version looked up only the year's first month, which returned no trace
+ * for anything the engine records once a year — a recovery settlement above
+ * all — and the panel then said, truthfully and uselessly, that the figure had
+ * no derivation.
+ *
+ * Periods are 1-based throughout, matching `PeriodMeta.index` and the trace
+ * endpoint.
  */
-function CalculationInspector({
-  modelId,
-  line,
-  period,
-  label,
-  onClose,
-}: {
-  modelId: string;
-  line: string;
-  period: number;
-  label: string;
-  onClose: () => void;
-}): JSX.Element {
-  const [state, setState] = useState<{
-    loading: boolean;
-    entries: TraceResponse['entries'];
-    error: string | null;
-  }>({ loading: true, entries: [], error: null });
-
-  useEffect(() => {
-    const query = new URLSearchParams({ periodIndex: String(period), limit: '40' });
-    // Line-specific trace targets exist for the figures with a documented
-    // derivation; the rest fall back to every trace entry for the period.
-    const targetByLine: Record<string, string> = {
-      expenseRecoveries: 'occurrence:',
-      scheduledBaseRent: 'occurrence:',
-      contractualBaseRent: 'occurrence:',
-      potentialBaseRent: 'occurrence:',
-      grossSaleProceeds: 'valuation:',
-      sellingCosts: 'valuation:',
-      netDispositionProceeds: 'valuation:',
+function inspectorTarget(
+  cashFlow: NonNullable<ReturnType<typeof useModelContext>['cashFlow']>,
+  isAnnual: boolean,
+  column: { key: string; label: string },
+  line: { key: string; label: string },
+  shown: string,
+): InspectorTarget {
+  if (!isAnnual) {
+    return {
+      line: line.key,
+      period: Number(column.key),
+      label: `${line.label}, ${column.label}`,
+      value: shown,
     };
-    const target = targetByLine[line];
-    if (target) query.set('target', target);
-
-    let cancelled = false;
-    setState({ loading: true, entries: [], error: null });
-    api
-      .get<TraceResponse>(`/models/${modelId}/trace?${query}`)
-      .then((response) => {
-        if (!cancelled) setState({ loading: false, entries: response.entries, error: null });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setState({
-          loading: false,
-          entries: [],
-          error:
-            error instanceof Error
-              ? error.message
-              : 'The trace for this calculation could not be loaded.',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [modelId, line, period]);
-
-  return (
-    <aside className="inspector" role="dialog" aria-label={`How ${label} was calculated`}>
-      <div className="row">
-        <h2 style={{ flex: 1 }}>How this was calculated</h2>
-        <button type="button" onClick={onClose} aria-label="Close the calculation inspector">
-          Close
-        </button>
-      </div>
-      <p style={{ color: 'var(--text-muted)' }}>{label}</p>
-
-      {state.loading && <Loading label="Loading the calculation trace" />}
-      {state.error && (
-        <div className="message warning">
-          {state.error} Re-run the calculation to record a trace, then try again.
-        </div>
-      )}
-      {!state.loading && !state.error && state.entries.length === 0 && (
-        <div className="message info">
-          No trace entries were recorded for this figure. Subtotals are sums of the lines above
-          them; open a component line to see its derivation.
-        </div>
-      )}
-
-      {state.entries.map((entry, index) => (
-        <div className="trace-entry" key={`${entry.target}-${index}`}>
-          <div className="row" style={{ marginBottom: 6 }}>
-            <span className="badge accent">{entry.formula}</span>
-            <span className="spacer" />
-            <code>v{entry.formulaVersion}</code>
-          </div>
-          <p style={{ marginTop: 0 }}>{entry.description}</p>
-          <dl>
-            {Object.entries(entry.inputs).map(([key, value]) => (
-              <div key={key} style={{ display: 'contents' }}>
-                <dt>{key}</dt>
-                <dd>{value === '' ? '—' : value}</dd>
-              </div>
-            ))}
-            <dt>Result</dt>
-            <dd>
-              <strong>{entry.result}</strong>
-            </dd>
-            <dt>Sources</dt>
-            <dd>
-              <code>{entry.sources.join(', ')}</code>
-            </dd>
-            {entry.rounding && (
-              <>
-                <dt>Rounding</dt>
-                <dd>{entry.rounding}</dd>
-              </>
-            )}
-          </dl>
-        </div>
-      ))}
-    </aside>
-  );
+  }
+  const months = cashFlow.periods
+    .filter((period) => String(period.fiscalYear) === column.key)
+    .map((period) => period.index);
+  const first = months[0] ?? 1;
+  return {
+    line: line.key,
+    period: first,
+    periodEnd: months[months.length - 1] ?? first,
+    label: `${line.label}, ${column.label}`,
+    value: shown,
+  };
 }

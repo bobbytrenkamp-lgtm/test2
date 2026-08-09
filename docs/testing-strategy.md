@@ -38,7 +38,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
-| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 229 | No |
+| Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
@@ -62,8 +62,20 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
+| Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 83 | No |
+| Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
+| Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
+| Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
+| Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
+| Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
+| Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 22 | No |
+| The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 14 | No |
+| Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 12 | Yes |
+| Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
+| Tenant exposure across a portfolio | `tests/tenant-exposure.test.ts` | 5 | Yes |
 
-**589 tests in total.**
+**863 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -76,9 +88,14 @@ built bundle:
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
 | Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
+| Spreadsheet editing on the rent roll | `e2e/rent-roll-grid.spec.ts` | 11 |
+| Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
+| Structured record editors | `e2e/record-editors.spec.ts` | 11 |
+| Explaining a calculated number | `e2e/explainability.spec.ts` | 8 |
+| Model health, key value drivers and the lease timeline | `e2e/health.spec.ts` | 11 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
-| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
+| Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
 | Fund positions | `e2e/funds.spec.ts` | 5 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
@@ -91,8 +108,12 @@ built bundle:
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
+| Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
+| Recents and favourites | `e2e/favourites.spec.ts` | 4 |
+| Tenant exposure across a portfolio | `e2e/tenant-exposure.spec.ts` | 5 |
+| Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 
-**117 browser tests in total**, for 706 across the whole repository.
+**186 browser tests in total**, for 1049 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -379,6 +400,26 @@ Recording these because they are the argument for the approach:
     replacer function, which is not subject to the expansion. This one was
     **not** caught by a test — it was caught by opening the built file, which is
     exactly why the build now checks its own output before writing it.
+15. **Nothing typechecked `scripts/`, and seven errors had accumulated there.**
+    `pnpm typecheck` ran per-package plus the end-to-end config; no config
+    covered the maintenance scripts, so the benchmark, the load and concurrency
+    tests, the restore drill and the profiler were unchecked. Behind that gap:
+    `concurrency-test.ts` imported `FastifyInstance` from `fastify`, which is a
+    dependency of `apps/api` and does not resolve from the workspace root, and
+    the failed import had quietly widened five parameters to `any`. The
+    benchmark's synthetic model carried `code` on its growth curve, leasing
+    profile and both expenses — a field none of those schemas has. zod strips
+    unknown keys silently, so it never failed; it simply was not there, and an
+    `as ModelInputDraft` on the draft hid the mismatch from the compiler.
+    `tsconfig.scripts.json` now covers them and runs in `pnpm typecheck`. The
+    cast is gone, so a wrong property is reported against the property itself
+    rather than as a whole-object conversion error. Confirmed by reinstating
+    `code` and watching the gate fail.
+
+    Worth noting for what it says about documentation drift:
+    `docs/repository-assessment.md` claimed a change to a shared type "is
+    typechecked against every consumer in one command." That was not true while
+    `scripts/` was uncovered. It is true now.
 
 ## Gaps, stated plainly
 

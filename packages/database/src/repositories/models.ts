@@ -50,8 +50,16 @@ export interface ModelRow {
   updated_at: Date;
 }
 
-/** Dates arrive from the driver as either Date or string depending on column type. */
-function toIsoDate(value: string | Date | null): string | null {
+/**
+ * Dates arrive from the driver as either Date or string depending on column
+ * type, so every reader has to normalise before comparing or slicing.
+ *
+ * Exported because the batch lease write needs it too: merging a cell edit onto
+ * a stored lease means reading the term dates back out, and calling `.slice` on
+ * what is actually a `Date` fails at runtime while typechecking cleanly — which
+ * is exactly how that endpoint first broke.
+ */
+export function toIsoDate(value: string | Date | null): string | null {
   if (value === null) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return value.slice(0, 10);

@@ -815,3 +815,639 @@ details.chart-data > summary {
   opacity: 0.72;
   border-style: dashed;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Spreadsheet grid                                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The editing surface, as opposed to `table` above, which is the reading one.
+ *
+ * Two differences drive everything here. Cells carry selection state, so they
+ * need borders that can change without the row shifting by a pixel — hence
+ * `box-shadow` insets rather than `border` for the active outline. And rows are
+ * a fixed height set from the density preference, so an analyst on a large
+ * monitor can put three hundred leases on screen.
+ */
+.grid-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.grid-toolbar {
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 30px;
+}
+
+.grid-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* The grid is one tab stop; arrows move inside it. The ring is on the
+     container so entering it is visible, which is how a spreadsheet widget is
+     expected to behave. */
+  outline-offset: -2px;
+}
+
+.grid-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  /* Fixed, so a long tenant name cannot silently widen a column and pull the
+     frozen offsets out of alignment. */
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+}
+
+.grid-table th,
+.grid-table td {
+  height: var(--grid-row-height, 32px);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--surface);
+}
+
+.grid-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface-raised);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.grid-table .grid-frozen {
+  position: sticky;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.grid-table thead .grid-frozen {
+  z-index: 4;
+  background: var(--surface-raised);
+}
+
+/* The last frozen column carries the seam, so the join reads as an edge
+   rather than as an ordinary cell border. */
+.grid-table .grid-frozen + :not(.grid-frozen) {
+  border-left: 1px solid var(--border-strong);
+}
+
+.grid-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid-table td.is-selected {
+  background: var(--accent-soft);
+}
+
+/*
+ * The active cell. An inset shadow rather than a border: a border would change
+ * the cell's box and shift every neighbour by a pixel as the caret moves, which
+ * reads as the whole grid twitching.
+ */
+.grid-table td.is-active {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* An unsaved change. Deliberately a left rule and not a fill, so it survives
+   being selected — a cell can be both edited and highlighted at once. */
+.grid-table td.is-edited {
+  box-shadow: inset 3px 0 0 0 var(--warning);
+}
+
+.grid-table td.is-edited.is-active {
+  box-shadow:
+    inset 3px 0 0 0 var(--warning),
+    inset 0 0 0 2px var(--accent);
+}
+
+.grid-table td.is-invalid {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+.grid-editor {
+  width: 100%;
+  height: calc(var(--grid-row-height, 32px) - 6px);
+  padding: 0 4px;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  color: var(--text);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.grid-table td.numeric .grid-editor {
+  text-align: right;
+}
+
+/* A dense grid still has to be legible without colour: selection carries a
+   border as well as a fill once the reader has asked for more contrast. */
+@media (prefers-contrast: more) {
+  .grid-table td.is-selected {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .grid-table td {
+    transition: background-color 60ms linear;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Record editors                                                              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The structured forms that replaced the JSON textarea.
+ *
+ * Two ideas carry the layout. Sections are fieldsets, so a screen reader
+ * announces which part of a record a field belongs to rather than reading forty
+ * labels in a row. And a section may be paired with its sibling — renewal
+ * against new lease — because "what do I give a tenant to stay versus to
+ * arrive" is one question, and answering it by scrolling between two lists is
+ * how the two drift apart.
+ */
+.record-editor {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.record-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .record-editor-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.record-editor-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.record-editor-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.record-section {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.record-section > legend {
+  padding: 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The reading of the record as it stands. Sunken rather than raised: it is a
+   consequence of the form, not a control, and it should not compete with one. */
+.record-summary {
+  position: sticky;
+  top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.record-summary h4 {
+  margin: 0 0 var(--space-3);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.record-summary dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.record-summary dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.record-summary dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-summary dd small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: normal;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Calculation inspector additions                                             */
+/* -------------------------------------------------------------------------- */
+
+/* The figure the panel is about, stated before any working. */
+.inspector-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.inspector-headline strong {
+  font-size: 20px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inspector-sources {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+ * A metric that can be explained looks like the number it is, not like a
+ * button — until the pointer or the keyboard reaches it. A dashboard of
+ * button-shaped figures reads as a toolbar, and the figures stop being the
+ * thing you look at.
+ */
+.metric-explain {
+  all: unset;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-explain:hover {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.metric-explain:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Health findings                                                             */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A finding is a paragraph, not a row in a table. The whole point is that it
+ * explains itself — the threshold, why it matters, where to go — and a table
+ * cell is the wrong shape for a sentence.
+ */
+.finding-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.finding {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.finding-warning {
+  border-left-color: var(--negative);
+}
+
+.finding-note {
+  border-left-color: var(--warning);
+}
+
+.finding-pass {
+  border-left-color: var(--positive);
+}
+
+.finding p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 68ch;
+}
+
+.finding a {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lease timeline                                                              */
+/* -------------------------------------------------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 0;
+  padding: 5px 12px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.timeline-table th:last-child,
+.timeline-table td:last-child {
+  width: 100%;
+  min-width: 320px;
+}
+
+/* The bar track is a positioning context; every bar is placed as a percentage
+   of the window, so the whole row rescales when the horizon changes. */
+.timeline-track {
+  position: relative;
+  display: block;
+  height: 14px;
+  background: var(--surface-sunken);
+  border-radius: 3px;
+}
+
+.timeline-bar {
+  position: absolute;
+  top: 0;
+  height: 14px;
+  border-radius: 3px;
+  min-width: 2px;
+}
+
+.timeline-bar.is-contract {
+  background: var(--accent);
+}
+
+.timeline-bar.is-renewal {
+  background: var(--positive);
+}
+
+.timeline-bar.is-new {
+  background: var(--warning);
+}
+
+.timeline-axis {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transform: translateX(-2px);
+}
+
+.timeline-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.timeline-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+
+.timeline-swatch.is-contract {
+  background: var(--accent);
+}
+
+.timeline-swatch.is-renewal {
+  background: var(--positive);
+}
+
+.timeline-swatch.is-new {
+  background: var(--warning);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Assumption proposals                                                        */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A proposal is a comparison, so the two numbers are set side by side at the
+ * same weight. Styling the proposed value as the answer — larger, coloured,
+ * first — would make keeping your own underwriting look like ignoring a
+ * correction, which is the opposite of what this screen is for.
+ */
+.proposal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.proposal {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.proposal-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.proposal-values dt {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.proposal-values dd {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposal .evidence {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  background: var(--surface-sunken, var(--background));
+  border-radius: var(--radius);
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 220px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Favourites and recents                                                     */
+/* -------------------------------------------------------------------------- */
+
+.favourite-star {
+  background: none;
+  border: none;
+  padding: 0 var(--space-2) 0 0;
+  margin-right: var(--space-1);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  vertical-align: -2px;
+}
+
+.favourite-star:hover {
+  color: var(--accent);
+}
+
+.favourite-star.is-favourite {
+  color: var(--accent);
+}
+
+.pinned-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.pinned-recent-grid h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 15px;
+}
+
+.pinned-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pinned-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* IC summary                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.ic-summary-header h2 {
+  margin-top: 0;
+}
+
+/*
+ * Printing this page is the point — a committee reads it on paper as often as
+ * on screen — so the app chrome, navigation and anything marked print-hide
+ * fall away, and each card avoids splitting across a page break where that is
+ * within the browser's control.
+ */
+@media print {
+  .app-header,
+  .app-nav,
+  .app-brand,
+  .skip-link,
+  /* The workspace's own title (Calculate button, status badge) and its tab
+     strip: the IC summary carries its own heading inside `.ic-summary-header`,
+     so this chrome would only duplicate it. */
+  .app-main > .page-title,
+  .tabs,
+  .ic-summary-print-hide {
+    display: none !important;
+  }
+
+  .app-main {
+    margin: 0;
+    padding: 0;
+  }
+
+  .ic-summary .card {
+    break-inside: avoid;
+    border: none;
+    box-shadow: none;
+    padding: 8px 0;
+  }
+}

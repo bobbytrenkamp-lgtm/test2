@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.2.0** — `packages/calculation-engine`.
+Engine version **3.3.1** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -31,6 +31,7 @@ call, the choice and its reasoning are stated rather than left implicit.
 17. [Portfolio aggregation](#17-portfolio-aggregation)
 18. [Diagnostics](#18-diagnostics)
 19. [Calculation traces](#19-calculation-traces)
+19a. [Underwriting health and driver ranking](#19a-underwriting-health-and-driver-ranking)
 20. [Versioning](#20-versioning)
 21. [Budget, actuals and variance](#21-budget-actuals-and-variance)
 
@@ -793,18 +794,130 @@ inspector reads them directly; it recomputes nothing.
 
 ---
 
+## 19a. Underwriting health and driver ranking
+
+Two analyses that sit **beside** the engine rather than inside it, in
+`health.ts` and `drivers.ts`. Both are pure functions and neither is part of a
+calculation.
+
+### Health
+
+Deterministic rules over `ModelInput` and the `ModelResult` the engine already
+produced. No rule recalculates anything: a panel that derived its own NOI could
+disagree with the cash-flow statement beside it, and a reader would have no way
+to tell which was wrong.
+
+There is deliberately **no overall score**. A model reduced to a number out of
+a hundred invites an argument about the number and hides the findings, and any
+weighting would be an opinion presented as a measurement. Each finding states
+the fact, the threshold it crossed, and where to act.
+
+| Rule | Threshold | Measured on |
+| --- | --- | --- |
+| Expiry concentration | 20% of rentable area | The worst **rolling** 24 months — a roll is a cliff wherever it lands, and a per-year view reports two unremarkable years |
+| Tenant concentration | 25% of year-one base rent | **Signed leases only**; speculative lease-up is space nobody has contracted for, and counting it would name a fictional tenant as the largest exposure |
+| Exit cap compression | 25 bps below going-in | The most effective way to make a deal work on paper |
+| Covenant breaches | Any | Reported by the engine's own debt schedules |
+| Minimum DSCR | 1.25x | Stated even when no covenant is set, so the absence is a choice |
+| Rollover-driven growth | 40% of final-year base rent | Contractual escalation is signed; rollover rent is a market forecast |
+| Below-market leases | 15% below the profile's market rent | Only where the lease and the profile quote on the same basis |
+| Area reconciliation | 0.5% of rentable area | The space list is the denominator of every pro-rata recovery share |
+| Debt retirement | Balance under 1 at the horizon | A facility outliving the forecast means the equity was never returned |
+
+### Drivers
+
+Each candidate assumption is moved up and down by a stated amount and the
+**whole engine is re-run**. A closed-form sensitivity would be a second model:
+the relationships are not linear and several are not monotonic — raising renewal
+probability cuts downtime and leasing costs but also stops a below-market lease
+rolling to market, and which effect wins depends on the rent roll.
+
+The cost is two engine passes per driver, so it is an explicit action and the
+response reports how many runs it performed.
+
+| Driver | Range |
+| --- | --- |
+| Exit capitalisation rate | ± 50 bps |
+| Discount rate | ± 50 bps |
+| Market rent | ± 10% |
+| Renewal probability | ± 15 points, clamped to [0, 1] |
+| Downtime between leases | ± 3 months, floored at 0 |
+| Tenant improvement allowance | ± 25% |
+| Operating expenses | ± 10% |
+| Debt interest rate | ± 100 bps |
+| General vacancy allowance | ± 2 points |
+
+The ranking is by **sensitivity, not uncertainty**. An exit cap rate usually
+tops the list because the terminal value is NOI divided by it, not because
+anybody is unsure what it should be. A driver the model has nothing to move — a
+debt rate with no debt — is omitted rather than reported at zero, which would
+say the opposite of the truth.
+
+---
+
 ## 20. Versioning
 
 `ENGINE_VERSION` is semantic:
 
 - **Patch** — a fix that leaves every existing model's numbers unchanged.
-- **Minor** — additive behaviour reachable only through new inputs.
+- **Minor** — additive behaviour reachable only through new inputs, or new
+  fields on the result where nothing already reported changes.
 - **Major** — any change that would alter an existing model's output.
 
 Every stored result and every model version records the engine version that
 produced it. `POST /models/:id/versions/:versionId/recalculate` runs a frozen
 input under the current engine **without writing the result back**, which is how
 an engine upgrade is assessed against approved work before it is adopted.
+
+That is why a purely additive field still moves the minor version: the recorded
+version is what tells a consumer which fields a stored result will have.
+
+### 3.3.1
+
+**A recovery settlement is now dated to its fiscal year.** The trace entry for a
+recovery carried no period at all, because the settlement is annual. That made
+it unreachable from anything asking "how was this figure derived?" — the
+calculation inspector found nothing and reported, truthfully and uselessly, that
+a recovery total had no derivation.
+
+It is now stamped with the first month of the fiscal year it settles. No
+calculated value changes: a trace entry is a record of work, and this records
+which year's work it is.
+
+### 3.3.0
+
+**Per-partner cash flows, and the partner return on both bases.**
+
+`WaterfallDistribution` described a partner only by totals — contributions,
+distributions, profit, a rate of return. A partnership cannot be audited from
+those. An investor statement has to say *when* capital was called and when it
+came back, and anything discounting a partner's position needs the dated series
+rather than a pair of sums. The engine already tracked the series in order to
+solve each partner's IRR and simply never reported it.
+
+| Field | Meaning |
+| --- | --- |
+| `initialFlow` | The partner's share of the equity funded at closing, negative |
+| `flows` | One entry per forecast period; negative is a capital call, positive a distribution |
+| `xirr` | Annual effective rate on actual/365 day counts |
+
+Contributions and distributions never share a period: a period needing cash is
+funded before any tier is paid, so the sign of a flow says unambiguously which
+it was. The positive entries sum to `distributions`, the negative entries
+including `initialFlow` sum to `-contributions`, and the whole row sums to
+`profit`.
+
+`xirr` exists because partners previously reported only `irr`, solved on uniform
+monthly periods, while the property beside them reported both that and a
+day-count `leveredXirr`. Comparing a partner's return to the deal's therefore
+crossed conventions unless the reader knew to pick `leveredIrr`. Both bases are
+now reported for both, dated identically — closing on the first period's start,
+every later flow on its period end. They differ by a fraction of a basis point
+on a monthly series, which is small enough to be invisible and large enough to
+matter to anyone reconciling to a spreadsheet.
+
+Additive: no existing figure changes and every pre-existing regression assertion
+passes unaltered.
 
 ### 3.2.0
 

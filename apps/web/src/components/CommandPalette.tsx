@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Model, type Property } from '../api.js';
+import { useFavourites } from '../favourites.js';
 import { useShortcut } from '../hooks.js';
+import { readRecents } from '../recents.js';
 import { useSession } from '../session.js';
 
 /**
@@ -28,6 +30,7 @@ interface Command {
 export function CommandPalette(): JSX.Element | null {
   const navigate = useNavigate();
   const { session } = useSession();
+  const { favourites } = useFavourites();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
@@ -110,9 +113,67 @@ export function CommandPalette(): JSX.Element | null {
     return list;
   }, [properties, models, navigate]);
 
+  /**
+   * Favourites and recents, shown ahead of everything else when nobody has
+   * typed anything. This is the palette's answer to "where was I" — the
+   * question it opens on far more often than "find me something new".
+   */
+  const quickAccess = useMemo<Command[]>(() => {
+    const go = (path: string) => () => {
+      setOpen(false);
+      navigate(path);
+    };
+    const seen = new Set<string>();
+    const list: Command[] = [];
+
+    for (const entry of favourites) {
+      const key = `${entry.entity_type}-${entry.entity_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({
+        id: `fav-${key}`,
+        label: entry.name,
+        hint: entry.context ?? undefined,
+        group: 'Favourites',
+        run: go(
+          entry.entity_type === 'property'
+            ? `/properties/${entry.entity_id}`
+            : `/models/${entry.entity_id}`,
+        ),
+      });
+    }
+
+    if (session?.user.id && session.organizationId) {
+      for (const entry of readRecents(session.user.id, session.organizationId)) {
+        const key = `${entry.entityType}-${entry.entityId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push({
+          id: `recent-${key}`,
+          label: entry.name,
+          hint: entry.context ?? undefined,
+          group: 'Recently viewed',
+          run: go(
+            entry.entityType === 'property'
+              ? `/properties/${entry.entityId}`
+              : `/models/${entry.entityId}`,
+          ),
+        });
+      }
+    }
+
+    return list;
+  }, [favourites, session?.user.id, session?.organizationId, navigate]);
+
   const matches = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return commands.slice(0, 12);
+    if (!text) {
+      // The rest of the index still fills out the list, but never repeats an
+      // asset already shown as a favourite or a recent.
+      const shown = new Set(quickAccess.map((command) => command.id.replace(/^(fav|recent)-/, '')));
+      const rest = commands.filter((command) => !shown.has(command.id));
+      return [...quickAccess, ...rest].slice(0, 12);
+    }
     return commands
       .filter(
         (command) =>
@@ -120,7 +181,7 @@ export function CommandPalette(): JSX.Element | null {
           (command.hint ?? '').toLowerCase().includes(text),
       )
       .slice(0, 20);
-  }, [commands, query]);
+  }, [commands, quickAccess, query]);
 
   useEffect(() => {
     // Keep the highlight inside the list as it shortens under typing.

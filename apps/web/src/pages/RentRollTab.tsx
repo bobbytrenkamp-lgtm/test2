@@ -1,21 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { leaseStatusEnum, rentBasisEnum } from '@cre/domain-models';
 import { api, type Lease, type Space, type Tenant } from '../api.js';
-import { EmptyState, ErrorMessage, Field, Loading, StatusBadge } from '../components.js';
-import { formatCurrency, formatDate, formatNumber, titleCase } from '../format.js';
+import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
+import { formatNumber, titleCase } from '../format.js';
 import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 import { PasteRentRoll } from '../components/PasteRentRoll.js';
+import { EditableGrid } from '../grid/EditableGrid.js';
+import { LeaseTimeline } from '../components/LeaseTimeline.js';
+import { fieldForColumn, leaseColumns, withPending } from './rent-roll-columns.js';
 
 /**
  * The rent roll.
  *
- * Leases are edited one at a time in a form rather than in free-floating grid
- * cells: a lease is a coherent record whose dates, area and rent have to be
- * validated together, and a half-saved lease would produce a cash flow nobody
- * could defend. The grid stays the reading surface; the editor is the writing
- * surface.
+ * ## Cells are the input method; the record is still the unit of truth
+ *
+ * A lease is validated as a whole — its dates, area and rent have to agree, and
+ * a half-saved lease produces a cash flow nobody can defend. That has not
+ * changed. What has changed is how an analyst gets values in.
+ *
+ * Editing happens in a spreadsheet grid: select, type, Enter, fill down, paste
+ * a column straight out of Excel. Those edits land in a **pending layer** shown
+ * against the cells rather than being written a keystroke at a time. Saving
+ * sends every touched lease to a batch endpoint that merges each change onto
+ * the stored record and applies the same whole-record checks a single save
+ * does, inside one transaction. So the grid never writes a lease the server
+ * would not have accepted from the form, and a fill-down over forty rows either
+ * lands completely or not at all.
+ *
+ * The form editor is still here and is still the only way to reach an
+ * escalation, a recovery structure or a rent step, because none of those is a
+ * single value and flattening one into a cell would lose part of it.
  *
  * ## Finding a lease
  *
@@ -70,50 +87,63 @@ interface SortState {
 }
 
 /**
- * A column header that reorders the grid.
+ * Sorting, moved off the column headers and onto the toolbar.
  *
- * `aria-sort` on the header and a real button inside it, rather than a click
- * handler on the `th`: a screen reader has to be able to say which column the
- * table is ordered by and in which direction, and a keyboard has to be able to
- * change it. The arrow is decorative and marked so, because the direction is
- * already in `aria-sort`.
+ * The grid's headers are no longer buttons: in a spreadsheet a click on a
+ * header selects the column, and putting a sort control there would make the
+ * two gestures fight. `aria-sort` still lives on the header so assistive
+ * technology can report the order; this is where it is changed.
  */
-function SortableHeader({
-  column,
+function SortMenu({
   sort,
   onSort,
-  numeric = false,
 }: {
-  column: SortKey;
   sort: SortState;
   onSort: (state: SortState) => void;
-  numeric?: boolean;
 }): JSX.Element {
-  const active = sort.key === column;
-  const { label } = SORTS[column];
+  const id = useId();
   return (
-    <th
-      scope="col"
-      className={numeric ? 'numeric' : undefined}
-      aria-sort={active ? (sort.ascending ? 'ascending' : 'descending') : 'none'}
-    >
-      <button
-        type="button"
-        className="subtle"
-        // Re-selecting the current column reverses it; a different column
-        // starts ascending, which is what "sort by this" is taken to mean.
-        onClick={() => onSort({ key: column, ascending: active ? !sort.ascending : true })}
+    <span className="row" style={{ gap: 4 }}>
+      <label className="visually-hidden" htmlFor={id}>
+        Sort leases by
+      </label>
+      <select
+        id={id}
+        value={`${sort.key}:${sort.ascending ? 'asc' : 'desc'}`}
+        style={{ width: 'auto' }}
+        onChange={(event) => {
+          const [key, direction] = event.target.value.split(':');
+          onSort({ key: key as SortKey, ascending: direction === 'asc' });
+        }}
       >
-        {label}
-        {active && (
-          <span aria-hidden="true" style={{ marginLeft: 4 }}>
-            {sort.ascending ? '▲' : '▼'}
-          </span>
-        )}
-      </button>
-    </th>
+        {(Object.keys(SORTS) as SortKey[]).flatMap((key) => [
+          <option key={`${key}:asc`} value={`${key}:asc`}>
+            {SORTS[key].label} ↑
+          </option>,
+          <option key={`${key}:desc`} value={`${key}:desc`}>
+            {SORTS[key].label} ↓
+          </option>,
+        ])}
+      </select>
+    </span>
   );
 }
+
+/**
+ * Sort key to column key.
+ *
+ * The two vocabularies differ on purpose — a sort is "by expiry", a column is
+ * `expirationDate` — so the correspondence is written down here rather than
+ * inferred, and a column the grid cannot show simply has no arrow.
+ */
+const SORT_COLUMN: Record<SortKey, string> = {
+  code: 'code',
+  tenant: 'tenantName',
+  area: 'area',
+  rent: 'baseRent',
+  commencement: 'commencementDate',
+  expiration: 'expirationDate',
+};
 
 function matches(lease: Lease, needle: string): boolean {
   const haystack = [lease.code, lease.tenant_name ?? '', ...lease.space_codes]
@@ -123,18 +153,49 @@ function matches(lease: Lease, needle: string): boolean {
 }
 
 export function RentRollTab(): JSX.Element {
-  const { model, property, reloadCashFlow } = useModelContext();
+  const { model, property, reloadCashFlow, cashFlow } = useModelContext();
+  /*
+   * Grid or timeline, not both at once.
+   *
+   * They answer different questions — "what are the terms" and "where are the
+   * holes" — and stacking them would mean scrolling past three hundred rows to
+   * reach the picture.
+   */
+  const [view, setView] = useState<'grid' | 'timeline'>('grid');
   const { can } = useSession();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pasting, setPasting] = useState(false);
-  const [search, setSearch] = useState('');
+  /*
+   * The search box is URL state.
+   *
+   * "Where is that tenant?" is answered by linking to them — the calculation
+   * inspector names a lease and offers to take you to it — and a link that
+   * lands on an unfiltered rent roll of three hundred rows has not answered
+   * anything. Keeping it in the query also means the browser's back button
+   * returns to what the reader was looking at rather than to a blank filter.
+   */
+  const [params, setParams] = useSearchParams();
+  const search = params.get('lease') ?? '';
+  const setSearch = (value: string): void => {
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value.trim() === '') next.delete('lease');
+        else next.set('lease', value);
+        return next;
+      },
+      { replace: true },
+    );
+  };
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     // Expiry first, ascending: the question asked of a rent roll more often
     // than any other is what rolls over next.
     key: 'expiration',
     ascending: true,
   });
+
+  const [focused, setFocused] = useState<Lease | null>(null);
 
   const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
   const spaces = useResource<{ spaces: Space[] }>(
@@ -161,6 +222,18 @@ export function RentRollTab(): JSX.Element {
     });
   }, [all, search, sort]);
 
+  const columns = useMemo(
+    () => leaseColumns({ currency: model.currency, areaUnit: model.area_unit }),
+    [model.currency, model.area_unit],
+  );
+
+  /*
+   * Totals read the *stored* leases, not the pending ones.
+   *
+   * The grid shows an analyst their unsaved edits, which is right. A header
+   * that counted them too would report an area the model does not hold, and
+   * "42,700 sqft" that nobody has saved is worse than one that lags by a click.
+   */
   const totals = useMemo(
     () => ({
       count: visible.length,
@@ -189,6 +262,18 @@ export function RentRollTab(): JSX.Element {
             <span className="badge accent">filtered from {all.length}</span>
           )}
           <div className="spacer" />
+          <div className="segmented" role="group" aria-label="Rent roll view">
+            <button type="button" aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
+              Grid
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'timeline'}
+              onClick={() => setView('timeline')}
+            >
+              Timeline
+            </button>
+          </div>
           <label className="visually-hidden" htmlFor="lease-search">
             Search leases
           </label>
@@ -234,77 +319,97 @@ export function RentRollTab(): JSX.Element {
           </div>
         )}
 
-        {leases.data && leases.data.leases.length === 0 ? (
-          <EmptyState title="No leases yet">
-            Add a lease, or import a rent roll from a spreadsheet. Space that never carries a lease
-            is absorbed speculatively on the market leasing assumptions.
+        {view === 'timeline' ? (
+          cashFlow ? (
+            <LeaseTimeline cashFlow={cashFlow} currency={model.currency} />
+          ) : (
+            <div className="message info">
+              The timeline is drawn from the calculation, so the model has to have been calculated.
+              Run one and it will appear.
+            </div>
+          )
+        ) : leases.data && leases.data.leases.length === 0 ? (
+          <EmptyState
+            title="No leases have been added yet"
+            action={
+              editable ? (
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => setCreating(true)}>
+                    Add a lease
+                  </button>
+                  <button type="button" onClick={() => setPasting(true)}>
+                    Paste from Excel
+                  </button>
+                </div>
+              ) : undefined
+            }
+          >
+            Add one by hand, paste a rent roll straight out of a spreadsheet, or import an XLSX
+            workbook from the Imports tab. Space that never carries a lease is absorbed
+            speculatively on the market leasing assumptions.
+          </EmptyState>
+        ) : visible.length === 0 ? (
+          <EmptyState title="No lease matches that search">
+            {all.length} lease{all.length === 1 ? '' : 's'} on this model; none has a code, tenant
+            or suite containing “{search.trim()}”.
           </EmptyState>
         ) : (
-          <div className="table-scroll" tabIndex={0}>
-            <table>
-              <caption className="visually-hidden">Leases on this model</caption>
-              <thead>
-                <tr>
-                  <SortableHeader column="code" sort={sort} onSort={setSort} />
-                  <SortableHeader column="tenant" sort={sort} onSort={setSort} />
-                  <th scope="col">Suite</th>
-                  <th scope="col">Status</th>
-                  <SortableHeader column="area" sort={sort} onSort={setSort} numeric />
-                  <SortableHeader column="commencement" sort={sort} onSort={setSort} />
-                  <SortableHeader column="expiration" sort={sort} onSort={setSort} />
-                  <SortableHeader column="rent" sort={sort} onSort={setSort} numeric />
-                  <th scope="col">Basis</th>
-                  <th scope="col" className="numeric">
-                    Steps
-                  </th>
-                  {editable && <th scope="col">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((lease) => (
-                  <tr key={lease.id}>
-                    <th scope="row">{lease.code}</th>
-                    <td>{lease.tenant_name}</td>
-                    <td>{lease.space_codes.join(', ') || '—'}</td>
-                    <td>
-                      <StatusBadge status={lease.status} />
-                    </td>
-                    <td className="numeric">{formatNumber(lease.area, 0)}</td>
-                    <td>{formatDate(lease.commencement_date)}</td>
-                    <td>{formatDate(lease.expiration_date)}</td>
-                    <td className="numeric">
-                      {formatCurrency(lease.base_rent, model.currency, { decimals: 2 })}
-                    </td>
-                    <td>{titleCase(lease.base_rent_basis)}</td>
-                    <td className="numeric">{lease.rent_steps.length || '—'}</td>
-                    {editable && (
-                      <td>
-                        <button
-                          type="button"
-                          className="subtle"
-                          onClick={() => {
-                            setEditing(lease.code);
-                            setCreating(false);
-                          }}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {/* An empty table under a populated header reads as a rent roll with
-                no leases on it, which is a much more alarming thing than a
-                search that matched nothing. */}
-            {visible.length === 0 && (
-              <EmptyState title="No lease matches that search">
-                {all.length} lease{all.length === 1 ? '' : 's'} on this model; none has a code,
-                tenant or suite containing “{search.trim()}”.
-              </EmptyState>
-            )}
-          </div>
+          <EditableGrid
+            rows={visible}
+            columns={columns}
+            rowId={(lease) => lease.code}
+            merge={withPending}
+            editable={editable}
+            label="Leases on this model"
+            preferenceKey={`rentRoll.${model.id}`}
+            onFocusedRowChange={setFocused}
+            sortedBy={{ columnKey: SORT_COLUMN[sort.key], ascending: sort.ascending }}
+            onSaved={() => {
+              leases.reload();
+              reloadCashFlow();
+            }}
+            save={async (changes) => {
+              const byCode = new Map(all.map((lease) => [lease.code, lease]));
+              const payload = changes.flatMap((change) => {
+                const lease = byCode.get(change.rowId);
+                if (!lease) return [];
+                // Column keys and lease fields are the same vocabulary here,
+                // but only the editable ones are accepted by the endpoint, so
+                // the mapping is asserted rather than assumed.
+                const fields: Record<string, string> = {};
+                for (const [key, value] of Object.entries(change.fields)) {
+                  const field = fieldForColumn(key);
+                  if (field) fields[field] = value;
+                }
+                return Object.keys(fields).length === 0
+                  ? []
+                  : [{ code: change.rowId, expectedVersion: lease.version, fields }];
+              });
+              if (payload.length === 0) return;
+              await api.patch(`/models/${model.id}/leases`, { changes: payload });
+            }}
+            toolbar={
+              <>
+                <SortMenu sort={sort} onSort={setSort} />
+                {editable && (
+                  <button
+                    type="button"
+                    className="subtle"
+                    disabled={!focused}
+                    onClick={() => {
+                      if (focused) {
+                        setEditing(focused.code);
+                        setCreating(false);
+                      }
+                    }}
+                    title="Escalations, recoveries, rent steps and options are records rather than single values, so they are edited here"
+                  >
+                    {focused ? `Edit ${focused.code} in full` : 'Edit in full'}
+                  </button>
+                )}
+              </>
+            }
+          />
         )}
       </div>
 

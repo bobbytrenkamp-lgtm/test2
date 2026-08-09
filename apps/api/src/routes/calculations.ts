@@ -11,7 +11,14 @@ import {
   runAndStoreCalculationFromInput,
   writeAudit,
 } from '@cre/database';
-import { ENGINE_VERSION, calculate, compareVersions } from '@cre/calculation-engine';
+import {
+  DRIVER_KEYS,
+  ENGINE_VERSION,
+  assessHealth,
+  calculate,
+  compareVersions,
+  rankDrivers,
+} from '@cre/calculation-engine';
 import type { ModelInput } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 
@@ -110,6 +117,85 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
   });
 
   /**
+   * Underwriting health: deterministic findings over the stored calculation.
+   *
+   * Cheap — it reads `ModelInput` and the `ModelResult` that already exists and
+   * runs no engine pass — so it is a plain GET the page can load with the rest
+   * of the model.
+   */
+  app.get('/models/:id/health', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) {
+      throw unprocessable(
+        'This model has not been calculated yet, so there is nothing to assess. Run a ' +
+          'calculation first.',
+      );
+    }
+    const input = await buildModelInput(request.db, context.organizationId, id);
+    return { ...assessHealth(input, latest.result), calculatedAt: latest.result.calculatedAt };
+  });
+
+  /**
+   * Key value drivers: which assumptions actually move the answer.
+   *
+   * A POST rather than a GET because it is **work**, not a read — two engine
+   * runs per driver, against the real engine, because the relationships are not
+   * linear and a closed-form approximation would be a second model. The
+   * response says how many runs it did, so the cost is visible rather than
+   * hidden behind a spinner.
+   */
+  app.post('/models/:id/drivers', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({
+        metric: z
+          .enum([
+            'leveredIrr',
+            'unleveredIrr',
+            'equityMultiple',
+            'netPresentValue',
+            'year1Noi',
+            'minimumDscr',
+          ])
+          .default('unleveredIrr'),
+        /** Restricts the candidates, for a caller that wants a cheaper answer. */
+        only: z.array(z.string().max(60)).max(20).optional(),
+      })
+      .parse(request.body ?? {});
+
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) {
+      throw unprocessable(
+        'This model has not been calculated yet. Driver analysis measures movement away from ' +
+          'a base result, so there has to be one.',
+      );
+    }
+
+    if (body.only) {
+      const unknown = body.only.filter((key) => !DRIVER_KEYS.includes(key));
+      if (unknown.length > 0) {
+        throw badRequest(
+          `Unknown driver(s): ${unknown.join(', ')}. Available: ${DRIVER_KEYS.join(', ')}.`,
+        );
+      }
+    }
+
+    const input = await buildModelInput(request.db, context.organizationId, id);
+    return rankDrivers(input, latest.result, body.metric, {
+      ...(body.only ? { only: body.only } : {}),
+    });
+  });
+
+  /**
    * Calculation inspector. Returns the trace entries that produced a value,
    * optionally filtered to a target prefix so the client can ask "explain this
    * cell" rather than downloading the whole trace.
@@ -122,7 +208,32 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
         runId: z.string().uuid().optional(),
         target: z.string().max(200).optional(),
         formula: z.string().max(120).optional(),
+        /**
+         * Matches the start of the formula name, e.g. `recovery.`.
+         *
+         * Several lines share a target prefix — everything a lease occurrence
+         * produces sits under `occurrence:` — so narrowing by target alone
+         * cannot separate a recovery derivation from a base-rent one. Doing it
+         * client-side does not work either: the limit is applied after
+         * filtering, so a month with three hundred base-rent entries pushes the
+         * recoveries past it and the caller sees none.
+         */
+        formulaPrefix: z.string().max(120).optional(),
         periodIndex: z.coerce.number().int().min(1).optional(),
+        /**
+         * An inclusive span of periods, for a figure that covers more than one.
+         *
+         * A fiscal-year column on the cash flow is twelve months, and several
+         * derivations — a recovery settlement above all — are recorded in the
+         * month they settle rather than in every month they affect. Filtering
+         * such a figure to the first month of its year returns nothing and the
+         * panel truthfully reports that it has no trace, which is unhelpful
+         * and reads as a defect.
+         *
+         * `periodIndex` still works and still means exactly one period.
+         */
+        periodFrom: z.coerce.number().int().min(1).optional(),
+        periodTo: z.coerce.number().int().min(1).optional(),
         limit: z.coerce.number().int().min(1).max(2000).default(500),
       })
       .parse(request.query);
@@ -147,7 +258,15 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
     const filtered = entries.filter((entry) => {
       if (query.target && !entry.target.startsWith(query.target)) return false;
       if (query.formula && entry.formula !== query.formula) return false;
+      if (query.formulaPrefix && !entry.formula.startsWith(query.formulaPrefix)) return false;
       if (query.periodIndex && entry.periodIndex !== query.periodIndex) return false;
+      if (query.periodFrom !== undefined || query.periodTo !== undefined) {
+        // An entry with no period at all — a valuation, say — is not in any
+        // span, so it is excluded rather than let through.
+        if (entry.periodIndex === undefined) return false;
+        if (query.periodFrom !== undefined && entry.periodIndex < query.periodFrom) return false;
+        if (query.periodTo !== undefined && entry.periodIndex > query.periodTo) return false;
+      }
       return true;
     });
 

@@ -269,8 +269,11 @@ export function ReportsTab(): JSX.Element {
 
         {can('export:run') && (
           <div className="row" style={{ marginTop: 12 }}>
+            <a className="button" href={`/api/v1/models/${model.id}/export/live-model`} download>
+              Excel — Live Model
+            </a>
             <a className="button" href={`/api/v1/models/${model.id}/export/workbook`} download>
-              Download every report as one workbook
+              Excel — values only
             </a>
             <a className="button" href={`/api/v1/models/${model.id}/export/json`} download>
               Export the model as portable JSON

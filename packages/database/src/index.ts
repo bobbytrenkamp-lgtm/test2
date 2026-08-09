@@ -11,4 +11,6 @@ export * from './repositories/errors.js';
 export * from './repositories/jobs.js';
 export * from './repositories/leases.js';
 export * from './repositories/budgets.js';
+export * from './repositories/assumption-proposals.js';
+export * from './repositories/favourites.js';
 export * from './totp.js';

@@ -327,6 +327,28 @@ describe('Fixture 12: LP/GP waterfall', () => {
     expect(Number(pref?.amount)).toBeGreaterThan(0);
     expect(Number(roc?.amount)).toBeCloseTo(6300000, 0);
   });
+
+  it('dates the limited partner’s capital at closing, not in month one', () => {
+    // The whole 6,300,000 is funded before the forecast starts, so the closing
+    // flow carries it and no forecast month is a capital call.
+    expect(Number(lp?.initialFlow)).toBeCloseTo(-6300000, 2);
+    expect(lp?.flows.every((flow) => Number(flow) >= 0)).toBe(true);
+  });
+
+  it('reports the partner return on both bases, a hair apart', () => {
+    /*
+     * `irr` solves on uniform monthly periods; `xirr` on actual days over a
+     * 365-day year. On a monthly series they differ by a fraction of a basis
+     * point — but they are different numbers, and a consumer comparing a
+     * partner's return to the deal's needs to pick the matching one.
+     */
+    const monthly = Number(lp?.irr);
+    const daily = Number(lp?.xirr);
+    expect(monthly).toBeGreaterThan(0.08);
+    expect(daily).toBeGreaterThan(0.08);
+    expect(Math.abs(daily - monthly)).toBeLessThan(0.001);
+    expect(daily).not.toBe(monthly);
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -414,6 +436,38 @@ describe('engine-wide invariants', () => {
           // rate, and it shrinks as modelled vacancy grows.
           if (modelled > 0) expect(general).toBeLessThanOrEqual(target + 1);
         });
+      });
+
+      it('reconciles every partner’s dated flows to their reported totals', () => {
+        /*
+         * The flows are what a partner statement and any discounting downstream
+         * work from, so they must account for every dollar the totals claim —
+         * no more, no less.
+         *
+         * Contributions and distributions never share a month: a period needing
+         * cash is funded before any tier is paid, so the sign of a flow says
+         * unambiguously which it was. That is what lets the two sides be split
+         * out of one row and checked separately.
+         */
+        for (const partner of result.waterfall) {
+          const flows = [Number(partner.initialFlow), ...partner.flows.map(Number)];
+          expect(partner.flows).toHaveLength(result.periods.length);
+
+          const paidIn = -flows.filter((flow) => flow < 0).reduce((a, b) => a + b, 0);
+          const paidOut = flows.filter((flow) => flow > 0).reduce((a, b) => a + b, 0);
+          expect(paidIn, `${partner.partnerName} contributions`).toBeCloseTo(
+            Number(partner.contributions),
+            2,
+          );
+          expect(paidOut, `${partner.partnerName} distributions`).toBeCloseTo(
+            Number(partner.distributions),
+            2,
+          );
+          expect(
+            flows.reduce((a, b) => a + b, 0),
+            `${partner.partnerName} profit`,
+          ).toBeCloseTo(Number(partner.profit), 2);
+        }
       });
 
       it('reports no critical calculation errors', () => {

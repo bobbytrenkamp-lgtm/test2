@@ -1,5 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../api.js';
+import { EditableGrid } from '../grid/EditableGrid.js';
+import {
+  assumptionColumns,
+  withPendingAssumption,
+  type AssumptionRow,
+} from './assumption-columns.js';
+import { RecordEditor } from './record-editors/RecordEditor.js';
+import { RECORD_SPECS } from './record-editors/specs.js';
+import type { RecordValues } from './record-editors/spec.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
 import { formatPercent, titleCase } from '../format.js';
 import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
@@ -342,10 +351,21 @@ function Collection({
   onSaved: () => void;
 }): JSX.Element {
   const { model } = useModelContext();
-  const resource = useResource<{ items: Array<Record<string, unknown>> }>(
-    `/models/${model.id}/${segment}`,
+  const resource = useResource<{ items: AssumptionRow[] }>(`/models/${model.id}/${segment}`);
+  const gridColumns = useMemo(
+    () => assumptionColumns(segment, { currency: model.currency, areaUnit: model.area_unit }),
+    [segment, model.currency, model.area_unit],
   );
+  const [focused, setFocused] = useState<AssumptionRow | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /*
+   * The record the structured editor opened, camelCased and stripped of the
+   * columns nobody edits. Held apart from the JSON draft so switching between
+   * the two views does not lose what has been typed into the other.
+   */
+  const [editingRecord, setEditingRecord] = useState<RecordValues | null>(null);
+  const [rawJson, setRawJson] = useState(false);
+  const recordSpec = RECORD_SPECS[segment] ?? null;
   const [draft, setDraft] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
   // Held outside the draft because it is not something anyone edits: it is the
@@ -362,6 +382,7 @@ function Collection({
 
   function beginEdit(row: Record<string, unknown> | null): void {
     setParseError(null);
+    setRawJson(false);
     if (row) {
       const {
         id: _id,
@@ -371,12 +392,15 @@ function Collection({
         version,
         ...rest
       } = row as Record<string, unknown>;
+      const camel = toCamel(rest);
       setEditing(String(row.code));
       setOpenedVersion(typeof version === 'number' ? version : null);
-      setDraft(JSON.stringify(toCamel(rest), null, 2));
+      setEditingRecord(camel);
+      setDraft(JSON.stringify(camel, null, 2));
     } else {
       setEditing('');
       setOpenedVersion(null);
+      setEditingRecord(null);
       setDraft(JSON.stringify({ code: '', name: '' }, null, 2));
     }
   }
@@ -426,12 +450,65 @@ function Collection({
       {resource.loading && <Loading label={`Loading ${title.toLowerCase()}`} />}
 
       {resource.data && resource.data.items.length === 0 ? (
-        <EmptyState title={`No ${title.toLowerCase()}`}>
-          Nothing is defined yet. The engine treats this collection as empty rather than assuming a
-          default.
+        <EmptyState
+          title={`No ${title.toLowerCase()} yet`}
+          action={
+            editable ? (
+              <button type="button" className="primary" onClick={() => beginEdit(null)}>
+                Add the first one
+              </button>
+            ) : undefined
+          }
+        >
+          The engine treats this collection as empty rather than assuming a default, so nothing here
+          contributes to the cash flow until something is defined.
         </EmptyState>
       ) : (
-        resource.data && (
+        resource.data &&
+        (gridColumns ? (
+          <EditableGrid
+            rows={resource.data.items}
+            columns={gridColumns}
+            rowId={(row) => String(row.code)}
+            merge={withPendingAssumption}
+            editable={editable}
+            label={title}
+            preferenceKey={`${segment}.${model.id}`}
+            onFocusedRowChange={setFocused}
+            onSaved={() => {
+              resource.reload();
+              onSaved();
+            }}
+            save={async (changes) => {
+              const byCode = new Map(
+                (resource.data?.items ?? []).map((row) => [String(row.code), row]),
+              );
+              await api.patch(`/models/${model.id}/${segment}`, {
+                changes: changes.map((change) => ({
+                  code: change.rowId,
+                  expectedVersion:
+                    (byCode.get(change.rowId)?.version as number | undefined) ?? null,
+                  fields: coerceFields(change.fields),
+                })),
+              });
+            }}
+            toolbar={
+              editable ? (
+                <button
+                  type="button"
+                  className="subtle"
+                  disabled={!focused}
+                  onClick={() => focused && beginEdit(focused)}
+                  title="Schedules, structures and anything else a single cell cannot hold"
+                >
+                  {focused ? `Edit ${String(focused.code)} in full` : 'Edit in full'}
+                </button>
+              ) : undefined
+            }
+          />
+        ) : (
+          /* Growth curves: a per-year rate list is not a cell, so this stays a
+             reading surface and the record editor does the writing. */
           <div className="table-scroll" tabIndex={0} style={{ maxHeight: 340 }}>
             <table>
               <caption className="visually-hidden">{title}</caption>
@@ -496,47 +573,110 @@ function Collection({
               </tbody>
             </table>
           </div>
-        )
+        ))
       )}
 
-      {editing !== null && (
-        <form onSubmit={submit} style={{ marginTop: 12 }}>
-          {save.error?.status === 409 ? (
-            <div className="message error" role="alert">
-              <strong>{save.error.message}</strong>
-              <p style={{ marginBottom: 0 }}>
-                Nothing has been saved. Cancel and reopen the row to see their change, then reapply
-                yours. Saving over them would discard work you cannot see from here.
-              </p>
+      {editing !== null &&
+        (recordSpec && !rawJson ? (
+          <RecordEditor
+            spec={recordSpec}
+            initial={editingRecord}
+            expectedVersion={openedVersion}
+            saving={save.pending}
+            error={save.error}
+            onCancel={() => setEditing(null)}
+            onSave={async (values) => {
+              const code = String(values.code ?? '');
+              if (!code) {
+                setParseError('A code is required.');
+                return;
+              }
+              if (await save.run(code, values)) {
+                setEditing(null);
+                resource.reload();
+                onSaved();
+              }
+            }}
+          />
+        ) : (
+          <form onSubmit={submit} style={{ marginTop: 12 }}>
+            {save.error?.status === 409 ? (
+              <div className="message error" role="alert">
+                <strong>{save.error.message}</strong>
+                <p style={{ marginBottom: 0 }}>
+                  Nothing has been saved. Cancel and reopen the row to see their change, then
+                  reapply yours. Saving over them would discard work you cannot see from here.
+                </p>
+              </div>
+            ) : (
+              <ErrorMessage error={save.error} />
+            )}
+            <Field
+              label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
+              error={parseError ?? undefined}
+              hint="Field names use camelCase, matching the API. Amounts and rates are decimal strings."
+            >
+              <textarea
+                rows={12}
+                value={draft}
+                spellCheck={false}
+                onChange={(event) => setDraft(event.target.value)}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+              />
+            </Field>
+            <div className="row end">
+              {recordSpec && (
+                <button type="button" className="subtle" onClick={() => setRawJson(false)}>
+                  Back to the form
+                </button>
+              )}
+              <button type="button" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary" disabled={save.pending}>
+                {save.pending ? 'Saving…' : 'Save'}
+              </button>
             </div>
-          ) : (
-            <ErrorMessage error={save.error} />
-          )}
-          <Field
-            label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
-            error={parseError ?? undefined}
-            hint="Field names use camelCase, matching the API. Amounts and rates are decimal strings."
-          >
-            <textarea
-              rows={12}
-              value={draft}
-              spellCheck={false}
-              onChange={(event) => setDraft(event.target.value)}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
-            />
-          </Field>
-          <div className="row end">
-            <button type="button" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-            <button type="submit" className="primary" disabled={save.pending}>
-              {save.pending ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
+          </form>
+        ))}
+
+      {/*
+       * The JSON view is kept, behind a control, rather than deleted.
+       *
+       * A structured form can only offer the fields somebody thought to put in
+       * the spec. When a collection grows a field the spec has not caught up
+       * with, or when somebody is debugging what the API actually stored, the
+       * raw record is the only way to see it — and taking that away would make
+       * the product less capable than the thing it replaced.
+       */}
+      {editing !== null && recordSpec && !rawJson && (
+        <p className="field-hint" style={{ marginTop: 8 }}>
+          <button type="button" className="subtle" onClick={() => setRawJson(true)}>
+            Edit the raw record instead
+          </button>{' '}
+          — every stored field, including any this form does not show.
+        </p>
       )}
     </div>
   );
+}
+
+/**
+ * The grid holds every value as a string; the write API wants a boolean where
+ * the column is one.
+ *
+ * Numbers are deliberately *left* as strings. Every amount and rate in this
+ * system is a decimal string end to end precisely so that 1234.55 is not stored
+ * as 1234.5499999999999, and a round trip through a JavaScript number here
+ * would undo that before the value ever reached the engine. Postgres reads a
+ * numeric string into a numeric column without help.
+ */
+function coerceFields(fields: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    out[key] = value === 'true' ? true : value === 'false' ? false : value;
+  }
+  return out;
 }
 
 /** Database rows come back snake_cased; the write API takes camelCase. */

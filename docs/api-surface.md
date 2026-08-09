@@ -5,7 +5,7 @@ router's own route table, printed. Every route not marked public refuses an
 unauthenticated request, which `tests/route-inventory.test.ts` enforces for
 every route rather than for a chosen few.
 
-116 routes, of which 7 are reachable without a session.
+133 routes, of which 7 are reachable without a session.
 
 ## *
 
@@ -58,6 +58,14 @@ every route rather than for a chosen few.
 | POST | `/api/v1/comments/:id/resolve` | Yes |
 | GET | `/api/v1/comments/mentionable` | Yes |
 
+## favourites
+
+| Method | Path | Session required |
+| --- | --- | --- |
+| GET | `/api/v1/favourites` | Yes |
+| PUT | `/api/v1/favourites/:entityType/:entityId` | Yes |
+| DELETE | `/api/v1/favourites/:entityType/:entityId` | Yes |
+
 ## funds
 
 | Method | Path | Session required |
@@ -105,34 +113,47 @@ every route rather than for a chosen few.
 | POST | `/api/v1/models` | Yes |
 | GET | `/api/v1/models/:id` | Yes |
 | PATCH | `/api/v1/models/:id` | Yes |
+| GET | `/api/v1/models/:id/assumption-proposals` | Yes |
+| POST | `/api/v1/models/:id/assumption-proposals` | Yes |
+| POST | `/api/v1/models/:id/assumption-proposals/:proposalId/decision` | Yes |
 | POST | `/api/v1/models/:id/calculate` | Yes |
 | GET | `/api/v1/models/:id/capital` | Yes |
+| PATCH | `/api/v1/models/:id/capital` | Yes |
 | PUT | `/api/v1/models/:id/capital/:code` | Yes |
 | DELETE | `/api/v1/models/:id/capital/:code` | Yes |
 | GET | `/api/v1/models/:id/cashflow` | Yes |
 | POST | `/api/v1/models/:id/clone` | Yes |
 | GET | `/api/v1/models/:id/debt` | Yes |
+| PATCH | `/api/v1/models/:id/debt` | Yes |
 | PUT | `/api/v1/models/:id/debt/:code` | Yes |
 | DELETE | `/api/v1/models/:id/debt/:code` | Yes |
+| POST | `/api/v1/models/:id/drivers` | Yes |
 | GET | `/api/v1/models/:id/expenses` | Yes |
+| PATCH | `/api/v1/models/:id/expenses` | Yes |
 | PUT | `/api/v1/models/:id/expenses/:code` | Yes |
 | DELETE | `/api/v1/models/:id/expenses/:code` | Yes |
 | GET | `/api/v1/models/:id/export/json` | Yes |
+| GET | `/api/v1/models/:id/export/live-model` | Yes |
 | GET | `/api/v1/models/:id/export/workbook` | Yes |
 | GET | `/api/v1/models/:id/growth-curves` | Yes |
+| PATCH | `/api/v1/models/:id/growth-curves` | Yes |
 | PUT | `/api/v1/models/:id/growth-curves/:code` | Yes |
 | DELETE | `/api/v1/models/:id/growth-curves/:code` | Yes |
+| GET | `/api/v1/models/:id/health` | Yes |
 | GET | `/api/v1/models/:id/imports` | Yes |
 | POST | `/api/v1/models/:id/imports/analyze` | Yes |
 | POST | `/api/v1/models/:id/imports/commit` | Yes |
 | POST | `/api/v1/models/:id/imports/validate` | Yes |
 | GET | `/api/v1/models/:id/leases` | Yes |
+| PATCH | `/api/v1/models/:id/leases` | Yes |
 | PUT | `/api/v1/models/:id/leases/:code` | Yes |
 | DELETE | `/api/v1/models/:id/leases/:code` | Yes |
 | GET | `/api/v1/models/:id/market-leasing` | Yes |
+| PATCH | `/api/v1/models/:id/market-leasing` | Yes |
 | PUT | `/api/v1/models/:id/market-leasing/:code` | Yes |
 | DELETE | `/api/v1/models/:id/market-leasing/:code` | Yes |
 | GET | `/api/v1/models/:id/other-revenue` | Yes |
+| PATCH | `/api/v1/models/:id/other-revenue` | Yes |
 | PUT | `/api/v1/models/:id/other-revenue/:code` | Yes |
 | DELETE | `/api/v1/models/:id/other-revenue/:code` | Yes |
 | GET | `/api/v1/models/:id/reports/:reportId` | Yes |
@@ -173,6 +194,7 @@ every route rather than for a chosen few.
 | GET | `/api/v1/portfolios/:id/aggregate` | Yes |
 | PUT | `/api/v1/portfolios/:id/properties` | Yes |
 | GET | `/api/v1/portfolios/:id/reports/:reportId` | Yes |
+| GET | `/api/v1/portfolios/:id/tenant-exposure` | Yes |
 | GET | `/api/v1/portfolios/reports` | Yes |
 
 ## properties

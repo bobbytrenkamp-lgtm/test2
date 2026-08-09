@@ -17,7 +17,6 @@
  * whose name does not mark it as disposable.
  */
 import { performance } from 'node:perf_hooks';
-import type { FastifyInstance } from 'fastify';
 import { buildServer } from '../apps/api/src/server.js';
 import { loadEnv } from '../apps/api/src/env.js';
 import { createDatabase, migrate, resetSchema } from '../packages/database/src/index.js';
@@ -67,7 +66,19 @@ console.warn(
   `Concurrency test\n  ${CONCURRENCY} parallel clients, ${ROUNDS} rounds, ` + `pool of ${POOL}\n`,
 );
 
-let app: FastifyInstance | undefined;
+/**
+ * The server's type, taken from the function that builds it.
+ *
+ * Not `import type { FastifyInstance } from 'fastify'`: fastify is a
+ * dependency of `apps/api`, not of the workspace root, so that import does not
+ * resolve from here — and because nothing typechecked `scripts/`, it went
+ * unnoticed and dragged five parameters into `any` behind it. Deriving the
+ * type from `buildServer` needs no dependency and cannot drift from what the
+ * API actually returns.
+ */
+type Server = Awaited<ReturnType<typeof buildServer>>;
+
+let app: Server | undefined;
 
 try {
   await dropDatabase();
@@ -135,7 +146,7 @@ try {
           url: string;
         };
         const at = performance.now();
-        const response = await (app as FastifyInstance).inject({
+        const response = await (app as Server).inject({
           method: 'GET',
           url: request.url,
           headers: authed,
@@ -210,7 +221,7 @@ try {
   let writeProblems = 0;
   if (lease) {
     const write = (rent: number, expectedVersion?: number) =>
-      (app as FastifyInstance).inject({
+      (app as Server).inject({
         method: 'PUT',
         url: `/api/v1/models/${modelId}/leases/${encodeURIComponent(lease.code)}`,
         headers: authed,
