@@ -24,6 +24,7 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
   let ctx: TestContext;
   let owner: Actor;
   let orgId: string;
+  let propertyId: string;
   let modelId: string;
 
   const importDoc = (overrides: Record<string, unknown> = {}) =>
@@ -63,7 +64,7 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
         rentableArea: '250000',
       },
     });
-    const propertyId = (property.json() as { property: { id: string } }).property.id;
+    propertyId = (property.json() as { property: { id: string } }).property.id;
 
     const model = await ctx.app.inject({
       method: 'POST',
@@ -571,5 +572,83 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     });
     const { statusCode } = await apply(importDoc(), ['valuation.discountRate'], stranger);
     expect(statusCode).toBe(404);
+  });
+
+  it('refuses to apply to an approved model, the same guard a typed edit obeys', async () => {
+    const frozen = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/models',
+      headers: authed(owner.cookie),
+      payload: {
+        propertyId,
+        name: 'Frozen for import',
+        classification: 'valuation',
+        valuationDate: '2026-01-01',
+        forecastStartDate: '2026-01-01',
+        forecastMonths: 12,
+      },
+    });
+    const frozenId = (frozen.json() as { model: { id: string } }).model.id;
+    for (const status of ['analyst_review', 'manager_review', 'approved']) {
+      await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/models/${frozenId}/transition`,
+        headers: authed(owner.cookie),
+        payload: { to: status },
+      });
+    }
+
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${frozenId}/assumption-import/apply`,
+      headers: authed(owner.cookie),
+      payload: {
+        paste: importDoc({
+          assumptions: [{ target: 'valuation.discountRate', value: '0.09', valueType: 'decimal' }],
+        }),
+        targets: ['valuation.discountRate'],
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain('approved');
+
+    // Analysis itself is still allowed — review is not a write.
+    const readOnlyAnalysis = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${frozenId}/assumption-import/analyze`,
+      headers: authed(owner.cookie),
+      payload: {
+        paste: importDoc({
+          assumptions: [{ target: 'valuation.discountRate', value: '0.09', valueType: 'decimal' }],
+        }),
+      },
+    });
+    expect(readOnlyAnalysis.statusCode).toBe(200);
+  });
+
+  it('writes an audit record naming the document and what was applied', async () => {
+    // importDoc's default source.documentName is 'Raleigh Industrial OM.pdf'.
+    const paste = importDoc({
+      assumptions: [
+        { target: 'valuation.acquisitionCosts', value: '210000', valueType: 'decimal' },
+      ],
+    });
+
+    const { statusCode, body } = await apply(paste, ['valuation.acquisitionCosts']);
+    expect(statusCode).toBe(200);
+    const sessionId = (body.importSession as { id: string }).id;
+
+    const audit = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/v1/audit?limit=50',
+      headers: authed(owner.cookie),
+    });
+    const entries = (audit.json() as { entries: Array<Record<string, unknown>> }).entries;
+    const entry = entries.find(
+      (row) => row.action === 'assumption_import.applied' && row.entity_id === sessionId,
+    );
+    expect(entry).toBeDefined();
+    expect(JSON.stringify(entry?.metadata)).toContain('Raleigh Industrial OM.pdf');
+    expect(JSON.stringify(entry?.metadata)).toContain('valuation.acquisitionCosts');
   });
 });
