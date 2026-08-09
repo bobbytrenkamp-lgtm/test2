@@ -58,7 +58,14 @@ function pasteFor(documentName: string, saleCostPercent: string): string {
         displayValue: `${Number(saleCostPercent) * 100}%`,
         confidence: 0.93,
         extraction: { method: 'explicit' },
-        evidence: [{ page: 6, section: 'Disposition Assumptions', label: 'Sale Costs', sourceValue: '2.25%' }],
+        evidence: [
+          {
+            page: 6,
+            section: 'Disposition Assumptions',
+            label: 'Sale Costs',
+            sourceValue: '2.25%',
+          },
+        ],
       },
     ],
   });

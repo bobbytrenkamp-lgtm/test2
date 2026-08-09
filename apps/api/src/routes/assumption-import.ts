@@ -26,7 +26,9 @@ import { applyAssumption, AssumptionApplyError } from '../assumption-write.js';
 const APPLICABLE_STATUSES = new Set(['new', 'changed', 'needsReview']);
 
 function describeSourceName(source: ImportSource): string {
-  const system = [source.system, source.skill].filter((part): part is string => Boolean(part)).join(' — ');
+  const system = [source.system, source.skill]
+    .filter((part): part is string => Boolean(part))
+    .join(' — ');
   const label = system || 'Imported assumptions';
   return source.documentName ? `${label} (${source.documentName})` : label;
 }
@@ -72,7 +74,10 @@ export async function registerAssumptionImportRoutes(app: FastifyInstance): Prom
       const rows = (input as unknown as Record<string, unknown>)[key];
       const codes = Array.isArray(rows)
         ? rows
-            .filter((row): row is { id: string } => Boolean(row) && typeof row === 'object' && 'id' in row)
+            .filter(
+              (row): row is { id: string } =>
+                Boolean(row) && typeof row === 'object' && 'id' in row,
+            )
             .map((row) => row.id)
         : [];
 
@@ -187,7 +192,9 @@ export async function registerAssumptionImportRoutes(app: FastifyInstance): Prom
         appliedCount: selected.length,
         keptCount: analysis.summary.same,
         unresolvedCount:
-          analysis.summary.needsReview + analysis.summary.conflicts + analysis.summary.missingTarget,
+          analysis.summary.needsReview +
+          analysis.summary.conflicts +
+          analysis.summary.missingTarget,
         unsupportedCount: analysis.summary.unsupported,
         createdBy: context.userId,
       });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeImport } from './assumption-import-analyze.js';
-import { creAssumptionImportSchema, type CreAssumptionImportInput } from './cre-assumption-import.js';
+import {
+  creAssumptionImportSchema,
+  type CreAssumptionImportInput,
+} from './cre-assumption-import.js';
 import { type ModelInput, type ModelInputDraft, parseModelInput } from './model-input.js';
 
 /**
@@ -22,7 +25,12 @@ function model(overrides: Partial<ModelInputDraft> = {}): ModelInput {
     modelName: 'Raleigh Industrial Center',
     currency: 'USD',
     areaUnit: 'sqft',
-    forecast: { startDate: '2026-01-01', months: 12, fiscalYearStartMonth: 1, proration: 'actual_days' },
+    forecast: {
+      startDate: '2026-01-01',
+      months: 12,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
     property: {
       id: 'P1',
       name: 'Raleigh Industrial Center',
@@ -47,7 +55,15 @@ function model(overrides: Partial<ModelInputDraft> = {}): ModelInput {
         marketRentBasis: 'per_area_per_year',
       },
     ],
-    expenses: [{ id: 'OPEX-INS', name: 'Insurance', category: 'insurance', method: 'fixed_annual', amount: '140000' }],
+    expenses: [
+      {
+        id: 'OPEX-INS',
+        name: 'Insurance',
+        category: 'insurance',
+        method: 'fixed_annual',
+        amount: '140000',
+      },
+    ],
     ...overrides,
   });
 }
@@ -82,17 +98,25 @@ describe('analyzeImport: model-level assumptions', () => {
   it('classifies a target whose value differs from the model as changed', () => {
     const analysis = analyzeImport(
       doc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' },
+        ],
       }),
       model(),
     );
-    expect(analysis.items[0]).toMatchObject({ status: 'changed', currentValue: '0.065', extractedValue: '0.0625' });
+    expect(analysis.items[0]).toMatchObject({
+      status: 'changed',
+      currentValue: '0.065',
+      extractedValue: '0.0625',
+    });
   });
 
   it('classifies a target whose value matches the model as same, not a failure', () => {
     const analysis = analyzeImport(
       doc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' },
+        ],
       }),
       model(),
     );
@@ -105,7 +129,9 @@ describe('analyzeImport: model-level assumptions', () => {
     // underwrites a 625% exit cap rate — flagged for review rather than
     // silently applied.
     const analysis = analyzeImport(
-      doc({ assumptions: [{ target: 'valuation.terminalCapRate', value: '6.25', valueType: 'decimal' }] }),
+      doc({
+        assumptions: [{ target: 'valuation.terminalCapRate', value: '6.25', valueType: 'decimal' }],
+      }),
       model(),
     );
     expect(analysis.items[0]?.status).toBe('needsReview');
@@ -120,7 +146,10 @@ describe('analyzeImport: model-level assumptions', () => {
             target: 'valuation.acquisitionPrice',
             value: '48500000',
             valueType: 'decimal',
-            extraction: { method: 'inferred', derivation: 'Implied by the stated cap rate and NOI.' },
+            extraction: {
+              method: 'inferred',
+              derivation: 'Implied by the stated cap rate and NOI.',
+            },
           },
         ],
       }),
@@ -136,7 +165,12 @@ describe('analyzeImport: model-level assumptions', () => {
     const analysis = analyzeImport(
       doc({
         assumptions: [
-          { target: 'valuation.terminalCapRate', value: '0.07', valueType: 'decimal', extraction: { method: 'explicit' } },
+          {
+            target: 'valuation.terminalCapRate',
+            value: '0.07',
+            valueType: 'decimal',
+            extraction: { method: 'explicit' },
+          },
         ],
       }),
       model(),
@@ -148,7 +182,12 @@ describe('analyzeImport: model-level assumptions', () => {
     const analysis = analyzeImport(
       doc({
         assumptions: [
-          { target: 'valuation.discountRate', value: null, valueType: 'decimal', notes: 'Three competing developments in planning.' },
+          {
+            target: 'valuation.discountRate',
+            value: null,
+            valueType: 'decimal',
+            notes: 'Three competing developments in planning.',
+          },
         ],
       }),
       model(),
@@ -169,7 +208,9 @@ describe('analyzeImport: model-level assumptions', () => {
 
   it('flags lease terms as unsupported through the generic importer, by name', () => {
     const analysis = analyzeImport(
-      doc({ assumptions: [{ target: 'leases.L-001.baseRent', value: '38.00', valueType: 'decimal' }] }),
+      doc({
+        assumptions: [{ target: 'leases.L-001.baseRent', value: '38.00', valueType: 'decimal' }],
+      }),
       model(),
     );
     expect(analysis.items[0]?.status).toBe('unsupported');
@@ -181,8 +222,20 @@ describe('analyzeImport: model-level assumptions', () => {
     // "0.065" stored comes back "0.06500000" — and a naive string
     // comparison would report every untouched rate as changed.
     const analysis = analyzeImport(
-      doc({ assumptions: [{ target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' }] }),
-      model({ valuation: { discountRate: '0.08', terminalCapRate: '0.06500000', saleCostPercent: '0', directCapAdjustments: '0', acquisitionCosts: '0' } }),
+      doc({
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' },
+        ],
+      }),
+      model({
+        valuation: {
+          discountRate: '0.08',
+          terminalCapRate: '0.06500000',
+          saleCostPercent: '0',
+          directCapAdjustments: '0',
+          acquisitionCosts: '0',
+        },
+      }),
     );
     expect(analysis.items[0]?.status).toBe('same');
   });
@@ -229,8 +282,18 @@ describe('analyzeImport: duplicates and conflicts', () => {
     const analysis = analyzeImport(
       doc({
         assumptions: [
-          { target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal', evidence: [{ page: 8 }] },
-          { target: 'valuation.terminalCapRate', value: '0.06', valueType: 'decimal', evidence: [{ page: 42 }] },
+          {
+            target: 'valuation.terminalCapRate',
+            value: '0.0625',
+            valueType: 'decimal',
+            evidence: [{ page: 8 }],
+          },
+          {
+            target: 'valuation.terminalCapRate',
+            value: '0.06',
+            valueType: 'decimal',
+            evidence: [{ page: 42 }],
+          },
         ],
       }),
       model(),
@@ -261,9 +324,15 @@ describe('analyzeImport: record bundles', () => {
     );
     expect(analysis.items).toHaveLength(2);
     const rent = analysis.items.find((i) => i.target === 'marketLeasing.INDUSTRIAL_STD.marketRent');
-    expect(rent).toMatchObject({ status: 'changed', currentValue: '11.00', extractedValue: '12.50' });
+    expect(rent).toMatchObject({
+      status: 'changed',
+      currentValue: '11.00',
+      extractedValue: '12.50',
+    });
     expect(rent?.evidence).toHaveLength(1);
-    const renewal = analysis.items.find((i) => i.target === 'marketLeasing.INDUSTRIAL_STD.renewalProbability');
+    const renewal = analysis.items.find(
+      (i) => i.target === 'marketLeasing.INDUSTRIAL_STD.renewalProbability',
+    );
     expect(renewal?.evidence).toEqual([]);
   });
 
@@ -293,7 +362,14 @@ describe('analyzeImport: record bundles', () => {
   it('marks every field of a bundle for an unrecognized collection as unsupported', () => {
     const analysis = analyzeImport(
       doc({
-        records: [{ collection: 'dataCentre', code: 'HALL-1', fields: { powerCostPerKw: '0.11' }, evidence: {} }],
+        records: [
+          {
+            collection: 'dataCentre',
+            code: 'HALL-1',
+            fields: { powerCostPerKw: '0.11' },
+            evidence: {},
+          },
+        ],
       }),
       model(),
     );
@@ -312,7 +388,10 @@ describe('analyzeImport: property mismatch', () => {
   });
 
   it('does not warn when the document names the same property this model is open on', () => {
-    const analysis = analyzeImport(doc({ property: { name: 'Raleigh Industrial Center' } }), model());
+    const analysis = analyzeImport(
+      doc({ property: { name: 'Raleigh Industrial Center' } }),
+      model(),
+    );
     expect(analysis.propertyMismatch).toBe(false);
   });
 

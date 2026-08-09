@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       863 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       1033 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -69,10 +69,15 @@ Tests       863 passed  (251 engine regression, 31 engine unit, 16 fund,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs,
                          22 health and drivers,
-                         14 the assumption input contract,
-                         12 assumption proposals via the API,
-                         7 favourites, 5 tenant exposure)
-Browser     186 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         27 the assumption input contract,
+                         14 assumption proposals via the API,
+                         7 favourites, 5 tenant exposure,
+                         89 the writable-target registry,
+                         20 the cre-assumption-import parser,
+                         20 the deterministic import analyzer,
+                         4 the import write path,
+                         22 PDF-assumption import via the API)
+Browser     192 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -83,11 +88,12 @@ Browser     186 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
-                         3 two-factor, 12 accessibility, 45 accessibility tree)
+                         3 two-factor, 12 accessibility, 45 accessibility tree,
+                         6 PDF-assumption import)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
-Migrations  12 applied against PostgreSQL 16
+Migrations  15 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -215,6 +221,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | CSRF header requirement | Tested | |
 | Rate limiting | Functional | Global 600/min; 10/min on auth |
 | Generated API surface | Tested | `docs/api-surface.md` is printed from the router's own table, so it cannot drift. Not an OpenAPI document: request and response schemas live inside handlers rather than on the route definitions, and a spec with empty schemas would look like a contract and describe nothing |
+| PDF-assumption import: target dictionary, analyzer, apply | Tested | `GET /assumption-import/targets` serialises the same writable-target registry the assumption-proposal decision route consults; `POST /assumption-import/analyze` parses and compares a pasted `cre-assumption-import` document against the model with zero writes; `POST /assumption-import/apply` re-analyzes server-side and applies the selected targets atomically as already-accepted proposals, through the same write path a person's edit or a posted proposal uses. See `docs/claude-assumption-import.md` |
 
 ## 4. Web application
 
@@ -224,7 +231,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Dashboard | Functional | Metrics, type allocation, recent assets |
 | Property list, search, filter, create | Functional | |
 | Property workspace | Functional | Overview, spaces, models |
-| Model workspace with tabs | Functional | Twelve tabs |
+| Model workspace with tabs | Functional | Fifteen tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
 | Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Opens from the cash flow and from the traced return metrics. Leads with what made the number up — the contributing tenants, read from the stored calculation — then the formula and its inputs, then links to the lease or record to change. Copies as text. 8 browser tests, including one that follows a link to a rent roll already filtered to the named lease |
 | Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
@@ -239,7 +246,8 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
 | Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
 | Investment committee summary | Tested | One printable page built from the same stored calculation the Returns and Health tabs read — nothing is recomputed, so the summary cannot disagree with the detail behind it. Leads with the Health tab's own warnings rather than a score, each carrying the threshold it crossed. Screen and print only; no PDF export or emailed digest yet. 5 browser tests, in the axe sweep |
-| Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 14 contract tests, 12 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
+| Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 27 contract tests, 14 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
+| PDF-assumption import (paste, review, apply) | Tested | A separate Claude Skill reads a document and outputs a `cre-assumption-import` document; this platform never parses a PDF, calls an AI provider, or does document interpretation of any kind. Paste → Analyze produces a deterministic, zero-write preview per assumption: new, changed, same, needs review, conflict, no matching record, unsupported or invalid, with duplicate evidence merged and a conflict never auto-resolved. Applying re-analyzes server-side, writes the selected targets atomically as already-decided proposals through the existing write path, groups them under one `import_sessions` row for provenance, and recalculates. Lease terms are recognized but never bulk-applied through this pipeline — a dedicated safety class, same as the assumption-proposal contract's. 89 target-registry tests, 20 parser tests, 20 analyzer tests, 4 write-path tests, 22 API tests, 6 browser tests, in the axe sweep. See `docs/claude-assumption-import.md` |
 | Favourites and recently viewed | Tested | A star pins a property or model server-side, per person and organization, so it follows a reviewer to wherever they sign in; recently viewed is deliberately kept in the browser's own storage instead, since it is a trace of one device's activity rather than a decision, and is cleared on sign-out so a shared machine cannot leak it to the next person. Both surface on the dashboard and, unprompted, at the top of the command palette. A deleted property or model disappears from the pinned list on its own. 7 API tests, 4 browser tests, in the axe sweep |
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser tests import a part-invalid CSV and a multi-sheet workbook, and check what reached the rent roll. The sheet is chosen in the wizard, not guessed for you |
@@ -374,6 +382,7 @@ current state.)
 | Concurrency test | Tested | `pnpm concurrency-test`; 200 parallel clients, ~1,000 req/s, 0 failures |
 | Optimistic locking, leases and models | Tested | `version` column, 409 on a stale write, true races asserted with `Promise.all` |
 | Optimistic locking, assumption collections | Tested | Row-level `version` on all six collections; same-row writers collide, different-row writers do not. 17 locking tests in total |
+| PDF-assumption import: target registry, parser, analyzer, write path, API, browser | Tested | 89 + 20 + 20 + 4 + 22 + 6 = 161 tests across `packages/domain-models`, `apps/api` and the browser suite. The target registry is checked against the real collection and model-level schemas in both directions, so a field renamed in one place and not the other fails a test rather than an import |
 
 ---
 

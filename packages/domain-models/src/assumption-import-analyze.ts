@@ -1,6 +1,10 @@
 import type { ModelInput } from './model-input.js';
 import type { AssumptionValueType } from './assumption-proposals.js';
-import { resolveAssumptionValue, validateTypedValue, COLLECTION_KEYS } from './assumption-proposals.js';
+import {
+  resolveAssumptionValue,
+  validateTypedValue,
+  COLLECTION_KEYS,
+} from './assumption-proposals.js';
 import type { AssumptionUnit, TargetDescriptor } from './assumption-targets.js';
 import { COLLECTIONS_BY_NAME, describeTarget } from './assumption-targets.js';
 import type {
@@ -127,7 +131,10 @@ interface RawItem {
   missingRecord: { collection: string; code: string; noun: string } | null;
 }
 
-export function analyzeImport(document: CreAssumptionImport, modelInput: ModelInput): ImportAnalysis {
+export function analyzeImport(
+  document: CreAssumptionImport,
+  modelInput: ModelInput,
+): ImportAnalysis {
   const missingCollectionRecords: MissingCollectionRecord[] = [];
   const rawItems: RawItem[] = [];
 
@@ -156,7 +163,9 @@ export function analyzeImport(document: CreAssumptionImport, modelInput: ModelIn
     else grouped.set(item.target, [item]);
   }
 
-  const items = [...grouped.entries()].map(([target, group]) => classifyGroup(target, group, modelInput));
+  const items = [...grouped.entries()].map(([target, group]) =>
+    classifyGroup(target, group, modelInput),
+  );
 
   return {
     source: document.source,
@@ -299,11 +308,15 @@ function classifyGroup(
       code,
       valueType: descriptor.valueType,
       unit: descriptor.unit ?? null,
-      currentValue: resolveAssumptionValue(modelInput as unknown as Record<string, unknown>, target),
+      currentValue: resolveAssumptionValue(
+        modelInput as unknown as Record<string, unknown>,
+        target,
+      ),
       extractedValue: null,
       extractedDisplayValue: null,
       status: 'needsReview',
-      reason: 'No value was extracted for this target, only a note. Review the source before deciding.',
+      reason:
+        'No value was extracted for this target, only a note. Review the source before deciding.',
       confidence: first.confidence,
       extraction: first.extraction,
       evidence: mergeEvidence(group),
@@ -322,7 +335,10 @@ function classifyGroup(
       code,
       valueType: descriptor.valueType,
       unit: descriptor.unit ?? null,
-      currentValue: resolveAssumptionValue(modelInput as unknown as Record<string, unknown>, target),
+      currentValue: resolveAssumptionValue(
+        modelInput as unknown as Record<string, unknown>,
+        target,
+      ),
       extractedValue: null,
       extractedDisplayValue: null,
       status: 'conflict',
@@ -358,7 +374,11 @@ function classifyGroup(
 
   const current = resolveAssumptionValue(modelInput as unknown as Record<string, unknown>, target);
   let status: ImportItemStatus =
-    current === null ? 'new' : valuesMatch(current, merged.value, descriptor.valueType) ? 'same' : 'changed';
+    current === null
+      ? 'new'
+      : valuesMatch(current, merged.value, descriptor.valueType)
+        ? 'same'
+        : 'changed';
   let reason: string | null = null;
 
   if (status !== 'same') {
@@ -428,7 +448,10 @@ function invalidItem(
 
 /** Distinct non-null values reported for one target, each with its merged evidence. */
 function distinctValues(group: RawItem[]): AnalyzedValue[] {
-  const byValue = new Map<string, { displayValue: string | null; evidence: ImportEvidenceItem[] }>();
+  const byValue = new Map<
+    string,
+    { displayValue: string | null; evidence: ImportEvidenceItem[] }
+  >();
   for (const item of group) {
     const key = normalizeRaw(item.rawValue);
     if (key === null) continue;

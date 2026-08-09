@@ -11,7 +11,13 @@ import type {
 } from '@cre/domain-models';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Field } from '../components.js';
-import { formatCurrency, formatDate, formatMultiple, formatNumber, formatPercent } from '../format.js';
+import {
+  formatCurrency,
+  formatDate,
+  formatMultiple,
+  formatNumber,
+  formatPercent,
+} from '../format.js';
 import { useMutation } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
@@ -54,14 +60,22 @@ const SELECTABLE_STATUSES = new Set<ImportItemStatus>(['new', 'changed', 'needsR
 
 type Filter = 'all' | ImportItemStatus;
 
-const FILTERS: Array<{ id: Filter; label: string; count: (summary: ImportAnalysis['summary']) => number }> = [
+const FILTERS: Array<{
+  id: Filter;
+  label: string;
+  count: (summary: ImportAnalysis['summary']) => number;
+}> = [
   { id: 'all', label: 'All', count: (s) => s.received },
   { id: 'changed', label: 'Changed', count: (s) => s.changed },
   { id: 'new', label: 'New', count: (s) => s.new },
   { id: 'same', label: 'Same', count: (s) => s.same },
   { id: 'needsReview', label: 'Needs review', count: (s) => s.needsReview },
   { id: 'conflict', label: 'Conflicts', count: (s) => s.conflicts },
-  { id: 'unsupported', label: 'Unsupported', count: (s) => s.unsupported + s.invalid + s.missingTarget },
+  {
+    id: 'unsupported',
+    label: 'Unsupported',
+    count: (s) => s.unsupported + s.invalid + s.missingTarget,
+  },
 ];
 
 interface ApplyResult {
@@ -119,7 +133,10 @@ export function AssumptionImportTab(): JSX.Element {
     if (filter === 'all') return items;
     if (filter === 'unsupported') {
       return items.filter(
-        (item) => item.status === 'unsupported' || item.status === 'invalid' || item.status === 'missingTarget',
+        (item) =>
+          item.status === 'unsupported' ||
+          item.status === 'invalid' ||
+          item.status === 'missingTarget',
       );
     }
     return items.filter((item) => item.status === filter);
@@ -140,7 +157,11 @@ export function AssumptionImportTab(): JSX.Element {
 
   function selectReady(): void {
     setSelected(
-      new Set(items.filter((item) => item.status === 'new' || item.status === 'changed').map((item) => item.target)),
+      new Set(
+        items
+          .filter((item) => item.status === 'new' || item.status === 'changed')
+          .map((item) => item.target),
+      ),
     );
   }
 
@@ -168,7 +189,7 @@ export function AssumptionImportTab(): JSX.Element {
   }
 
   const returnsBefore = beforeReturns?.returns ?? null;
-  const returnsAfter = applyResult ? cashFlow?.returns ?? null : null;
+  const returnsAfter = applyResult ? (cashFlow?.returns ?? null) : null;
   const valueBefore = beforeReturns?.valuations?.[0]?.value ?? null;
   const valueAfter = applyResult ? (cashFlow?.valuations?.[0]?.value ?? null) : null;
   const noiBefore = beforeReturns?.annual?.[0]?.lines.netOperatingIncome ?? null;
@@ -271,7 +292,8 @@ export function AssumptionImportTab(): JSX.Element {
           <div className="card">
             <div className="row" style={{ marginBottom: 8 }}>
               <h2 style={{ margin: 0 }}>
-                {analysis.summary.received} assumption{analysis.summary.received === 1 ? '' : 's'} found
+                {analysis.summary.received} assumption{analysis.summary.received === 1 ? '' : 's'}{' '}
+                found
               </h2>
               {analysis.source.documentName && (
                 <span className="badge">{analysis.source.documentName}</span>
@@ -279,13 +301,20 @@ export function AssumptionImportTab(): JSX.Element {
             </div>
             <p className="field-hint" style={{ marginTop: 0 }}>
               {analysis.summary.new + analysis.summary.changed} ready · {analysis.summary.same}{' '}
-              already match · {analysis.summary.needsReview} need review · {analysis.summary.conflicts}{' '}
-              conflict{analysis.summary.conflicts === 1 ? '' : 's'} ·{' '}
-              {analysis.summary.unsupported + analysis.summary.invalid + analysis.summary.missingTarget}{' '}
+              already match · {analysis.summary.needsReview} need review ·{' '}
+              {analysis.summary.conflicts} conflict{analysis.summary.conflicts === 1 ? '' : 's'} ·{' '}
+              {analysis.summary.unsupported +
+                analysis.summary.invalid +
+                analysis.summary.missingTarget}{' '}
               unsupported
             </p>
 
-            <div className="row" role="tablist" aria-label="Filter assumptions" style={{ marginBottom: 12 }}>
+            <div
+              className="row"
+              role="tablist"
+              aria-label="Filter assumptions"
+              style={{ marginBottom: 12 }}
+            >
               {FILTERS.map((entry) => (
                 <button
                   key={entry.id}
@@ -329,7 +358,11 @@ export function AssumptionImportTab(): JSX.Element {
                 <button type="button" onClick={selectAboveThreshold}>
                   Select above threshold
                 </button>
-                <button type="button" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  disabled={selected.size === 0}
+                >
                   Deselect all
                 </button>
                 <div className="spacer" />
@@ -420,15 +453,22 @@ export function AssumptionImportTab(): JSX.Element {
         <div className="card">
           <h2>Applied</h2>
           <p>
-            {applyResult.applied.length} assumption{applyResult.applied.length === 1 ? '' : 's'} written
-            to the model{applyResult.importSession.document_name ? ` from ${applyResult.importSession.document_name}` : ''}
+            {applyResult.applied.length} assumption{applyResult.applied.length === 1 ? '' : 's'}{' '}
+            written to the model
+            {applyResult.importSession.document_name
+              ? ` from ${applyResult.importSession.document_name}`
+              : ''}
             . The engine has recalculated.
           </p>
 
           <dl className="proposal-values">
             <div>
               <dt>Value</dt>
-              <dd>{formatDelta(valueBefore, valueAfter, (v) => formatCurrency(v, model.currency, { compact: true }))}</dd>
+              <dd>
+                {formatDelta(valueBefore, valueAfter, (v) =>
+                  formatCurrency(v, model.currency, { compact: true }),
+                )}
+              </dd>
             </div>
             <div>
               <dt>Levered IRR</dt>
@@ -442,11 +482,21 @@ export function AssumptionImportTab(): JSX.Element {
             </div>
             <div>
               <dt>Equity multiple</dt>
-              <dd>{formatDelta(returnsBefore?.equityMultiple ?? null, returnsAfter?.equityMultiple ?? null, formatMultiple)}</dd>
+              <dd>
+                {formatDelta(
+                  returnsBefore?.equityMultiple ?? null,
+                  returnsAfter?.equityMultiple ?? null,
+                  formatMultiple,
+                )}
+              </dd>
             </div>
             <div>
               <dt>Year 1 NOI</dt>
-              <dd>{formatDelta(noiBefore, noiAfter, (v) => formatCurrency(v, model.currency, { compact: true }))}</dd>
+              <dd>
+                {formatDelta(noiBefore, noiAfter, (v) =>
+                  formatCurrency(v, model.currency, { compact: true }),
+                )}
+              </dd>
             </div>
           </dl>
 
@@ -488,7 +538,12 @@ function ImportRow({
   onMove: (delta: number) => void;
 }): JSX.Element {
   const selectable = SELECTABLE_STATUSES.has(item.status);
-  const difference = presentDifference(item.currentValue, item.extractedValue, item.valueType, item.unit);
+  const difference = presentDifference(
+    item.currentValue,
+    item.extractedValue,
+    item.valueType,
+    item.unit,
+  );
 
   return (
     <>
@@ -537,11 +592,21 @@ function ImportRow({
         </td>
         <td className="numeric">{presentValue(item.currentValue, item.valueType, item.unit)}</td>
         <td className="numeric">
-          {item.status === 'conflict' ? '—' : presentValue(item.extractedValue, item.valueType, item.unit)}
+          {item.status === 'conflict'
+            ? '—'
+            : presentValue(item.extractedValue, item.valueType, item.unit)}
         </td>
         <td className="numeric">{difference}</td>
         <td>{documentName ?? '—'}</td>
-        <td>{[...new Set(item.evidence.map((e) => e.page).filter((p): p is number => p !== null && p !== undefined))].join(', ') || '—'}</td>
+        <td>
+          {[
+            ...new Set(
+              item.evidence
+                .map((e) => e.page)
+                .filter((p): p is number => p !== null && p !== undefined),
+            ),
+          ].join(', ') || '—'}
+        </td>
         <td>{item.confidence === null ? 'Not stated' : formatPercent(item.confidence, 0)}</td>
         <td>
           <span className={`badge ${STATUS_TONE[item.status]}`}>{STATUS_LABEL[item.status]}</span>
@@ -561,7 +626,11 @@ function ImportRow({
 function EvidenceDetail({ item }: { item: AnalyzedAssumption }): JSX.Element {
   return (
     <div style={{ padding: '4px 0' }}>
-      {item.reason && <p className="message info" style={{ marginBottom: 8 }}>{item.reason}</p>}
+      {item.reason && (
+        <p className="message info" style={{ marginBottom: 8 }}>
+          {item.reason}
+        </p>
+      )}
 
       {item.status === 'conflict' && item.conflictingValues && (
         <>
@@ -576,7 +645,7 @@ function EvidenceDetail({ item }: { item: AnalyzedAssumption }): JSX.Element {
                     {value.evidence.map((e, i) => (
                       <span key={i}>
                         {i > 0 ? ', ' : ''}
-                        {e.page ? `page ${e.page}` : e.section ?? 'source'}
+                        {e.page ? `page ${e.page}` : (e.section ?? 'source')}
                         {e.sourceValue ? ` (“${e.sourceValue}”)` : ''}
                       </span>
                     ))}
@@ -616,9 +685,7 @@ function EvidenceDetail({ item }: { item: AnalyzedAssumption }): JSX.Element {
         <div>
           <dt>Extraction</dt>
           <dd>
-            {item.extraction?.method
-              ? titleCaseMethod(item.extraction.method)
-              : 'Not stated'}
+            {item.extraction?.method ? titleCaseMethod(item.extraction.method) : 'Not stated'}
             {item.extraction?.derivation ? ` — ${item.extraction.derivation}` : ''}
           </dd>
         </div>
@@ -658,7 +725,11 @@ function MissingRecords({
               {record.name ? ` — ${record.name}` : ''}
             </strong>
             <p className="field-hint">
-              No matching {record.noun} for <code>{record.collection}.{record.code}</code>.
+              No matching {record.noun} for{' '}
+              <code>
+                {record.collection}.{record.code}
+              </code>
+              .
             </p>
             <ul>
               {Object.entries(record.fields).map(([field, data]) => (
@@ -690,7 +761,8 @@ function presentValue(
   if (valueType === 'boolean') return value === 'true' ? 'Yes' : 'No';
   if (valueType === 'date') return formatDate(value);
   if (valueType === 'decimal' && unit === 'rate') return formatPercent(value);
-  if (valueType === 'decimal' && unit === 'currency') return formatCurrency(value, undefined, { decimals: 2 });
+  if (valueType === 'decimal' && unit === 'currency')
+    return formatCurrency(value, undefined, { decimals: 2 });
   if (valueType === 'decimal') return formatNumber(value, 2);
   if (valueType === 'integer') return `${formatNumber(value, 0)}${unit === 'months' ? ' mo' : ''}`;
   return value;

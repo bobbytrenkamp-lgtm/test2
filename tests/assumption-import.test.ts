@@ -30,7 +30,11 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     JSON.stringify({
       format: 'cre-assumption-import',
       version: 1,
-      source: { kind: 'imported', system: 'Claude Skill', documentName: 'Raleigh Industrial OM.pdf' },
+      source: {
+        kind: 'imported',
+        system: 'Claude Skill',
+        documentName: 'Raleigh Industrial OM.pdf',
+      },
       property: { name: 'Raleigh Industrial Center' },
       assumptions: [],
       records: [],
@@ -53,7 +57,11 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
       method: 'POST',
       url: '/api/v1/properties',
       headers: authed(owner.cookie),
-      payload: { name: 'Raleigh Industrial Center', propertyType: 'industrial', rentableArea: '250000' },
+      payload: {
+        name: 'Raleigh Industrial Center',
+        propertyType: 'industrial',
+        rentableArea: '250000',
+      },
     });
     const propertyId = (property.json() as { property: { id: string } }).property.id;
 
@@ -92,7 +100,9 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     await ctx?.close();
   });
 
-  async function targets(actor: Actor = owner): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  async function targets(
+    actor: Actor = owner,
+  ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
     const response = await ctx.app.inject({
       method: 'GET',
       url: `/api/v1/models/${modelId}/assumption-import/targets`,
@@ -132,7 +142,12 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     expect(statusCode).toBe(200);
     const modelLevel = body.modelLevel as Array<Record<string, unknown>>;
     const capRate = modelLevel.find((entry) => entry.target === 'valuation.terminalCapRate');
-    expect(capRate).toMatchObject({ label: 'Exit capitalization rate', valueType: 'decimal', unit: 'rate', writable: true });
+    expect(capRate).toMatchObject({
+      label: 'Exit capitalization rate',
+      valueType: 'decimal',
+      unit: 'rate',
+      writable: true,
+    });
   });
 
   it('lists each collection with this model’s actual business codes', async () => {
@@ -201,13 +216,19 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     expect(statusCode).toBe(200);
     const items = body.items as Array<Record<string, unknown>>;
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ status: 'new', currentValue: null, extractedValue: '48500000' });
+    expect(items[0]).toMatchObject({
+      status: 'new',
+      currentValue: null,
+      extractedValue: '48500000',
+    });
   });
 
   it('finds a changed assumption against the model’s real value', async () => {
     const { body } = await analyze(
       importDoc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' },
+        ],
       }),
     );
     const items = body.items as Array<Record<string, unknown>>;
@@ -219,7 +240,9 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
   it('confirms agreement rather than reporting a failure', async () => {
     const { body } = await analyze(
       importDoc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' },
+        ],
       }),
     );
     const items = body.items as Array<Record<string, unknown>>;
@@ -251,7 +274,12 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     const { body } = await analyze(
       importDoc({
         records: [
-          { collection: 'marketLeasing', code: 'RETAIL_SMALL_SHOP', fields: { marketRent: '24.00' }, evidence: {} },
+          {
+            collection: 'marketLeasing',
+            code: 'RETAIL_SMALL_SHOP',
+            fields: { marketRent: '24.00' },
+            evidence: {},
+          },
         ],
       }),
     );
@@ -265,8 +293,18 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     const { body: merged } = await analyze(
       importDoc({
         assumptions: [
-          { target: 'valuation.discountRate', value: '0.09', valueType: 'decimal', evidence: [{ page: 5 }] },
-          { target: 'valuation.discountRate', value: '0.09', valueType: 'decimal', evidence: [{ page: 40 }] },
+          {
+            target: 'valuation.discountRate',
+            value: '0.09',
+            valueType: 'decimal',
+            evidence: [{ page: 5 }],
+          },
+          {
+            target: 'valuation.discountRate',
+            value: '0.09',
+            valueType: 'decimal',
+            evidence: [{ page: 40 }],
+          },
         ],
       }),
     );
@@ -277,8 +315,18 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     const { body: conflicting } = await analyze(
       importDoc({
         assumptions: [
-          { target: 'valuation.discountRate', value: '0.09', valueType: 'decimal', evidence: [{ page: 5 }] },
-          { target: 'valuation.discountRate', value: '0.10', valueType: 'decimal', evidence: [{ page: 40 }] },
+          {
+            target: 'valuation.discountRate',
+            value: '0.09',
+            valueType: 'decimal',
+            evidence: [{ page: 5 }],
+          },
+          {
+            target: 'valuation.discountRate',
+            value: '0.10',
+            valueType: 'decimal',
+            evidence: [{ page: 40 }],
+          },
         ],
       }),
     );
@@ -304,7 +352,9 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
   });
 
   it('warns on a property mismatch without failing the analysis', async () => {
-    const { statusCode, body } = await analyze(importDoc({ property: { name: 'A Different Warehouse Entirely' } }));
+    const { statusCode, body } = await analyze(
+      importDoc({ property: { name: 'A Different Warehouse Entirely' } }),
+    );
     expect(statusCode).toBe(200);
     expect(body.propertyMismatch).toBe(true);
   });
@@ -313,13 +363,17 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     const before = await modelRow();
     await analyze(
       importDoc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' },
+        ],
       }),
     );
     // Twice, since the endpoint has to be safe to call repeatedly.
     await analyze(
       importDoc({
-        assumptions: [{ target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' }],
+        assumptions: [
+          { target: 'valuation.terminalCapRate', value: '0.0625', valueType: 'decimal' },
+        ],
       }),
     );
     const after = await modelRow();
@@ -470,13 +524,17 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     });
     const { statusCode, body } = await apply(paste, ['valuation.terminalCapRate']);
     expect(statusCode).toBe(422);
-    expect((body as { error: { message: string } }).error.message).toContain('valuation.terminalCapRate');
+    expect((body as { error: { message: string } }).error.message).toContain(
+      'valuation.terminalCapRate',
+    );
   });
 
   it('refuses to apply a target that was not part of the analyzed paste', async () => {
     const { statusCode, body } = await apply(importDoc(), ['valuation.discountRate']);
     expect(statusCode).toBe(422);
-    expect((body as { error: { message: string } }).error.message).toContain('not part of the analyzed import');
+    expect((body as { error: { message: string } }).error.message).toContain(
+      'not part of the analyzed import',
+    );
   });
 
   it('cannot be applied by a read-only member of the same organization', async () => {

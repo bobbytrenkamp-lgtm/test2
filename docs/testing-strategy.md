@@ -70,12 +70,17 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 22 | No |
-| The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 14 | No |
-| Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 12 | Yes |
+| The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 27 | No |
+| Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 14 | Yes |
 | Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
 | Tenant exposure across a portfolio | `tests/tenant-exposure.test.ts` | 5 | Yes |
+| The writable-target registry, checked against the real schemas | `packages/domain-models/src/assumption-targets.test.ts` | 89 | No |
+| The `cre-assumption-import` v1 parser and schema | `packages/domain-models/src/cre-assumption-import.test.ts` | 20 | No |
+| The deterministic import analyzer | `packages/domain-models/src/assumption-import-analyze.test.ts` | 20 | No |
+| The import write path, checked against the target registry | `apps/api/src/assumption-write.test.ts` | 4 | No |
+| PDF-assumption import: targets, analyze and apply through the API | `tests/assumption-import.test.ts` | 22 | Yes |
 
-**863 tests in total.**
+**1033 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -112,8 +117,9 @@ built bundle:
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
 | Tenant exposure across a portfolio | `e2e/tenant-exposure.spec.ts` | 5 |
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
+| PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 
-**186 browser tests in total**, for 1049 across the whole repository.
+**192 browser tests in total**, for 1225 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
