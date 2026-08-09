@@ -22,6 +22,7 @@ import { registerImportRoutes } from './routes/imports.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerBudgetRoutes } from './routes/budgets.js';
 import { registerAssumptionProposalRoutes } from './routes/assumption-proposals.js';
+import { registerFavouriteRoutes } from './routes/favourites.js';
 
 export interface ServerOptions {
   env: Env;
@@ -243,6 +244,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerReportRoutes(api);
       await registerBudgetRoutes(api);
       await registerAssumptionProposalRoutes(api);
+      await registerFavouriteRoutes(api);
     },
     { prefix: '/api/v1' },
   );
