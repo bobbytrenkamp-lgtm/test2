@@ -69,12 +69,12 @@ Tests       825 passed  (251 engine regression, 31 engine unit, 16 fund,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs,
                          22 health and drivers)
-Browser     163 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     166 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
-                         8 health and drivers,
+                         11 health, drivers and timeline,
                          6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -232,6 +232,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
 | Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
+| Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
 | Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser tests import a part-invalid CSV and a multi-sheet workbook, and check what reached the rent roll. The sheet is chosen in the wizard, not guessed for you |

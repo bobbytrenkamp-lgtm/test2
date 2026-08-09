@@ -88,7 +88,7 @@ built bundle:
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
 | Explaining a calculated number | `e2e/explainability.spec.ts` | 8 |
-| Model health and key value drivers | `e2e/health.spec.ts` | 8 |
+| Model health, key value drivers and the lease timeline | `e2e/health.spec.ts` | 11 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
@@ -105,7 +105,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**163 browser tests in total**, for 988 across the whole repository.
+**166 browser tests in total**, for 991 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -138,3 +138,50 @@ test('is accessible', async ({ page }) => {
     results.violations.map((violation) => violation.id).join(', '),
   ).toEqual([]);
 });
+
+/* -------------------------------------------------------------------------- */
+
+test.describe('the lease timeline', () => {
+  test('shows where the holes are, alongside the modelled rollover', async ({ page }) => {
+    /*
+     * An expiration report answers "what expires in 2028". It cannot answer
+     * "where are the holes", and the holes are what the downtime, tenant
+     * improvement and leasing commission assumptions are applied to.
+     */
+    await page.getByRole('link', { name: 'Rent roll' }).click();
+    await page.getByRole('button', { name: 'Timeline' }).click();
+
+    const timeline = page.getByRole('table', { name: /Occupancy by lease/ });
+    await expect(timeline).toBeVisible();
+    await expect(timeline.locator('.timeline-bar').first()).toBeVisible();
+
+    // Drawn from the calculation, so the engine's own leasing shows up beside
+    // the signed leases. A view built from lease dates could not do this.
+    await expect(page.getByText(/Drawn from the calculation/)).toBeVisible();
+  });
+
+  test('rescales when the horizon changes', async ({ page }) => {
+    await page.getByRole('link', { name: 'Rent roll' }).click();
+    await page.getByRole('button', { name: 'Timeline' }).click();
+
+    const caption = page.getByRole('table', { name: /Occupancy by lease/ });
+    await expect(caption).toBeVisible();
+    await expect(page.getByText(/across 36 months/)).toBeVisible();
+
+    await page.getByLabel('Timeline horizon').selectOption('12');
+    await expect(page.getByText(/across 12 months/)).toBeVisible();
+  });
+
+  test('switches back to the grid without losing the search', async ({ page }) => {
+    // The two answer different questions; neither should discard the other's
+    // context on the way past.
+    await page.getByRole('link', { name: 'Rent roll' }).click();
+    await page.getByLabel('Search leases').fill('Kestrel');
+    await page.getByRole('button', { name: 'Timeline' }).click();
+    await expect(page.getByRole('table', { name: /Occupancy by lease/ })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Grid' }).click();
+    await expect(page.getByRole('grid', { name: 'Leases on this model' })).toBeVisible();
+    await expect(page.getByLabel('Search leases')).toHaveValue('Kestrel');
+  });
+});

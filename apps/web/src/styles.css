@@ -1197,3 +1197,110 @@ details.chart-data > summary {
   margin-top: var(--space-2);
   font-size: 13px;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Lease timeline                                                              */
+/* -------------------------------------------------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 0;
+  padding: 5px 12px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.timeline-table th:last-child,
+.timeline-table td:last-child {
+  width: 100%;
+  min-width: 320px;
+}
+
+/* The bar track is a positioning context; every bar is placed as a percentage
+   of the window, so the whole row rescales when the horizon changes. */
+.timeline-track {
+  position: relative;
+  display: block;
+  height: 14px;
+  background: var(--surface-sunken);
+  border-radius: 3px;
+}
+
+.timeline-bar {
+  position: absolute;
+  top: 0;
+  height: 14px;
+  border-radius: 3px;
+  min-width: 2px;
+}
+
+.timeline-bar.is-contract {
+  background: var(--accent);
+}
+
+.timeline-bar.is-renewal {
+  background: var(--positive);
+}
+
+.timeline-bar.is-new {
+  background: var(--warning);
+}
+
+.timeline-axis {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transform: translateX(-2px);
+}
+
+.timeline-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.timeline-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+
+.timeline-swatch.is-contract {
+  background: var(--accent);
+}
+
+.timeline-swatch.is-renewal {
+  background: var(--positive);
+}
+
+.timeline-swatch.is-new {
+  background: var(--warning);
+}

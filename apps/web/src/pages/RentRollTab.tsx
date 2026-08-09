@@ -9,6 +9,7 @@ import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 import { PasteRentRoll } from '../components/PasteRentRoll.js';
 import { EditableGrid } from '../grid/EditableGrid.js';
+import { LeaseTimeline } from '../components/LeaseTimeline.js';
 import { fieldForColumn, leaseColumns, withPending } from './rent-roll-columns.js';
 
 /**
@@ -152,7 +153,15 @@ function matches(lease: Lease, needle: string): boolean {
 }
 
 export function RentRollTab(): JSX.Element {
-  const { model, property, reloadCashFlow } = useModelContext();
+  const { model, property, reloadCashFlow, cashFlow } = useModelContext();
+  /*
+   * Grid or timeline, not both at once.
+   *
+   * They answer different questions — "what are the terms" and "where are the
+   * holes" — and stacking them would mean scrolling past three hundred rows to
+   * reach the picture.
+   */
+  const [view, setView] = useState<'grid' | 'timeline'>('grid');
   const { can } = useSession();
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -253,6 +262,18 @@ export function RentRollTab(): JSX.Element {
             <span className="badge accent">filtered from {all.length}</span>
           )}
           <div className="spacer" />
+          <div className="segmented" role="group" aria-label="Rent roll view">
+            <button type="button" aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
+              Grid
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'timeline'}
+              onClick={() => setView('timeline')}
+            >
+              Timeline
+            </button>
+          </div>
           <label className="visually-hidden" htmlFor="lease-search">
             Search leases
           </label>
@@ -298,7 +319,16 @@ export function RentRollTab(): JSX.Element {
           </div>
         )}
 
-        {leases.data && leases.data.leases.length === 0 ? (
+        {view === 'timeline' ? (
+          cashFlow ? (
+            <LeaseTimeline cashFlow={cashFlow} currency={model.currency} />
+          ) : (
+            <div className="message info">
+              The timeline is drawn from the calculation, so the model has to have been calculated.
+              Run one and it will appear.
+            </div>
+          )
+        ) : leases.data && leases.data.leases.length === 0 ? (
           <EmptyState
             title="No leases have been added yet"
             action={
