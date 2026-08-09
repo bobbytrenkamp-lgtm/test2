@@ -54,6 +54,15 @@ export interface PortfolioAggregate {
   horizonMonths: number;
   byPropertyType: Array<{ key: string; value: string; share: string }>;
   byMarket: Array<{ key: string; value: string; share: string }>;
+  /**
+   * A quick top-20 glance, keyed by name and folded into every roll-up
+   * automatically. For the full picture — a tenant matched by id rather than
+   * name (so two tenants that happen to share a name are not merged), each
+   * property they occupy, lease count, credit profile and earliest
+   * expiration — see `GET /portfolios/:id/tenant-exposure` in
+   * `apps/api/src/routes/portfolios.ts`, computed on request rather than
+   * folded into every aggregate.
+   */
   tenantConcentration: Array<{ tenantName: string; annualRent: string; share: string }>;
   leaseExpirationByYear: Array<{ fiscalYear: number; expiringArea: string; expiringRent: string }>;
   debtMaturityByYear: Array<{ fiscalYear: number; balance: string }>;

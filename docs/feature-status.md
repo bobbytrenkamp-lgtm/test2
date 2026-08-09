@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       858 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       863 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -71,14 +71,15 @@ Tests       858 passed  (251 engine regression, 31 engine unit, 16 fund,
                          22 health and drivers,
                          14 the assumption input contract,
                          12 assumption proposals via the API,
-                         7 favourites)
-Browser     176 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         7 favourites, 5 tenant exposure)
+Browser     181 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
-                         6 assumption provenance, 4 favourites, 6 permissions,
+                         6 assumption provenance, 4 favourites,
+                         5 tenant exposure, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -246,6 +247,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
 | Mention notifications, activity feed | Not started | A mention is recorded on the comment and shown in the thread; nobody is told out of band |
 | Portfolio roll-up | Functional | |
+| Tenant exposure across a portfolio | Tested | Rolls every property's leading model up by tenant identity rather than by name, so a tenant occupying space in several assets shows its true combined share instead of appearing separately on each one's own rent roll. A rollover branch the engine generated counts as that tenant only when it resolves to a real row in `tenants` — checked by matching against the table itself rather than trusting the branch's `scenario` label, which a nested round of speculative rollover can carry (`renewal`) while still describing no real tenant at all. Distinct from the "Tenant concentration" summary folded into every roll-up: that one is a top-20 glance keyed by name; this is the full breakdown, keyed by id, with every property occupied, lease count, credit profile and earliest expiration. 5 API tests, 5 browser tests, in the axe sweep |
 | Jobs and audit history | Functional | |
 | Light and dark themes | Functional | Follows the reader's preference |
 | Keyboard shortcuts, unsaved-change warning | Tested | Ctrl/Cmd+Enter recalculates; Ctrl/Cmd+K opens the command palette |

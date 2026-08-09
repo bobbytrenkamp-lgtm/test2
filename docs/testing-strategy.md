@@ -73,8 +73,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 14 | No |
 | Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 12 | Yes |
 | Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
+| Tenant exposure across a portfolio | `tests/tenant-exposure.test.ts` | 5 | Yes |
 
-**858 tests in total.**
+**863 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -109,8 +110,9 @@ built bundle:
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
+| Tenant exposure across a portfolio | `e2e/tenant-exposure.spec.ts` | 5 |
 
-**176 browser tests in total**, for 1034 across the whole repository.
+**181 browser tests in total**, for 1044 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
