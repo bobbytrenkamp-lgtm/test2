@@ -23,6 +23,7 @@ import {
 describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
   let ctx: TestContext;
   let owner: Actor;
+  let orgId: string;
   let modelId: string;
 
   const importDoc = (overrides: Record<string, unknown> = {}) =>
@@ -40,12 +41,13 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
     ctx = await createTestContext();
     owner = await registerActor(ctx.app, 'import@example.invalid', 'Import Owner');
 
-    await ctx.app.inject({
+    const organization = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/organizations',
       headers: authed(owner.cookie),
       payload: { name: 'Raleigh Industrial Partners' },
     });
+    orgId = (organization.json() as { organization: { id: string } }).organization.id;
 
     const property = await ctx.app.inject({
       method: 'POST',
@@ -333,6 +335,183 @@ describe.skipIf(!hasDatabase)('assumption import: targets and analyze', () => {
       payload: { name: 'Unrelated Holdings 2' },
     });
     const { statusCode } = await analyze(importDoc(), stranger);
+    expect(statusCode).toBe(404);
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* Apply: bulk accept through the existing proposal write path             */
+  /* ---------------------------------------------------------------------- */
+
+  async function apply(
+    paste: string,
+    targetsToApply: string[],
+    actor: Actor = owner,
+  ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${modelId}/assumption-import/apply`,
+      headers: authed(actor.cookie),
+      payload: { paste, targets: targetsToApply },
+    });
+    return { statusCode: response.statusCode, body: response.json() as Record<string, unknown> };
+  }
+
+  async function sessions(actor: Actor = owner): Promise<Array<Record<string, unknown>>> {
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/models/${modelId}/assumption-import/sessions`,
+      headers: authed(actor.cookie),
+    });
+    return (response.json() as { sessions: Array<Record<string, unknown>> }).sessions;
+  }
+
+  it('applies selected assumptions into the actual model, through an accepted proposal each', async () => {
+    const before = await modelRow();
+    expect(before.acquisition_price).toBeNull();
+
+    const paste = importDoc({
+      assumptions: [
+        {
+          target: 'valuation.acquisitionPrice',
+          value: '48500000',
+          valueType: 'decimal',
+          confidence: 0.95,
+          extraction: { method: 'explicit' },
+          evidence: [{ page: 4, label: 'Purchase Price', sourceValue: '$48,500,000' }],
+        },
+      ],
+      records: [
+        {
+          collection: 'marketLeasing',
+          code: 'INDUSTRIAL_STD',
+          fields: { marketRent: '12.50' },
+          evidence: { marketRent: [{ page: 28, sourceValue: '$12.50/SF' }] },
+        },
+      ],
+    });
+
+    const before2 = await sessions();
+    const { statusCode, body } = await apply(paste, [
+      'valuation.acquisitionPrice',
+      'marketLeasing.INDUSTRIAL_STD.marketRent',
+    ]);
+    expect(statusCode).toBe(200);
+    expect(body.applied).toHaveLength(2);
+    const importSession = body.importSession as Record<string, unknown>;
+    expect(importSession.applied_count).toBe(2);
+    expect(importSession.document_name).toBe('Raleigh Industrial OM.pdf');
+
+    const after = await modelRow();
+    expect(Number(after.acquisition_price)).toBeCloseTo(48500000, 2);
+
+    const rent = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/models/${modelId}/market-leasing`,
+      headers: authed(owner.cookie),
+    });
+    const profile = (rent.json() as { items: Array<Record<string, unknown>> }).items.find(
+      (item) => item.code === 'INDUSTRIAL_STD',
+    );
+    expect(Number(profile?.market_rent)).toBeCloseTo(12.5, 6);
+
+    // A new session appeared, expandable into the two proposals it produced.
+    const after2 = await sessions();
+    expect(after2).toHaveLength(before2.length + 1);
+    const proposalsForSession = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/models/${modelId}/assumption-proposals?importSessionId=${importSession.id}`,
+      headers: authed(owner.cookie),
+    });
+    const proposals = (proposalsForSession.json() as { proposals: Array<Record<string, unknown>> })
+      .proposals;
+    expect(proposals).toHaveLength(2);
+    expect(proposals.every((p) => p.status === 'accepted')).toBe(true);
+  });
+
+  it('refuses to apply a target whose status does not allow it, and writes nothing at all', async () => {
+    const before = await modelRow();
+    const beforeSessions = await sessions();
+
+    const paste = importDoc({
+      assumptions: [
+        // Would-be-fine on its own...
+        { target: 'valuation.saleCostPercent', value: '0.02', valueType: 'decimal' },
+      ],
+      records: [
+        // ...but bundled with a target the analysis marks unresolvable.
+        {
+          collection: 'marketLeasing',
+          code: 'RETAIL_SMALL_SHOP',
+          fields: { marketRent: '24.00' },
+          evidence: {},
+        },
+      ],
+    });
+
+    const { statusCode, body } = await apply(paste, [
+      'valuation.saleCostPercent',
+      'marketLeasing.RETAIL_SMALL_SHOP.marketRent',
+    ]);
+    expect(statusCode).toBe(422);
+    expect((body as { error: { message: string } }).error.message).toContain(
+      'marketLeasing.RETAIL_SMALL_SHOP.marketRent',
+    );
+
+    // Atomic: the field that *would* have been fine was not applied either,
+    // and no session was left behind for a batch that never went through.
+    const after = await modelRow();
+    expect(after).toEqual(before);
+    expect(await sessions()).toHaveLength(beforeSessions.length);
+  });
+
+  it('refuses to re-apply a target that already matches, rather than writing a no-op proposal', async () => {
+    const paste = importDoc({
+      assumptions: [{ target: 'valuation.terminalCapRate', value: '0.065', valueType: 'decimal' }],
+    });
+    const { statusCode, body } = await apply(paste, ['valuation.terminalCapRate']);
+    expect(statusCode).toBe(422);
+    expect((body as { error: { message: string } }).error.message).toContain('valuation.terminalCapRate');
+  });
+
+  it('refuses to apply a target that was not part of the analyzed paste', async () => {
+    const { statusCode, body } = await apply(importDoc(), ['valuation.discountRate']);
+    expect(statusCode).toBe(422);
+    expect((body as { error: { message: string } }).error.message).toContain('not part of the analyzed import');
+  });
+
+  it('cannot be applied by a read-only member of the same organization', async () => {
+    const viewer = await registerActor(ctx.app, 'import-viewer@example.invalid', 'Import Viewer');
+    const invitation = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/organizations/${orgId}/invitations`,
+      headers: authed(owner.cookie),
+      payload: { email: 'import-viewer@example.invalid', role: 'read_only' },
+    });
+    expect(invitation.statusCode).toBe(201);
+    const token = (invitation.json() as { token: string }).token;
+    await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/invitations/accept',
+      headers: authed(viewer.cookie),
+      payload: { token },
+    });
+
+    const paste = importDoc({
+      assumptions: [{ target: 'valuation.discountRate', value: '0.09', valueType: 'decimal' }],
+    });
+    const { statusCode } = await apply(paste, ['valuation.discountRate'], viewer);
+    expect(statusCode).toBe(403);
+  });
+
+  it('cannot be applied against another organization’s model', async () => {
+    const stranger = await registerActor(ctx.app, 'stranger-apply@example.invalid', 'Stranger');
+    await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations',
+      headers: authed(stranger.cookie),
+      payload: { name: 'Unrelated Holdings 3' },
+    });
+    const { statusCode } = await apply(importDoc(), ['valuation.discountRate'], stranger);
     expect(statusCode).toBe(404);
   });
 });

@@ -101,7 +101,10 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
     const context = requireCapability(request, 'model:read');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const query = z
-      .object({ status: z.enum(['pending', 'accepted', 'rejected', 'superseded']).optional() })
+      .object({
+        status: z.enum(['pending', 'accepted', 'rejected', 'superseded']).optional(),
+        importSessionId: z.string().uuid().optional(),
+      })
       .parse(request.query);
 
     const model = await getModel(request.db, context.organizationId, id);
@@ -109,6 +112,7 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
 
     const proposals = await listAssumptionProposals(request.db, context.organizationId, id, {
       status: query.status ?? null,
+      importSessionId: query.importSessionId ?? null,
     });
     const input = await buildModelInput(request.db, context.organizationId, id);
 

@@ -1,4 +1,8 @@
-import type { AssumptionProposal, AssumptionProposalInput } from '@cre/domain-models';
+import type {
+  AssumptionProposal,
+  AssumptionProposalInput,
+  AssumptionValueType,
+} from '@cre/domain-models';
 import type { Sql } from '../client.js';
 
 /**
@@ -33,7 +37,7 @@ export async function listAssumptionProposals(
   sql: Sql,
   organizationId: string,
   modelId: string,
-  filters: { status?: string | null } = {},
+  filters: { status?: string | null; importSessionId?: string | null } = {},
 ): Promise<AssumptionProposalRow[]> {
   return (await sql`
     SELECT ${sql.unsafe(COLUMNS)}
@@ -41,6 +45,7 @@ export async function listAssumptionProposals(
     WHERE model_id = ${modelId}
       AND organization_id = ${organizationId}
       ${filters.status ? sql`AND status = ${filters.status}` : sql``}
+      ${filters.importSessionId ? sql`AND import_session_id = ${filters.importSessionId}` : sql``}
     ORDER BY
       -- Undecided first: the list exists to be worked through, and a decided
       -- proposal is history rather than a task.
@@ -164,4 +169,49 @@ export async function decideAssumptionProposal(
     RETURNING ${sql.unsafe(COLUMNS)}
   `) as unknown as AssumptionProposalRow[];
   return rows[0] ?? null;
+}
+
+/**
+ * Records a proposal already accepted, in one step.
+ *
+ * The PDF-assumption import's bulk apply is the one caller: an analyst who
+ * clicked "Apply 36 assumptions" already made the decision for each of them
+ * by selecting it on the review screen, so there is no separate pending state
+ * to sit in between. This still inserts into the same table a posted
+ * proposal does, with `import_session_id` set and `status` already
+ * `accepted` — a row here is indistinguishable, once written, from one that
+ * went through `recordAssumptionProposals` and then `decideAssumptionProposal`
+ * by hand. Applying the value itself is the caller's job, in the same
+ * transaction, so the two cannot disagree about whether it happened.
+ */
+export async function insertDecidedImportProposal(
+  sql: Sql,
+  input: {
+    organizationId: string;
+    modelId: string;
+    target: string;
+    value: string;
+    valueType: AssumptionValueType;
+    sourceName: string;
+    confidence: number | null;
+    evidence: Record<string, unknown>;
+    notes: string | null;
+    createdBy: string | null;
+    importSessionId: string;
+  },
+): Promise<AssumptionProposalRow> {
+  const rows = (await sql`
+    INSERT INTO assumption_proposals (
+      organization_id, model_id, target, value, value_type, source_kind, source_name,
+      confidence, evidence, notes, created_by, import_session_id,
+      status, decided_by, decided_at, decision_note
+    ) VALUES (
+      ${input.organizationId}, ${input.modelId}, ${input.target}, ${input.value}, ${input.valueType},
+      'imported', ${input.sourceName}, ${input.confidence}, ${sql.json(input.evidence as never)},
+      ${input.notes}, ${input.createdBy}, ${input.importSessionId},
+      'accepted', ${input.createdBy}, now(), 'Applied through the PDF assumption import.'
+    )
+    RETURNING ${sql.unsafe(COLUMNS)}
+  `) as unknown as AssumptionProposalRow[];
+  return rows[0] as AssumptionProposalRow;
 }
