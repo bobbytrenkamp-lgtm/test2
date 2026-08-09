@@ -18,6 +18,7 @@ import { ReturnsTab } from './pages/ReturnsTab.js';
 import { HealthTab } from './pages/HealthTab.js';
 import { ICSummaryTab } from './pages/ICSummaryTab.js';
 import { ProvenanceTab } from './pages/ProvenanceTab.js';
+import { AssumptionImportTab } from './pages/AssumptionImportTab.js';
 import { ScenariosTab } from './pages/ScenariosTab.js';
 import { BudgetsTab } from './pages/BudgetsTab.js';
 import {
@@ -53,6 +54,7 @@ createRoot(container).render(
               <Route path="returns" element={<ReturnsTab />} />
               <Route path="health" element={<HealthTab />} />
               <Route path="provenance" element={<ProvenanceTab />} />
+              <Route path="assumption-import" element={<AssumptionImportTab />} />
               <Route path="scenarios" element={<ScenariosTab />} />
               <Route path="budgets" element={<BudgetsTab />} />
               <Route path="validation" element={<ValidationTab />} />

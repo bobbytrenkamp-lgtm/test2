@@ -31,6 +31,7 @@ const TABS = [
   { to: '.', label: 'Cash flow', end: true },
   { to: 'rent-roll', label: 'Rent roll' },
   { to: 'assumptions', label: 'Assumptions' },
+  { to: 'assumption-import', label: 'Assumption import' },
   { to: 'returns', label: 'Returns and debt' },
   { to: 'health', label: 'Health' },
   { to: 'ic-summary', label: 'IC summary' },
