@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       825 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       851 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -68,14 +68,16 @@ Tests       825 passed  (251 engine regression, 31 engine unit, 16 fund,
                          5 Excel Live Model export, 40 grid behaviour,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs,
-                         22 health and drivers)
-Browser     166 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         22 health and drivers,
+                         14 the assumption input contract,
+                         12 assumption proposals via the API)
+Browser     172 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
-                         6 permissions,
+                         6 assumption provenance, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -234,6 +236,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
 | Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
 | Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
+| Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 14 contract tests, 12 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
 | Reports with four output formats | Functional | |
 | Rent-roll import wizard | Tested | Browser tests import a part-invalid CSV and a multi-sheet workbook, and check what reached the rent roll. The sheet is chosen in the wizard, not guessed for you |
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |

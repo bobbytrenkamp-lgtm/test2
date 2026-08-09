@@ -32,6 +32,7 @@ const TABS = [
   { to: 'assumptions', label: 'Assumptions' },
   { to: 'returns', label: 'Returns and debt' },
   { to: 'health', label: 'Health' },
+  { to: 'provenance', label: 'Provenance' },
   { to: 'scenarios', label: 'Scenarios' },
   { to: 'budgets', label: 'Budgets' },
   { to: 'validation', label: 'Validation' },

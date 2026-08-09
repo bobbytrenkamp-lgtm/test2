@@ -1304,3 +1304,59 @@ details.chart-data > summary {
 .timeline-swatch.is-new {
   background: var(--warning);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Assumption proposals                                                        */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A proposal is a comparison, so the two numbers are set side by side at the
+ * same weight. Styling the proposed value as the answer — larger, coloured,
+ * first — would make keeping your own underwriting look like ignoring a
+ * correction, which is the opposite of what this screen is for.
+ */
+.proposal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.proposal {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.proposal-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.proposal-values dt {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.proposal-values dd {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposal .evidence {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  background: var(--surface-sunken, var(--background));
+  border-radius: var(--radius);
+  font-size: 12px;
+  overflow-x: auto;
+  max-height: 220px;
+}

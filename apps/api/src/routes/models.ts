@@ -783,8 +783,14 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-/** Approved and published models are frozen; edits require a new draft. */
-function assertEditable(status: string): void {
+/**
+ * Approved and published models are frozen; edits require a new draft.
+ *
+ * Exported because accepting an assumption proposal writes to the model, and
+ * has to be refused on a frozen one for exactly the same reason a typed edit
+ * is. Two copies of this list would eventually disagree.
+ */
+export function assertEditable(status: string): void {
   if (['approved', 'published', 'superseded', 'archived'].includes(status)) {
     throw badRequest(
       `This model is ${status} and cannot be edited. Clone it to continue working, or move it back to draft.`,

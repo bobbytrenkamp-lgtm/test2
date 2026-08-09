@@ -16,6 +16,7 @@ import { RentRollTab } from './pages/RentRollTab.js';
 import { AssumptionsTab } from './pages/AssumptionsTab.js';
 import { ReturnsTab } from './pages/ReturnsTab.js';
 import { HealthTab } from './pages/HealthTab.js';
+import { ProvenanceTab } from './pages/ProvenanceTab.js';
 import { ScenariosTab } from './pages/ScenariosTab.js';
 import { BudgetsTab } from './pages/BudgetsTab.js';
 import {
@@ -50,6 +51,7 @@ createRoot(container).render(
               <Route path="assumptions" element={<AssumptionsTab />} />
               <Route path="returns" element={<ReturnsTab />} />
               <Route path="health" element={<HealthTab />} />
+              <Route path="provenance" element={<ProvenanceTab />} />
               <Route path="scenarios" element={<ScenariosTab />} />
               <Route path="budgets" element={<BudgetsTab />} />
               <Route path="validation" element={<ValidationTab />} />
