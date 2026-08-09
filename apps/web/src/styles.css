@@ -1410,3 +1410,44 @@ details.chart-data > summary {
   align-items: baseline;
   gap: 4px;
 }
+
+/* -------------------------------------------------------------------------- */
+/* IC summary                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.ic-summary-header h2 {
+  margin-top: 0;
+}
+
+/*
+ * Printing this page is the point — a committee reads it on paper as often as
+ * on screen — so the app chrome, navigation and anything marked print-hide
+ * fall away, and each card avoids splitting across a page break where that is
+ * within the browser's control.
+ */
+@media print {
+  .app-header,
+  .app-nav,
+  .app-brand,
+  .skip-link,
+  /* The workspace's own title (Calculate button, status badge) and its tab
+     strip: the IC summary carries its own heading inside `.ic-summary-header`,
+     so this chrome would only duplicate it. */
+  .app-main > .page-title,
+  .tabs,
+  .ic-summary-print-hide {
+    display: none !important;
+  }
+
+  .app-main {
+    margin: 0;
+    padding: 0;
+  }
+
+  .ic-summary .card {
+    break-inside: avoid;
+    border: none;
+    box-shadow: none;
+    padding: 8px 0;
+  }
+}

@@ -72,14 +72,14 @@ Tests       863 passed  (251 engine regression, 31 engine unit, 16 fund,
                          14 the assumption input contract,
                          12 assumption proposals via the API,
                          7 favourites, 5 tenant exposure)
-Browser     181 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     186 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
                          6 assumption provenance, 4 favourites,
-                         5 tenant exposure, 6 permissions,
+                         5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -238,6 +238,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
 | Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
 | Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
+| Investment committee summary | Tested | One printable page built from the same stored calculation the Returns and Health tabs read — nothing is recomputed, so the summary cannot disagree with the detail behind it. Leads with the Health tab's own warnings rather than a score, each carrying the threshold it crossed. Screen and print only; no PDF export or emailed digest yet. 5 browser tests, in the axe sweep |
 | Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 14 contract tests, 12 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
 | Favourites and recently viewed | Tested | A star pins a property or model server-side, per person and organization, so it follows a reviewer to wherever they sign in; recently viewed is deliberately kept in the browser's own storage instead, since it is a trace of one device's activity rather than a decision, and is cleared on sign-out so a shared machine cannot leak it to the next person. Both surface on the dashboard and, unprompted, at the top of the command palette. A deleted property or model disappears from the pinned list on its own. 7 API tests, 4 browser tests, in the axe sweep |
 | Reports with four output formats | Functional | |

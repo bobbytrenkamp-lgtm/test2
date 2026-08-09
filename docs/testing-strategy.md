@@ -111,8 +111,9 @@ built bundle:
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
 | Tenant exposure across a portfolio | `e2e/tenant-exposure.spec.ts` | 5 |
+| Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 
-**181 browser tests in total**, for 1044 across the whole repository.
+**186 browser tests in total**, for 1049 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
