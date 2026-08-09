@@ -164,4 +164,59 @@ describe('the proposal schema', () => {
     ).toThrow();
     expect(assumptionProposalBatchSchema.parse({ proposals: [one] }).proposals).toHaveLength(1);
   });
+
+  it('defaults valueType to decimal, matching every proposal before this existed', () => {
+    expect(assumptionProposalInputSchema.parse({ ...base, value: '0.03' }).valueType).toBe(
+      'decimal',
+    );
+  });
+
+  it('accepts a bare JSON number, coerced to a string', () => {
+    // The wire format always did — decimalString accepted a union of string
+    // and number — and a source posting numeric JSON must not start failing.
+    const parsed = assumptionProposalInputSchema.parse({ ...base, value: 0.0625 });
+    expect(parsed.value).toBe('0.0625');
+    expect(typeof parsed.value).toBe('string');
+  });
+
+  it.each([
+    ['integer', '60'],
+    ['date', '2026-09-01'],
+    ['boolean', 'true'],
+    ['boolean', 'false'],
+    ['enum', 'forward_12'],
+    ['string', 'a note'],
+  ] as const)('accepts a valid %s value', (valueType, value) => {
+    expect(() => assumptionProposalInputSchema.parse({ ...base, value, valueType })).not.toThrow();
+  });
+
+  it.each([
+    ['integer', '60.5', 'a whole number'],
+    ['date', '09/01/2026', 'YYYY-MM-DD'],
+    ['boolean', 'yes', 'true'],
+    ['decimal', '6.25%', 'a decimal number'],
+  ] as const)('refuses an invalid %s value rather than guessing', (valueType, value, expected) => {
+    /*
+     * The load-bearing case: "6.25" for a rate someone meant as "6.25%" is
+     * refused here rather than silently read as 625%. Guessing which the
+     * source meant is exactly what this contract exists to not do.
+     */
+    let message = '';
+    try {
+      assumptionProposalInputSchema.parse({ ...base, value, valueType });
+    } catch (error) {
+      message = String(error);
+    }
+    expect(message).toContain(expected);
+  });
+
+  it('refuses a decimal-looking rate with no percent sign at face value', () => {
+    // "6.25" is a syntactically valid decimal — the point is that a decimal
+    // value type accepts it as 6.25, not that it detects a unit mismatch. Unit
+    // sanity (a rate over 1) is the analyzer's job, checked separately; this
+    // schema only enforces shape.
+    expect(() =>
+      assumptionProposalInputSchema.parse({ ...base, value: '6.25', valueType: 'decimal' }),
+    ).not.toThrow();
+  });
 });

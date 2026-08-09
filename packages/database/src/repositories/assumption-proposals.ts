@@ -19,13 +19,14 @@ export interface AssumptionProposalRow extends AssumptionProposal {
 }
 
 const COLUMNS = `
-  id, model_id, target, value, source_kind, source_name,
+  id, model_id, target, value, value_type, source_kind, source_name,
   confidence::text AS confidence,
   to_char(observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS observed_at,
   evidence, notes, status,
   to_char(decided_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS decided_at,
   decision_note,
-  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
+  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+  import_session_id
 `;
 
 export async function listAssumptionProposals(
@@ -88,6 +89,8 @@ export async function recordAssumptionProposals(
     modelId: string;
     createdBy: string | null;
     proposals: AssumptionProposalInput[];
+    /** Set when these proposals were produced by an import rather than posted directly. */
+    importSessionId?: string | null;
   },
 ): Promise<{ recorded: AssumptionProposalRow[]; superseded: number }> {
   return (await sql.begin(async (tx) => {
@@ -108,14 +111,15 @@ export async function recordAssumptionProposals(
 
       const rows = (await tx`
         INSERT INTO assumption_proposals (
-          organization_id, model_id, target, value, source_kind, source_name,
-          confidence, observed_at, evidence, notes, created_by
+          organization_id, model_id, target, value, value_type, source_kind, source_name,
+          confidence, observed_at, evidence, notes, created_by, import_session_id
         ) VALUES (
           ${input.organizationId}, ${input.modelId}, ${proposal.target},
-          ${proposal.value ?? null}, ${proposal.sourceKind}, ${proposal.sourceName},
-          ${proposal.confidence ?? null}, ${proposal.observedAt ?? null}::timestamptz,
+          ${proposal.value ?? null}, ${proposal.valueType}, ${proposal.sourceKind},
+          ${proposal.sourceName}, ${proposal.confidence ?? null},
+          ${proposal.observedAt ?? null}::timestamptz,
           ${tx.json(proposal.evidence as never)}, ${proposal.notes ?? null},
-          ${input.createdBy}
+          ${input.createdBy}, ${input.importSessionId ?? null}
         )
         RETURNING ${tx.unsafe(COLUMNS)}
       `) as unknown as AssumptionProposalRow[];
