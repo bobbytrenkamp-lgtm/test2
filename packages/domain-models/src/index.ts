@@ -5,3 +5,4 @@ export * from './results.js';
 export * from './assumption-proposals.js';
 export * from './assumption-targets.js';
 export * from './cre-assumption-import.js';
+export * from './assumption-import-analyze.js';

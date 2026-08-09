@@ -185,6 +185,8 @@ export const creAssumptionImportSchema = z.object({
   records: z.array(importRecordBundleSchema).max(200).default([]),
 });
 export type CreAssumptionImport = z.infer<typeof creAssumptionImportSchema>;
+/** The shape a caller may hand to `.parse()` — defaults not yet required. */
+export type CreAssumptionImportInput = z.input<typeof creAssumptionImportSchema>;
 
 export interface ParsedImport {
   ok: true;
