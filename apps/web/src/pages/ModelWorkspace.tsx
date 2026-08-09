@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
 import {
   api,
@@ -7,9 +7,10 @@ import {
   type Model,
   type Property,
 } from '../api.js';
-import { EmptyState, ErrorMessage, Loading, StatusBadge } from '../components.js';
+import { EmptyState, ErrorMessage, FavouriteButton, Loading, StatusBadge } from '../components.js';
 import { formatDate, titleCase } from '../format.js';
 import { useMutation, useResource, useShortcut } from '../hooks.js';
+import { recordRecent } from '../recents.js';
 import { useSession } from '../session.js';
 
 export interface ModelContext {
@@ -44,7 +45,7 @@ const TABS = [
 
 export function ModelWorkspace(): JSX.Element {
   const { modelId } = useParams<{ modelId: string }>();
-  const { can } = useSession();
+  const { can, session } = useSession();
   const [banner, setBanner] = useState<string | null>(null);
 
   const modelResource = useResource<{ model: Model; property: Property | null }>(
@@ -53,6 +54,19 @@ export function ModelWorkspace(): JSX.Element {
   const cashFlowResource = useResource<CashFlowResponse>(
     modelId ? `/models/${modelId}/cashflow` : null,
   );
+
+  const visitedModel = modelResource.data?.model;
+  useEffect(() => {
+    if (!visitedModel || !session?.user.id || !session.organizationId) return;
+    recordRecent(session.user.id, session.organizationId, {
+      entityType: 'model',
+      entityId: visitedModel.id,
+      name: visitedModel.name,
+      context: modelResource.data?.property?.name ?? null,
+    });
+    // Deliberately keyed on the id alone: recorded once per visit, not on
+    // every render the model's other fields happen to reflow through.
+  }, [visitedModel?.id, session?.user.id, session?.organizationId]);
 
   const calculation = useMutation(async (withTrace: boolean) =>
     api.post<CalculateResponse>(`/models/${modelId}/calculate`, { withTrace }),
@@ -102,7 +116,10 @@ export function ModelWorkspace(): JSX.Element {
     <>
       <div className="page-title">
         <div>
-          <h1>{model.name}</h1>
+          <h1>
+            <FavouriteButton entityType="model" entityId={model.id} name={model.name} />
+            {model.name}
+          </h1>
           <p>
             {property?.name ?? 'Property'} · {titleCase(model.classification)} · valued{' '}
             {formatDate(model.valuation_date)} · {model.forecast_months} month forecast from{' '}

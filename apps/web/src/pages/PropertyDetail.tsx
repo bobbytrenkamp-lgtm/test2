@@ -1,15 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { modelClassificationEnum } from '@cre/domain-models';
 import { api, type Model, type Property, type Space } from '../api.js';
-import { EmptyState, ErrorMessage, Field, Loading, StatusBadge } from '../components.js';
+import {
+  EmptyState,
+  ErrorMessage,
+  Field,
+  FavouriteButton,
+  Loading,
+  StatusBadge,
+} from '../components.js';
 import { formatDate, formatNumber, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
+import { recordRecent } from '../recents.js';
 import { useSession } from '../session.js';
 
 export function PropertyDetailPage(): JSX.Element {
   const { propertyId } = useParams<{ propertyId: string }>();
-  const { can } = useSession();
+  const { can, session } = useSession();
   const [creatingModel, setCreatingModel] = useState(false);
 
   const property = useResource<{ property: Property; spaces: Space[] }>(
@@ -19,12 +27,26 @@ export function PropertyDetailPage(): JSX.Element {
     propertyId ? `/models?propertyId=${propertyId}` : null,
   );
 
+  const record = property.data?.property;
+  const recordId = record?.id;
+  useEffect(() => {
+    if (!record || !session?.user.id || !session.organizationId) return;
+    recordRecent(session.user.id, session.organizationId, {
+      entityType: 'property',
+      entityId: record.id,
+      name: record.name,
+      context: record.market,
+    });
+    // Deliberately keyed on the id alone: recorded once per visit, not on
+    // every render this record's other fields happen to reflow through.
+  }, [recordId, session?.user.id, session?.organizationId]);
+
   if (property.loading) return <Loading label="Loading property" />;
   if (property.error) return <ErrorMessage error={property.error} />;
-  if (!property.data)
+  if (!property.data || !record)
     return <EmptyState title="Not found">That property does not exist.</EmptyState>;
 
-  const { property: record, spaces } = property.data;
+  const { spaces } = property.data;
   const spaceArea = spaces
     .filter((space) => !space.is_non_revenue)
     .reduce((acc, space) => acc + Number(space.area), 0);
@@ -33,7 +55,10 @@ export function PropertyDetailPage(): JSX.Element {
     <>
       <div className="page-title">
         <div>
-          <h1>{record.name}</h1>
+          <h1>
+            <FavouriteButton entityType="property" entityId={record.id} name={record.name} />
+            {record.name}
+          </h1>
           <p>
             {titleCase(record.property_type)}
             {record.property_subtype ? ` · ${record.property_subtype}` : ''}

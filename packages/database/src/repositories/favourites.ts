@@ -9,9 +9,11 @@ import type { Sql } from '../client.js';
  * name across a boundary the rest of the platform is careful about.
  *
  * The read resolves each entry against the table its type names and drops the
- * ones whose target is gone. A deleted model therefore disappears from the
- * dashboard on its own, without a cleanup job and without a foreign key that
- * could only point at one of the two tables.
+ * ones whose target is gone — including a *soft*-deleted one, which is why
+ * both joins below carry `deleted_at IS NULL` explicitly rather than relying
+ * on the row simply not being found. A deleted property or model therefore
+ * disappears from the dashboard on its own, without a cleanup job and without
+ * a foreign key that could only point at one of the two tables.
  */
 
 export interface FavouriteRow {
@@ -31,7 +33,8 @@ export async function listFavourites(
   return (await sql`
     SELECT f.entity_type, f.entity_id, p.name, p.market AS context, f.created_at
     FROM user_favourites f
-    JOIN properties p ON p.id = f.entity_id AND p.organization_id = f.organization_id
+    JOIN properties p
+      ON p.id = f.entity_id AND p.organization_id = f.organization_id AND p.deleted_at IS NULL
     WHERE f.user_id = ${userId}
       AND f.organization_id = ${organizationId}
       AND f.entity_type = 'property'
@@ -40,8 +43,9 @@ export async function listFavourites(
 
     SELECT f.entity_type, f.entity_id, m.name, p.name AS context, f.created_at
     FROM user_favourites f
-    JOIN models m ON m.id = f.entity_id AND m.organization_id = f.organization_id
-    JOIN properties p ON p.id = m.property_id
+    JOIN models m
+      ON m.id = f.entity_id AND m.organization_id = f.organization_id AND m.deleted_at IS NULL
+    JOIN properties p ON p.id = m.property_id AND p.deleted_at IS NULL
     WHERE f.user_id = ${userId}
       AND f.organization_id = ${organizationId}
       AND f.entity_type = 'model'

@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PortfolioSummary, Property } from '../api.js';
-import { BarChart, EmptyState, ErrorMessage, Loading, StatusBadge } from '../components.js';
+import {
+  BarChart,
+  EmptyState,
+  ErrorMessage,
+  FavouriteButton,
+  Loading,
+  StatusBadge,
+} from '../components.js';
+import { useFavourites } from '../favourites.js';
 import {
   formatCurrency,
   formatDateTime,
@@ -11,6 +19,7 @@ import {
   titleCase,
 } from '../format.js';
 import { useResource } from '../hooks.js';
+import { readRecents, type Recent } from '../recents.js';
 import { useSession } from '../session.js';
 
 /** Organization dashboard. */
@@ -43,6 +52,8 @@ export function DashboardPage(): JSX.Element {
       </div>
 
       <ErrorMessage error={properties.error} />
+
+      {rows.length > 0 && <PinnedAndRecent />}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -128,6 +139,91 @@ export function DashboardPage(): JSX.Element {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * The two ways back to what somebody was actually doing, side by side.
+ *
+ * Deliberately kept as one glance rather than two separate cards: a favourite
+ * is a decision and a recent is a trace of activity, and a reader comparing
+ * them is exactly the point — "the thing I pinned last month" against "the
+ * thing I opened ten minutes ago" is a useful contrast, not a redundant one.
+ */
+function PinnedAndRecent(): JSX.Element | null {
+  const { session } = useSession();
+  const { favourites, loading } = useFavourites();
+  const recents: Recent[] =
+    session?.user.id && session.organizationId
+      ? readRecents(session.user.id, session.organizationId)
+      : [];
+
+  if (loading || (favourites.length === 0 && recents.length === 0)) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="pinned-recent-grid">
+        <div>
+          <h2>Favourites</h2>
+          {favourites.length === 0 ? (
+            <p className="field-hint">
+              Pin a property or model with the star beside its name to keep it here.
+            </p>
+          ) : (
+            <ul className="pinned-list">
+              {favourites.map((entry) => (
+                <li key={`${entry.entity_type}-${entry.entity_id}`}>
+                  <FavouriteButton
+                    entityType={entry.entity_type}
+                    entityId={entry.entity_id}
+                    name={entry.name}
+                  />
+                  <Link
+                    to={
+                      entry.entity_type === 'property'
+                        ? `/properties/${entry.entity_id}`
+                        : `/models/${entry.entity_id}`
+                    }
+                  >
+                    {entry.name}
+                  </Link>
+                  {entry.context && <span className="field-hint"> · {entry.context}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <h2>Recently viewed</h2>
+          {recents.length === 0 ? (
+            <p className="field-hint">
+              Properties and models you open appear here, on this device.
+            </p>
+          ) : (
+            <ul className="pinned-list">
+              {recents.map((entry) => (
+                <li key={`${entry.entityType}-${entry.entityId}`}>
+                  <Link
+                    to={
+                      entry.entityType === 'property'
+                        ? `/properties/${entry.entityId}`
+                        : `/models/${entry.entityId}`
+                    }
+                  >
+                    {entry.name}
+                  </Link>
+                  {entry.context && <span className="field-hint"> · {entry.context}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <p className="field-hint" style={{ marginTop: 12, marginBottom: 0 }}>
+        Recently viewed is kept on this device only, so it can be different on your laptop and your
+        desk machine; favourites follow you to wherever you sign in.
+      </p>
+    </div>
   );
 }
 

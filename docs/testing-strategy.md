@@ -72,8 +72,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 22 | No |
 | The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 14 | No |
 | Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 12 | Yes |
+| Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
 
-**851 tests in total.**
+**858 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -107,8 +108,9 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
+| Recents and favourites | `e2e/favourites.spec.ts` | 4 |
 
-**172 browser tests in total**, for 1023 across the whole repository.
+**176 browser tests in total**, for 1034 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

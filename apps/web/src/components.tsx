@@ -2,6 +2,7 @@ import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode 
 import type { Diagnostic } from '@cre/domain-models';
 import { formatNumber, titleCase } from './format.js';
 import type { ApiError } from './api.js';
+import { useFavourites } from './favourites.js';
 
 /** Shared presentational building blocks. */
 
@@ -112,6 +113,43 @@ const STATUS_TONE: Record<string, string> = {
 
 export function StatusBadge({ status }: { status: string }): JSX.Element {
   return <span className={`badge ${STATUS_TONE[status] ?? ''}`}>{titleCase(status)}</span>;
+}
+
+/**
+ * The star that pins a property or model to the dashboard and the palette.
+ *
+ * Pinning is not gated on a capability: a read-only reviewer has as much
+ * reason to keep a shortlist as anybody, and it changes nothing anyone else
+ * can see. The label states the current state and the action together
+ * ("Pinned — remove from favourites") so a screen-reader user does not have to
+ * infer the toggle's direction from a bare icon.
+ */
+export function FavouriteButton({
+  entityType,
+  entityId,
+  name,
+}: {
+  entityType: 'property' | 'model';
+  entityId: string;
+  name: string;
+}): JSX.Element {
+  const { isFavourite, toggle } = useFavourites();
+  const pinned = isFavourite(entityType, entityId);
+
+  return (
+    <button
+      type="button"
+      className={`favourite-star${pinned ? ' is-favourite' : ''}`}
+      aria-pressed={pinned}
+      title={pinned ? `Remove ${name} from favourites` : `Add ${name} to favourites`}
+      onClick={() => void toggle(entityType, entityId)}
+    >
+      <span aria-hidden="true">{pinned ? '★' : '☆'}</span>
+      <span className="visually-hidden">
+        {pinned ? `Remove ${name} from favourites` : `Add ${name} to favourites`}
+      </span>
+    </button>
+  );
 }
 
 /**

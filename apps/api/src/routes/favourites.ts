@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { addFavourite, getModel, getProperty, listFavourites, removeFavourite } from '@cre/database';
+import {
+  addFavourite,
+  getModel,
+  getProperty,
+  listFavourites,
+  removeFavourite,
+} from '@cre/database';
 import { notFound, requireCapability } from '../context.js';
 
 /**
