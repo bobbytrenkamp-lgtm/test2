@@ -88,6 +88,17 @@ interface EditingState {
   ref: CellRef;
   /** What the user has typed so far. */
   draft: string;
+  /**
+   * True when the editor was opened by typing a character, so the draft is
+   * already the start of the new value.
+   *
+   * This decides whether the input selects its contents on focus. Selecting
+   * unconditionally looks harmless and silently eats the first keystroke:
+   * typing `4500` opens the editor with `4`, the focus handler selects it, and
+   * the `5` replaces it — leaving `500`. On a rent cell that is an order of
+   * magnitude, entered by an analyst who watched themselves type it correctly.
+   */
+  replacing: boolean;
 }
 
 export function DataGrid<Row>({
@@ -242,7 +253,7 @@ export function DataGrid<Row>({
       if (!editable) return;
       const column = columnAt(ref.col);
       if (!column || column.editable === false) return;
-      setEditing({ ref, draft: initial ?? readCell(ref) });
+      setEditing({ ref, draft: initial ?? readCell(ref), replacing: initial !== undefined });
     },
     [editable, columnAt, readCell],
   );
@@ -545,7 +556,8 @@ export function DataGrid<Row>({
                           column={column}
                           draft={editing.draft}
                           inputRef={editorRef}
-                          onChange={(draft) => setEditing({ ref, draft })}
+                          replacing={editing.replacing}
+                          onChange={(draft) => setEditing({ ...editing, draft })}
                           onCommit={(next) => commitEdit(next)}
                           onCancel={cancelEdit}
                           bounds={bounds}
@@ -571,6 +583,7 @@ export function DataGrid<Row>({
 function CellEditor<Row>({
   column,
   draft,
+  replacing,
   inputRef,
   onChange,
   onCommit,
@@ -580,6 +593,8 @@ function CellEditor<Row>({
 }: {
   column: ColumnDef<Row>;
   draft: string;
+  /** The draft is a character the analyst just typed, not the cell's old value. */
+  replacing: boolean;
   inputRef: React.RefObject<HTMLInputElement | HTMLSelectElement>;
   onChange: (draft: string) => void;
   onCommit: (next?: Selection) => void;
@@ -630,9 +645,16 @@ function CellEditor<Row>({
       className="grid-editor"
       aria-label={column.label}
       value={draft}
-      // Selected on focus so typing replaces, which is what a spreadsheet does
-      // when you type over a cell rather than double-clicking into it.
-      onFocus={(event) => event.target.select()}
+      /*
+       * Selected on focus only when the editor was opened *into* the existing
+       * value — F2, Enter or a double-click — so the next keystroke replaces it,
+       * as a spreadsheet does. When the analyst opened it by typing, the draft
+       * is already their first character and selecting it would delete it.
+       */
+      onFocus={(event) => {
+        if (replacing) event.target.setSelectionRange(draft.length, draft.length);
+        else event.target.select();
+      }}
       onChange={(event) => onChange(event.target.value)}
       onKeyDown={handleKey}
       onBlur={() => onCommit()}

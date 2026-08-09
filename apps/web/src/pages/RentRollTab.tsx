@@ -1,36 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { leaseStatusEnum, rentBasisEnum } from '@cre/domain-models';
 import { api, type Lease, type Space, type Tenant } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
 import { formatNumber, titleCase } from '../format.js';
-import {
-  useEditShortcut,
-  useLocalState,
-  useMutation,
-  useResource,
-  useUnsavedChangesWarning,
-} from '../hooks.js';
+import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 import { PasteRentRoll } from '../components/PasteRentRoll.js';
-import { DataGrid } from '../grid/DataGrid.js';
-import { resolveLayout, type ColumnLayout, type Density } from '../grid/columns.js';
-import { ColumnMenu, DensityMenu } from '../grid/GridControls.js';
-import {
-  apply as applyEdits,
-  batchFrom,
-  canRedo,
-  canUndo,
-  changeCount,
-  committed,
-  dirtyRowIds,
-  emptyEditState,
-  isDirty,
-  pendingValue,
-  redo as redoEdits,
-  undo as undoEdits,
-  type EditState,
-} from '../grid/edits.js';
+import { EditableGrid } from '../grid/EditableGrid.js';
 import { fieldForColumn, leaseColumns, withPending } from './rent-roll-columns.js';
 
 /**
@@ -187,19 +164,6 @@ export function RentRollTab(): JSX.Element {
     ascending: true,
   });
 
-  /*
-   * View preferences persist per model. An analyst who hid six columns and set
-   * a compact density is not asked to do it again tomorrow, and doing it per
-   * model means an office rent roll and an industrial one can differ.
-   */
-  const [layout, setLayout] = useLocalState<ColumnLayout | null>(
-    `rentRoll.layout.${model.id}`,
-    null,
-  );
-  const [density, setDensity] = useLocalState<Density>(`rentRoll.density.${model.id}`, 'standard');
-
-  const [edits, setEdits] = useState<EditState>(emptyEditState);
-  const [refusals, setRefusals] = useState<string[]>([]);
   const [focused, setFocused] = useState<Lease | null>(null);
 
   const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
@@ -227,86 +191,25 @@ export function RentRollTab(): JSX.Element {
     });
   }, [all, search, sort]);
 
-  /*
-   * The rows the grid draws: sorted, filtered, and with pending edits applied.
-   *
-   * Applying the pending layer here rather than inside the grid means the
-   * totals below, the sort and the eventual save all read the same values the
-   * analyst is looking at. A grid showing 12,500 while the total counts 10,000
-   * is the kind of disagreement nobody reports and everybody distrusts.
-   */
-  const rows = useMemo(
-    () => visible.map((lease) => withPending(lease, edits.pending[lease.code])),
-    [visible, edits.pending],
-  );
-
   const columns = useMemo(
     () => leaseColumns({ currency: model.currency, areaUnit: model.area_unit }),
     [model.currency, model.area_unit],
   );
-  const shownColumns = useMemo(() => resolveLayout(columns, layout), [columns, layout]);
 
+  /*
+   * Totals read the *stored* leases, not the pending ones.
+   *
+   * The grid shows an analyst their unsaved edits, which is right. A header
+   * that counted them too would report an area the model does not hold, and
+   * "42,700 sqft" that nobody has saved is worse than one that lags by a click.
+   */
   const totals = useMemo(
     () => ({
-      count: rows.length,
-      area: rows.reduce((acc, lease) => acc + Number(lease.area), 0),
+      count: visible.length,
+      area: visible.reduce((acc, lease) => acc + Number(lease.area), 0),
     }),
-    [rows],
+    [visible],
   );
-
-  const dirty = isDirty(edits);
-  const pendingCount = changeCount(edits);
-  useUnsavedChangesWarning(dirty);
-
-  const applyWrites = useCallback(
-    (writes: Array<{ rowId: string; field: string; value: string }>, label: string) => {
-      setRefusals([]);
-      setEdits((current) =>
-        applyEdits(
-          current,
-          batchFrom(label, writes, (rowId, field) => pendingValue(current, rowId, field)),
-        ),
-      );
-    },
-    [],
-  );
-
-  const save = useMutation(async () => {
-    const byCode = new Map(all.map((lease) => [lease.code, lease]));
-    const changes = dirtyRowIds(edits).flatMap((code) => {
-      const lease = byCode.get(code);
-      const pending = edits.pending[code];
-      if (!lease || !pending) return [];
-      const fields: Record<string, string> = {};
-      for (const [key, value] of Object.entries(pending)) {
-        const field = fieldForColumn(key);
-        if (field) fields[field] = value;
-      }
-      return Object.keys(fields).length === 0
-        ? []
-        : [{ code, expectedVersion: lease.version, fields }];
-    });
-    if (changes.length === 0) return { count: 0 };
-    return api.patch<{ count: number }>(`/models/${model.id}/leases`, { changes });
-  });
-
-  const discard = (): void => {
-    setEdits(emptyEditState());
-    setRefusals([]);
-  };
-
-  // Undo and redo reach the grid wherever focus is, the way they do in a
-  // spreadsheet. `useShortcut` ignores keystrokes inside inputs, which is what
-  // keeps Cmd+Z inside an open cell editor undoing the typing rather than the
-  // last paste.
-  useEditShortcut('z', (event) => {
-    if (!editable) return;
-    if (event.shiftKey) setEdits((current) => redoEdits(current));
-    else setEdits((current) => undoEdits(current));
-  });
-  useEditShortcut('y', () => {
-    if (editable) setEdits((current) => redoEdits(current));
-  });
 
   if (leases.loading) return <Loading label="Loading the rent roll" />;
 
@@ -373,83 +276,6 @@ export function RentRollTab(): JSX.Element {
           </div>
         )}
 
-        {/*
-         * The change bar. Phase 7 of the product direction, and the reason the
-         * pending layer is safe to have: an analyst can always see how much is
-         * unsaved, put it back, or write it.
-         */}
-        {dirty && (
-          <div className="message warning" role="status" aria-label="Unsaved changes">
-            <div className="row">
-              <strong>
-                {pendingCount} unsaved change{pendingCount === 1 ? '' : 's'} across{' '}
-                {dirtyRowIds(edits).length} lease
-                {dirtyRowIds(edits).length === 1 ? '' : 's'}
-              </strong>
-              <div className="spacer" />
-              <button
-                type="button"
-                className="subtle"
-                onClick={() => setEdits((current) => undoEdits(current))}
-                disabled={!canUndo(edits)}
-                title="Undo the last change (Ctrl/Cmd + Z)"
-              >
-                Undo
-              </button>
-              <button
-                type="button"
-                className="subtle"
-                onClick={() => setEdits((current) => redoEdits(current))}
-                disabled={!canRedo(edits)}
-                title="Redo (Ctrl/Cmd + Shift + Z)"
-              >
-                Redo
-              </button>
-              <button type="button" onClick={discard} disabled={save.pending}>
-                Discard all
-              </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={save.pending}
-                onClick={async () => {
-                  const result = await save.run();
-                  if (!result) return;
-                  setEdits(committed());
-                  leases.reload();
-                  reloadCashFlow();
-                }}
-              >
-                {save.pending ? 'Saving…' : `Save ${pendingCount} change(s)`}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {save.error && (
-          <div className="message error" role="alert">
-            <strong>{save.error.message}</strong>
-            <p style={{ marginBottom: 0 }}>
-              {save.error.status === 409
-                ? 'Nothing was saved. Reload the rent roll to see the other change, then reapply yours.'
-                : 'Nothing was saved, so your edits are still here. Correct the value and try again.'}
-            </p>
-          </div>
-        )}
-
-        {refusals.length > 0 && (
-          <div className="message warning" role="alert">
-            <strong>
-              {refusals.length} value{refusals.length === 1 ? '' : 's'} could not be read
-            </strong>
-            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-              {refusals.slice(0, 6).map((reason, index) => (
-                <li key={index}>{reason}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {leases.data && leases.data.leases.length === 0 ? (
           <EmptyState
             title="No leases have been added yet"
@@ -476,31 +302,43 @@ export function RentRollTab(): JSX.Element {
             or suite containing “{search.trim()}”.
           </EmptyState>
         ) : (
-          <DataGrid
-            rows={rows}
-            columns={shownColumns}
+          <EditableGrid
+            rows={visible}
+            columns={columns}
             rowId={(lease) => lease.code}
-            valueFor={(lease, column) => column.value(lease)}
-            isEdited={(lease, column) => pendingValue(edits, lease.code, column.key) !== undefined}
-            onEdit={applyWrites}
-            onRejected={(problems) =>
-              setRefusals(problems.map((problem) => `${problem.rowId}: ${problem.reason}`))
-            }
+            merge={withPending}
             editable={editable}
-            density={density}
+            label="Leases on this model"
+            preferenceKey={`rentRoll.${model.id}`}
             onFocusedRowChange={setFocused}
             sortedBy={{ columnKey: SORT_COLUMN[sort.key], ascending: sort.ascending }}
-            label="Leases on this model"
+            onSaved={() => {
+              leases.reload();
+              reloadCashFlow();
+            }}
+            save={async (changes) => {
+              const byCode = new Map(all.map((lease) => [lease.code, lease]));
+              const payload = changes.flatMap((change) => {
+                const lease = byCode.get(change.rowId);
+                if (!lease) return [];
+                // Column keys and lease fields are the same vocabulary here,
+                // but only the editable ones are accepted by the endpoint, so
+                // the mapping is asserted rather than assumed.
+                const fields: Record<string, string> = {};
+                for (const [key, value] of Object.entries(change.fields)) {
+                  const field = fieldForColumn(key);
+                  if (field) fields[field] = value;
+                }
+                return Object.keys(fields).length === 0
+                  ? []
+                  : [{ code: change.rowId, expectedVersion: lease.version, fields }];
+              });
+              if (payload.length === 0) return;
+              await api.patch(`/models/${model.id}/leases`, { changes: payload });
+            }}
             toolbar={
               <>
                 <SortMenu sort={sort} onSort={setSort} />
-                <ColumnMenu
-                  columns={columns}
-                  layout={layout}
-                  shown={shownColumns}
-                  onChange={setLayout}
-                />
-                <DensityMenu density={density} onChange={setDensity} />
                 {editable && (
                   <button
                     type="button"

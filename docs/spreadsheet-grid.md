@@ -6,13 +6,23 @@ not obvious.
 
 ## Status, stated plainly
 
-**Built, tested, and wired to the rent roll only.**
+**Built, tested, and wired to every table that can carry one.**
 
-`apps/web/src/grid` is a general primitive. The rent roll
-(`apps/web/src/pages/RentRollTab.tsx`) is its only consumer today. Market
-leasing assumptions, operating expenses, capital, debt and other income still
-use their existing forms and JSON record editors; nothing has been removed from
-them.
+`apps/web/src/grid` is a general primitive with six consumers: the rent roll,
+and the five assumption collections whose fields are values — operating
+expenses, other property revenue, capital, debt facilities and market leasing
+assumptions.
+
+Growth curves are deliberately **not** a grid. A curve's meaning is its per-year
+rate list, and offering a single editable "default rate" column would let an
+analyst change the fallback while the years that actually apply sat out of
+sight. It stays a reading surface with a record editor, and a browser test pins
+that so a later refactor cannot quietly grid it.
+
+Structured parts of a record — a custom monthly schedule, a draw schedule, an
+escalation, a recovery structure, lease options — are still edited as JSON
+through "Edit in full" beside each grid. None of them is a value, so none
+belongs in a cell; purpose-built editors for them are the next piece of work.
 
 | Capability | State |
 | --- | --- |
@@ -31,7 +41,6 @@ them.
 | Named, shareable saved views | **Not built** — layout persists, but is unnamed and local |
 | Drag-to-reorder columns, drag-fill handle | **Not built** — reordering is button-driven |
 | An explicit "apply to N selected records" dialog | **Not built** — fill-down and paste-one-value cover the same ground |
-| Any table other than the rent roll | **Not built** |
 
 ## The central decision: cells are the input method, records are the truth
 
@@ -182,13 +191,26 @@ of its tests from the keyboard.
 | Layer | Where | What it establishes |
 | --- | --- | --- |
 | Selection, clipboard, edit layer, parsers | `apps/web/src/grid/grid.test.ts` (40) | The rules, as pure data |
-| Batch write | `tests/lease-batch.test.ts` (8) | Merge safety, whole-record validation, rollback, audit |
-| The analyst's workflow | `e2e/rent-roll-grid.spec.ts` (9) | That a keystroke reaches the engine |
+| Batch write, leases | `tests/lease-batch.test.ts` (8) | Merge safety, whole-record validation, rollback, audit |
+| Batch write, collections | `tests/assumption-batch.test.ts` (9) | That a cell edit cannot destroy a schedule, a draw list or a covenant |
+| The analyst's workflow | `e2e/rent-roll-grid.spec.ts` (11) | That a keystroke reaches the engine |
+| The collections in the browser | `e2e/assumption-grid.spec.ts` (7) | That an expense edit moves NOI, and that growth curves stay a table |
 
 The one that matters most is `saves a grid edit and the calculation moves with
 it`: it changes a rent in a cell, saves, recalculates, and requires the model's
 own NOI to differ. Without it, everything else would be consistent with a grid
 wired to a local array.
+
+### A defect this found
+
+The cell editor selected its contents on focus unconditionally, so opening it by
+typing `4500` put `4` in the draft, selected it, and let the `5` replace it —
+saving 500. An order of magnitude, entered by an analyst who watched themselves
+type it correctly, with nothing anywhere to reveal it.
+
+Selecting is right when the editor is opened *into* an existing value with F2 or
+a double-click, and wrong when the draft is already the first keystroke. Both
+halves are now pinned by a browser test.
 
 **Not covered:** the grid has never been driven with a real screen reader, and
 the accessibility work above is machine-checked plus reasoned, not audited.
@@ -197,16 +219,30 @@ not against a real system clipboard in every browser.
 
 ## Adding the grid to another table
 
-Nothing in the grid is rent-roll specific. A new consumer needs:
+`EditableGrid` owns the pending layer, the change bar, undo, discard, save and
+the column and density preferences, so a new consumer needs only two things:
 
 1. **Columns** — a `ColumnDef[]` saying what each field is, how wide, whether it
    is numeric, frozen or hidden by default, and a `parse` for anything editable.
-   Follow `apps/web/src/pages/rent-roll-columns.ts`, which is deliberately a
-   separate file because the column list is the whole statement of what an
-   analyst may edit.
-2. **A pending layer** — `useState<EditState>` plus `applyEdits`/`batchFrom`.
-3. **A batched endpoint** that merges changed fields onto stored records inside
-   one transaction, following `PATCH /models/:id/leases`.
+   Follow `apps/web/src/pages/rent-roll-columns.ts` or
+   `apps/web/src/pages/assumption-columns.ts`; both are separate files because
+   the column list is the whole statement of what an analyst may edit.
+2. **A `save`** that turns the pending fields into a request. For a
+   model-scoped collection that is already built: `PATCH /models/:id/<segment>`
+   merges changed fields onto the stored row and applies the set in one
+   transaction.
+
+### Two shapes of batch endpoint
+
+The rent roll's **enumerates** the fields it accepts, because a lease has one
+shape and the term has to be validated across a pair.
+
+The collections' **passes fields through** and lets each collection's own
+`upsert` be the schema, because six collections do not share a field set. The
+merge is what makes that safe: the stored row first, changed fields over it, so
+a custom monthly schedule, a draw schedule or a covenant that has no column
+survives an edit to the cell beside it. Three tests assert exactly that, and
+each fails when the merge is replaced with a rebuild-from-defaults.
 
 The rule to keep: **a field belongs in a cell only if its meaning is complete in
 one value.** Escalations, recoveries and rent steps are structured records —

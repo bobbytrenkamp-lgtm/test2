@@ -1,5 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../api.js';
+import { EditableGrid } from '../grid/EditableGrid.js';
+import {
+  assumptionColumns,
+  withPendingAssumption,
+  type AssumptionRow,
+} from './assumption-columns.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
 import { formatPercent, titleCase } from '../format.js';
 import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
@@ -342,9 +348,12 @@ function Collection({
   onSaved: () => void;
 }): JSX.Element {
   const { model } = useModelContext();
-  const resource = useResource<{ items: Array<Record<string, unknown>> }>(
-    `/models/${model.id}/${segment}`,
+  const resource = useResource<{ items: AssumptionRow[] }>(`/models/${model.id}/${segment}`);
+  const gridColumns = useMemo(
+    () => assumptionColumns(segment, { currency: model.currency, areaUnit: model.area_unit }),
+    [segment, model.currency, model.area_unit],
   );
+  const [focused, setFocused] = useState<AssumptionRow | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -426,12 +435,65 @@ function Collection({
       {resource.loading && <Loading label={`Loading ${title.toLowerCase()}`} />}
 
       {resource.data && resource.data.items.length === 0 ? (
-        <EmptyState title={`No ${title.toLowerCase()}`}>
-          Nothing is defined yet. The engine treats this collection as empty rather than assuming a
-          default.
+        <EmptyState
+          title={`No ${title.toLowerCase()} yet`}
+          action={
+            editable ? (
+              <button type="button" className="primary" onClick={() => beginEdit(null)}>
+                Add the first one
+              </button>
+            ) : undefined
+          }
+        >
+          The engine treats this collection as empty rather than assuming a default, so nothing here
+          contributes to the cash flow until something is defined.
         </EmptyState>
       ) : (
-        resource.data && (
+        resource.data &&
+        (gridColumns ? (
+          <EditableGrid
+            rows={resource.data.items}
+            columns={gridColumns}
+            rowId={(row) => String(row.code)}
+            merge={withPendingAssumption}
+            editable={editable}
+            label={title}
+            preferenceKey={`${segment}.${model.id}`}
+            onFocusedRowChange={setFocused}
+            onSaved={() => {
+              resource.reload();
+              onSaved();
+            }}
+            save={async (changes) => {
+              const byCode = new Map(
+                (resource.data?.items ?? []).map((row) => [String(row.code), row]),
+              );
+              await api.patch(`/models/${model.id}/${segment}`, {
+                changes: changes.map((change) => ({
+                  code: change.rowId,
+                  expectedVersion:
+                    (byCode.get(change.rowId)?.version as number | undefined) ?? null,
+                  fields: coerceFields(change.fields),
+                })),
+              });
+            }}
+            toolbar={
+              editable ? (
+                <button
+                  type="button"
+                  className="subtle"
+                  disabled={!focused}
+                  onClick={() => focused && beginEdit(focused)}
+                  title="Schedules, structures and anything else a single cell cannot hold"
+                >
+                  {focused ? `Edit ${String(focused.code)} in full` : 'Edit in full'}
+                </button>
+              ) : undefined
+            }
+          />
+        ) : (
+          /* Growth curves: a per-year rate list is not a cell, so this stays a
+             reading surface and the record editor does the writing. */
           <div className="table-scroll" tabIndex={0} style={{ maxHeight: 340 }}>
             <table>
               <caption className="visually-hidden">{title}</caption>
@@ -496,7 +558,7 @@ function Collection({
               </tbody>
             </table>
           </div>
-        )
+        ))
       )}
 
       {editing !== null && (
@@ -537,6 +599,24 @@ function Collection({
       )}
     </div>
   );
+}
+
+/**
+ * The grid holds every value as a string; the write API wants a boolean where
+ * the column is one.
+ *
+ * Numbers are deliberately *left* as strings. Every amount and rate in this
+ * system is a decimal string end to end precisely so that 1234.55 is not stored
+ * as 1234.5499999999999, and a round trip through a JavaScript number here
+ * would undo that before the value ever reached the engine. Postgres reads a
+ * numeric string into a numeric column without help.
+ */
+function coerceFields(fields: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    out[key] = value === 'true' ? true : value === 'false' ? false : value;
+  }
+  return out;
 }
 
 /** Database rows come back snake_cased; the write API takes camelCase. */

@@ -887,6 +887,114 @@ function registerCollection(
     return { item: saved };
   });
 
+  /**
+   * Field-level changes to many rows of this collection, in one transaction.
+   *
+   * The grid edits cells; a row is still written whole. So each change names
+   * only the fields it touched, and they are merged onto the stored row before
+   * it goes through the same `upsert` a single save uses — which means a cell
+   * edit cannot clear a monthly schedule, a recovery pool or a sort order that
+   * has no column.
+   *
+   * Registered here rather than per collection so all six behave identically,
+   * for the same reason the single-row routes are.
+   */
+  app.patch(`/models/:id/${segment}`, async (request) => {
+    const context = requireCapability(request, 'model:write');
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await requireModel(request, context.organizationId, params.id);
+    assertEditable(model.status);
+
+    const body = z
+      .object({
+        changes: z
+          .array(
+            z.object({
+              code: z.string().min(1).max(60),
+              expectedVersion: z.number().int().min(1).nullish(),
+              /*
+               * Passed through rather than enumerated: each collection has its
+               * own field set, and the grid's columns are what decide which are
+               * editable. The `upsert` for the table is the schema — anything it
+               * does not read is ignored, and anything malformed fails there.
+               */
+              fields: z.record(z.unknown()),
+            }),
+          )
+          .min(1)
+          .max(500),
+      })
+      .parse(request.body);
+
+    const existing = (await request.db.unsafe(`SELECT * FROM ${table} WHERE model_id = $1`, [
+      params.id,
+    ])) as unknown as Array<Record<string, unknown>>;
+    const byCode = new Map(existing.map((row) => [String(row.code), row]));
+
+    for (const change of body.changes) {
+      if (!byCode.has(change.code)) {
+        throw badRequest(
+          `${change.code} is not in this model's ${segment.replace(/-/g, ' ')}, so it cannot ` +
+            'be updated. Reload and try again.',
+        );
+      }
+    }
+
+    const saved = await request.db.begin(async (tx) => {
+      const results: Array<{ code: string; version: number }> = [];
+      for (const change of body.changes) {
+        const row = byCode.get(change.code);
+        if (!row) continue;
+
+        if (change.expectedVersion !== undefined && change.expectedVersion !== null) {
+          const locked = (await tx.unsafe(
+            `SELECT version FROM ${table} WHERE model_id = $1 AND code = $2 FOR UPDATE`,
+            [params.id, change.code],
+          )) as unknown as Array<{ version: number }>;
+          const current = locked[0]?.version;
+          if (current !== undefined && current !== change.expectedVersion) {
+            throw new HttpError(
+              409,
+              'ASSUMPTION_VERSION_CONFLICT',
+              `${change.code} has been changed by someone else since you opened it ` +
+                `(you have version ${change.expectedVersion}, it is now ${current}). ` +
+                'Nothing in this batch was saved.',
+              {
+                collection: segment,
+                code: change.code,
+                expectedVersion: change.expectedVersion,
+                currentVersion: current,
+              },
+            );
+          }
+        }
+
+        // Stored row first, changed fields over it: every column the upsert
+        // writes has a camelCase counterpart on the row, so a merge is lossless.
+        const merged = { ...toCamelCase(row), ...change.fields, code: change.code };
+        const written = await upsert(tx as unknown as Sql, params.id, merged);
+        results.push({ code: change.code, version: written.version });
+      }
+      return results;
+    });
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: `${segment}.bulk_saved`,
+      entityType: segment,
+      entityId: `${saved.length} rows`,
+      modelId: params.id,
+      newValue: {
+        codes: body.changes.map((change) => change.code),
+        fields: [...new Set(body.changes.flatMap((change) => Object.keys(change.fields)))],
+      },
+      ipAddress: request.ip,
+    });
+
+    return { saved, count: saved.length };
+  });
+
   app.delete(`/models/:id/${segment}/:code`, async (request) => {
     const context = requireCapability(request, 'model:write');
     const params = z
@@ -901,4 +1009,21 @@ function registerCollection(
     if ((rows as unknown[]).length === 0) throw notFound();
     return { ok: true };
   });
+}
+
+/**
+ * Database rows come back snake_cased; every `upsert` takes camelCase.
+ *
+ * Dates are normalised on the way through: a `DATE` column arrives as a `Date`
+ * object, and handing that straight back to an upsert that expects
+ * `YYYY-MM-DD` writes a full timestamp. Only keys that look like dates are
+ * touched, so a numeric or text column is passed along untouched.
+ */
+function toCamelCase(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const camel = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+    out[camel] = value instanceof Date ? toIsoDate(value) : value;
+  }
+  return out;
 }

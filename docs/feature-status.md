@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       765 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       774 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -66,10 +66,11 @@ Tests       765 passed  (251 engine regression, 31 engine unit, 16 fund,
                          18 Excel Live Model framework,
                          83 Excel Live Model reconciliation,
                          5 Excel Live Model export, 40 grid behaviour,
-                         8 batch lease writes)
-Browser     126 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         8 batch lease writes, 9 batched assumptions)
+Browser     135 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
-                         9 spreadsheet editing, 6 permissions,
+                         11 rent-roll spreadsheet editing,
+                         7 assumption spreadsheet editing, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -220,7 +221,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
 | Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
 | Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |
-| Assumptions, six collections | Tested | Common fields tabulated; full record edited as JSON. A browser test changes the discount rate and requires the valuation to fall, so the number is proved to reach the engine rather than merely to reach the form |
+| Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Structured records — schedules, draws, covenants — are still edited as JSON in the record editor. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
 | Validation panel and recovery workings | Functional | |
@@ -241,11 +242,11 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 | Accessibility tree, audited beyond axe | Tested | Heading ladders, rotor-distinguishable controls, named tables and landmarks across eleven screens. Found and fixed an `h1 → h3` skip from a shared component. **Not** a substitute for a screen-reader audit, and the file says so |
 
-**Shipped on the rent roll only, so far:** the spreadsheet grid is a reusable
-primitive (`apps/web/src/grid`) but the rent roll is its only consumer. Market
-leasing, operating expenses, capital, debt and other income are still edited
-through their existing forms and JSON records. Wiring each one is a matter of
-declaring its columns; nothing in the grid is rent-roll specific.
+**Still edited as JSON:** the structured parts of a record — a custom monthly
+schedule, a draw schedule, an escalation, a recovery structure, lease options.
+Each is a record rather than a value, so none belongs in a cell; they are
+reached through "Edit in full" beside each grid. Purpose-built editors for them
+are the next piece of work, not a claim already met.
 
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder

@@ -63,6 +63,37 @@ test('types a rent into a cell and holds it before writing', async ({ page }) =>
   await expect(page.getByRole('button', { name: /Save 1 change/ })).toBeEnabled();
 });
 
+test('keeps every character of a typed value', async ({ page }) => {
+  /*
+   * A regression guard for a real defect. The editor selected its contents on
+   * focus unconditionally, so opening it by typing `4500` put `4` in the draft,
+   * selected it, and let the `5` replace it — saving 500. An order of magnitude,
+   * entered by an analyst who watched themselves type it correctly.
+   *
+   * Selecting is right when the editor is opened *into* an existing value with
+   * F2 or a double-click; it is wrong when the draft is already the first
+   * keystroke.
+   */
+  await focusCell(page, 'Area');
+  await page.keyboard.type('4500');
+  await page.keyboard.press('Enter');
+
+  const grid = page.getByRole('grid', { name: GRID });
+  await expect(grid.locator('td.is-edited').first()).toContainText('4,500');
+});
+
+test('replaces the old value when the editor is opened with F2', async ({ page }) => {
+  // The other half of the rule: F2 opens into the existing value and the next
+  // keystroke replaces it, as a spreadsheet does.
+  await focusCell(page, 'Area');
+  await page.keyboard.press('F2');
+  await page.keyboard.type('7200');
+  await page.keyboard.press('Enter');
+
+  const grid = page.getByRole('grid', { name: GRID });
+  await expect(grid.locator('td.is-edited').first()).toContainText('7,200');
+});
+
 test('undoes and redoes an edit from the keyboard', async ({ page }) => {
   await focusCell(page, 'Base rent');
   await page.keyboard.type('51');
