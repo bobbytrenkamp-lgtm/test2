@@ -18,6 +18,8 @@ export * from './fund.js';
 export * from './compare.js';
 export * from './lease-options.js';
 export * from './variance.js';
+export * from './health.js';
+export * from './drivers.js';
 
 /**
  * The regression fixtures.

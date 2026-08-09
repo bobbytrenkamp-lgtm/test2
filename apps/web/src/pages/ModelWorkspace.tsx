@@ -31,6 +31,7 @@ const TABS = [
   { to: 'rent-roll', label: 'Rent roll' },
   { to: 'assumptions', label: 'Assumptions' },
   { to: 'returns', label: 'Returns and debt' },
+  { to: 'health', label: 'Health' },
   { to: 'scenarios', label: 'Scenarios' },
   { to: 'budgets', label: 'Budgets' },
   { to: 'validation', label: 'Validation' },

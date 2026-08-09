@@ -11,7 +11,14 @@ import {
   runAndStoreCalculationFromInput,
   writeAudit,
 } from '@cre/database';
-import { ENGINE_VERSION, calculate, compareVersions } from '@cre/calculation-engine';
+import {
+  DRIVER_KEYS,
+  ENGINE_VERSION,
+  assessHealth,
+  calculate,
+  compareVersions,
+  rankDrivers,
+} from '@cre/calculation-engine';
 import type { ModelInput } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 
@@ -107,6 +114,85 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       recoveryDetail: result.recoveryDetail,
       leaseCashFlows: result.leaseCashFlows,
     };
+  });
+
+  /**
+   * Underwriting health: deterministic findings over the stored calculation.
+   *
+   * Cheap — it reads `ModelInput` and the `ModelResult` that already exists and
+   * runs no engine pass — so it is a plain GET the page can load with the rest
+   * of the model.
+   */
+  app.get('/models/:id/health', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) {
+      throw unprocessable(
+        'This model has not been calculated yet, so there is nothing to assess. Run a ' +
+          'calculation first.',
+      );
+    }
+    const input = await buildModelInput(request.db, context.organizationId, id);
+    return { ...assessHealth(input, latest.result), calculatedAt: latest.result.calculatedAt };
+  });
+
+  /**
+   * Key value drivers: which assumptions actually move the answer.
+   *
+   * A POST rather than a GET because it is **work**, not a read — two engine
+   * runs per driver, against the real engine, because the relationships are not
+   * linear and a closed-form approximation would be a second model. The
+   * response says how many runs it did, so the cost is visible rather than
+   * hidden behind a spinner.
+   */
+  app.post('/models/:id/drivers', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({
+        metric: z
+          .enum([
+            'leveredIrr',
+            'unleveredIrr',
+            'equityMultiple',
+            'netPresentValue',
+            'year1Noi',
+            'minimumDscr',
+          ])
+          .default('unleveredIrr'),
+        /** Restricts the candidates, for a caller that wants a cheaper answer. */
+        only: z.array(z.string().max(60)).max(20).optional(),
+      })
+      .parse(request.body ?? {});
+
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) {
+      throw unprocessable(
+        'This model has not been calculated yet. Driver analysis measures movement away from ' +
+          'a base result, so there has to be one.',
+      );
+    }
+
+    if (body.only) {
+      const unknown = body.only.filter((key) => !DRIVER_KEYS.includes(key));
+      if (unknown.length > 0) {
+        throw badRequest(
+          `Unknown driver(s): ${unknown.join(', ')}. Available: ${DRIVER_KEYS.join(', ')}.`,
+        );
+      }
+    }
+
+    const input = await buildModelInput(request.db, context.organizationId, id);
+    return rankDrivers(input, latest.result, body.metric, {
+      ...(body.only ? { only: body.only } : {}),
+    });
   });
 
   /**
