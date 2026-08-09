@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       717 passed  (251 engine regression, 31 engine unit, 16 fund,
+Tests       765 passed  (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -64,10 +64,12 @@ Tests       717 passed  (251 engine regression, 31 engine unit, 16 fund,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
-                         73 Excel Live Model reconciliation,
-                         5 Excel Live Model export)
-Browser     117 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         4 lease editor, search and sort, 6 permissions,
+                         83 Excel Live Model reconciliation,
+                         5 Excel Live Model export, 40 grid behaviour,
+                         8 batch lease writes)
+Browser     126 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         4 lease editor, search and sort,
+                         9 spreadsheet editing, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -215,7 +217,9 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model workspace with tabs | Functional | Nine tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
 | Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
-| Rent roll grid and lease editor | Tested | Inline date-order validation, asserted in the browser. Searchable by lease, tenant or suite, and sortable on six columns with `aria-sort`; area and rent sort numerically, which a browser test pins with a lease whose text order differs from its numeric order |
+| Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
+| Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
+| Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |
 | Assumptions, six collections | Tested | Common fields tabulated; full record edited as JSON. A browser test changes the discount rate and requires the valuation to fall, so the number is proved to reach the engine rather than merely to reach the form |
 | Returns, valuation, debt schedule, waterfall | Functional | |
 | Sensitivity grids and model cloning | Functional | |
@@ -233,14 +237,24 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Command palette | Tested | Filters properties, models and screens; arrow keys, Enter, Escape; `aria-activedescendant` |
 | Paste a rent roll from a spreadsheet | Tested | Clipboard TSV through the same import pipeline as CSV; preview before writing |
 | Charts with data-table alternatives | Functional | Zero-anchored axes |
-| Automated UI tests | Tested | 117 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
+| Automated UI tests | Tested | 126 Playwright tests in Chromium on the built bundle, now including scenarios, reports and the portfolio roll-up |
 | Accessibility, machine-checked | Tested | `axe-core` on eleven screens in the dedicated suite plus four more checked in place, WCAG 2.0/2.1 A and AA, any violation fails the build |
 | Accessibility tree, audited beyond axe | Tested | Heading ladders, rotor-distinguishable controls, named tables and landmarks across eleven screens. Found and fixed an `h1 → h3` skip from a shared component. **Not** a substitute for a screen-reader audit, and the file says so |
 
-**Not started in the interface:** multi-cell edit, fill-down, undo/redo, column
-hiding, saved views, configurable dashboard widgets, notifications, geographic
-maps. (Comments, tasks and side-by-side version comparison were on this list and
-have since shipped; the rows above are the current state.)
+**Shipped on the rent roll only, so far:** the spreadsheet grid is a reusable
+primitive (`apps/web/src/grid`) but the rent roll is its only consumer. Market
+leasing, operating expenses, capital, debt and other income are still edited
+through their existing forms and JSON records. Wiring each one is a matter of
+declaring its columns; nothing in the grid is rent-roll specific.
+
+**Not started in the interface:** named saved views (column layout and density
+persist per model, but cannot yet be named, listed or shared), drag-to-reorder
+columns and drag-fill handles (reordering is button-driven and keyboard-first),
+bulk edit as an explicit "apply to N selected" dialog (fill-down and
+paste-one-value cover the same ground today), configurable dashboard widgets,
+notifications, geographic maps. (Comments, tasks and side-by-side version
+comparison were on this list and have since shipped; the rows above are the
+current state.)
 
 ## 5. Reporting and imports
 

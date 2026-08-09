@@ -11,11 +11,13 @@ import {
   listLeases,
   listModelVersions,
   listModels,
+  toIsoDate,
   upsertCapitalItem,
   upsertDebtFacility,
   upsertExpense,
   upsertGrowthCurve,
   upsertLease,
+  upsertLeaseWithin,
   upsertMarketLeasingProfile,
   upsertOtherRevenue,
   writeAudit,
@@ -317,6 +319,158 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
       ipAddress: request.ip,
     });
     return { lease };
+  });
+
+  /**
+   * Applies field-level changes to many leases in one transaction.
+   *
+   * The grid edits cells, but a lease is still validated as a whole, so what
+   * arrives here is a set of *changed fields* per lease rather than whole
+   * records. Each one is merged onto the stored lease and the result goes
+   * through the same write and the same checks a single-lease save does. The
+   * grid never has to hold, or resend, the parts of a lease it does not show.
+   *
+   * ## Why one request rather than N
+   *
+   * Filling a value down forty rows is one thing the analyst did. Sent as forty
+   * requests it could half-succeed, leaving a rent roll in a state nobody
+   * chose and no single audit entry describing it. Here the whole set lands or
+   * none of it does, and the audit records the operation rather than its parts.
+   *
+   * Optimistic concurrency is preserved per lease: each carries the version the
+   * grid loaded, and a single stale row rejects the batch instead of silently
+   * overwriting someone else's edit.
+   */
+  app.patch('/models/:id/leases', async (request) => {
+    const context = requireCapability(request, 'model:write');
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await requireModel(request, context.organizationId, params.id);
+    assertEditable(model.status);
+
+    const body = z
+      .object({
+        changes: z
+          .array(
+            z.object({
+              code: z.string().min(1).max(60),
+              expectedVersion: z.number().int().min(1).nullish(),
+              fields: z.object({
+                status: leaseStatusEnum.optional(),
+                area: decimalString.optional(),
+                commencementDate: isoDate.optional(),
+                expirationDate: isoDate.optional(),
+                baseRent: decimalString.optional(),
+                baseRentBasis: rentBasisEnum.optional(),
+                notes: z.string().max(5000).nullish(),
+              }),
+            }),
+          )
+          // Bounded so one request cannot pin a connection rewriting a rent
+          // roll of unbounded size. A larger edit is a file import, which has
+          // its own batched pipeline.
+          .min(1)
+          .max(500),
+      })
+      .parse(request.body);
+
+    const existing = await listLeases(request.db, params.id);
+    const byCode = new Map(existing.map((lease) => [lease.code, lease]));
+
+    // Validated before anything is written, so a batch that cannot succeed
+    // fails without having half-applied.
+    for (const change of body.changes) {
+      const lease = byCode.get(change.code);
+      if (!lease) {
+        throw badRequest(
+          `Lease ${change.code} is not on this model, so it cannot be updated. ` +
+            'Reload the rent roll and try again.',
+        );
+      }
+      const commencement =
+        change.fields.commencementDate ?? (toIsoDate(lease.commencement_date) as string);
+      const expiration =
+        change.fields.expirationDate ?? (toIsoDate(lease.expiration_date) as string);
+      if (expiration < commencement) {
+        throw badRequest(
+          `Lease ${change.code} would expire on ${expiration}, before it commences on ` +
+            `${commencement}. Adjust the term before saving.`,
+        );
+      }
+    }
+
+    let saved: Array<{ code: string; version: number }> = [];
+    try {
+      saved = await request.db.begin(async (tx) => {
+        const results: Array<{ code: string; version: number }> = [];
+        for (const change of body.changes) {
+          const lease = byCode.get(change.code);
+          if (!lease) continue;
+          const written = await upsertLeaseWithin(tx as unknown as Sql, {
+            modelId: params.id,
+            code: change.code,
+            // Everything the grid does not edit is carried across unchanged
+            // rather than defaulted, so a cell edit cannot quietly clear a
+            // lease's recovery terms or its rent steps.
+            tenantId: lease.tenant_id,
+            status: change.fields.status ?? lease.status,
+            area: change.fields.area ?? lease.area,
+            unitCount: lease.unit_count,
+            spaceIds: lease.space_codes,
+            commencementDate:
+              change.fields.commencementDate ?? (toIsoDate(lease.commencement_date) as string),
+            rentStartDate: toIsoDate(lease.rent_start_date),
+            expirationDate:
+              change.fields.expirationDate ?? (toIsoDate(lease.expiration_date) as string),
+            baseRent: change.fields.baseRent ?? lease.base_rent,
+            baseRentBasis: change.fields.baseRentBasis ?? lease.base_rent_basis,
+            rentSteps: lease.rent_steps,
+            escalation: lease.escalation,
+            freeRent: lease.free_rent,
+            percentageRent: lease.percentage_rent,
+            recovery: lease.recovery,
+            options: lease.options,
+            leasingCosts: lease.leasing_costs,
+            otherRevenue: lease.other_revenue,
+            marketLeasingProfileId: lease.market_leasing_profile_id,
+            excludeFromRollover: lease.exclude_from_rollover,
+            notes: change.fields.notes === undefined ? lease.notes : change.fields.notes,
+            expectedVersion: change.expectedVersion ?? null,
+          });
+          results.push({ code: written.code, version: written.version });
+        }
+        return results;
+      });
+    } catch (error) {
+      if (error instanceof LeaseVersionConflict) {
+        throw new HttpError(
+          409,
+          'LEASE_VERSION_CONFLICT',
+          `${error.message} Nothing in this batch was saved.`,
+          { code: error.code, expectedVersion: error.expected, currentVersion: error.actual },
+        );
+      }
+      throw error;
+    }
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: 'lease.bulk_saved',
+      entityType: 'lease',
+      entityId: `${saved.length} leases`,
+      modelId: params.id,
+      propertyId: model.property_id,
+      newValue: {
+        // The codes and the fields touched, not every value: an audit entry is
+        // a record of what happened, and the values are already versioned on
+        // the leases themselves.
+        leaseCodes: body.changes.map((change) => change.code),
+        fields: [...new Set(body.changes.flatMap((change) => Object.keys(change.fields)))],
+      },
+      ipAddress: request.ip,
+    });
+
+    return { saved, count: saved.length };
   });
 
   app.delete('/models/:id/leases/:code', async (request) => {

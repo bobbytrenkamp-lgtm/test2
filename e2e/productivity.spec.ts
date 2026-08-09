@@ -120,7 +120,7 @@ test.describe('pasting a rent roll from a spreadsheet', () => {
     await page.getByRole('button', { name: /^Import 1 lease/ }).click();
 
     // The wizard's own report is not evidence. The rent roll is.
-    const table = page.getByRole('table', { name: 'Leases on this model' });
+    const table = page.getByRole('grid', { name: 'Leases on this model' });
     await expect(table.getByRole('row').filter({ hasText: 'E2E-PASTE-1' })).toBeVisible();
     await expect(table.getByRole('row').filter({ hasText: 'E2E-PASTE-2' })).toHaveCount(0);
   });

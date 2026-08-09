@@ -154,6 +154,7 @@ of a space reporting the whole space occupied. Each is described in
 | [`domain-model.md`](docs/domain-model.md) | Hierarchy, shared vs. scenario data, asset classes |
 | [`calculation-specification.md`](docs/calculation-specification.md) | **Every formula, in full** |
 | [`import-specification.md`](docs/import-specification.md) | Rent-roll parsing and normalisation rules |
+| [`spreadsheet-grid.md`](docs/spreadsheet-grid.md) | Spreadsheet-grade editing: selection, clipboard, undo, batched saves |
 | [`reporting-specification.md`](docs/reporting-specification.md) | Reports and output formats |
 | [`security-model.md`](docs/security-model.md) | Threat model and what is verified |
 | [`testing-strategy.md`](docs/testing-strategy.md) | How correctness is established |

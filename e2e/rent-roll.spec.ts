@@ -44,7 +44,8 @@ test('refuses a lease that expires before it commences', async ({ page }) => {
 
 test('writes a valid lease to the rent roll', async ({ page }) => {
   const code = 'E2E-NEW-LEASE';
-  const table = page.getByRole('table', { name: 'Leases on this model' });
+  // A grid, not a table: the rent roll became an editable spreadsheet surface.
+  const table = page.getByRole('grid', { name: 'Leases on this model' });
   const before = await table.getByRole('row').count();
 
   await page.getByRole('button', { name: 'Add lease' }).click();
@@ -77,7 +78,8 @@ test('writes a valid lease to the rent roll', async ({ page }) => {
  * reading one top to bottom is how a lease gets missed.
  */
 test('searches the rent roll and says what it is hiding', async ({ page }) => {
-  const table = page.getByRole('table', { name: 'Leases on this model' });
+  // A grid, not a table: the rent roll became an editable spreadsheet surface.
+  const table = page.getByRole('grid', { name: 'Leases on this model' });
   const total = (await table.getByRole('row').count()) - 1; // less the header
 
   await page.getByLabel('Search leases').fill('Kestrel');
@@ -112,19 +114,24 @@ test('sorts area as a number, not as text', async ({ page }) => {
   await page.getByRole('button', { name: 'Save lease' }).click();
   await expect(page.getByRole('heading', { name: 'New lease' })).toBeHidden();
 
-  const table = page.getByRole('table', { name: 'Leases on this model' });
-  await page.getByRole('button', { name: 'Area' }).click();
+  /*
+   * Sorting moved from the column headers to a toolbar control when the rent
+   * roll became an editable grid: in a spreadsheet a click on a header selects
+   * the column, so a sort button there would fight the selection. `aria-sort`
+   * still lives on the header, which is what a screen reader reads, and it is
+   * still asserted here.
+   */
+  const grid = page.getByRole('grid', { name: 'Leases on this model' });
+  await page.getByLabel('Sort leases by').selectOption('area:asc');
 
-  const header = table.getByRole('columnheader').filter({ hasText: 'Area' });
+  const header = grid.getByRole('columnheader').filter({ hasText: 'Area' });
   await expect(header).toHaveAttribute('aria-sort', 'ascending');
 
   // Smallest first. Lexicographically 4,200 would be last of the four.
-  const first = table.getByRole('row').nth(1);
-  await expect(first).toContainText('4,200');
+  await expect(grid.getByRole('row').nth(1)).toContainText('4,200');
 
-  // And clicking the same column again reverses it, rather than re-sorting
-  // ascending and appearing to do nothing.
-  await page.getByRole('button', { name: 'Area' }).click();
+  // And reversing it reverses the rows, rather than appearing to do nothing.
+  await page.getByLabel('Sort leases by').selectOption('area:desc');
   await expect(header).toHaveAttribute('aria-sort', 'descending');
-  await expect(table.getByRole('row').nth(1)).toContainText('51,300');
+  await expect(grid.getByRole('row').nth(1)).toContainText('51,300');
 });

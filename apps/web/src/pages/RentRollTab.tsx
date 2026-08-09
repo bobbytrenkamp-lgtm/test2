@@ -1,21 +1,59 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { leaseStatusEnum, rentBasisEnum } from '@cre/domain-models';
 import { api, type Lease, type Space, type Tenant } from '../api.js';
-import { EmptyState, ErrorMessage, Field, Loading, StatusBadge } from '../components.js';
-import { formatCurrency, formatDate, formatNumber, titleCase } from '../format.js';
-import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js';
+import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
+import { formatNumber, titleCase } from '../format.js';
+import {
+  useEditShortcut,
+  useLocalState,
+  useMutation,
+  useResource,
+  useUnsavedChangesWarning,
+} from '../hooks.js';
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 import { PasteRentRoll } from '../components/PasteRentRoll.js';
+import { DataGrid } from '../grid/DataGrid.js';
+import { resolveLayout, type ColumnLayout, type Density } from '../grid/columns.js';
+import { ColumnMenu, DensityMenu } from '../grid/GridControls.js';
+import {
+  apply as applyEdits,
+  batchFrom,
+  canRedo,
+  canUndo,
+  changeCount,
+  committed,
+  dirtyRowIds,
+  emptyEditState,
+  isDirty,
+  pendingValue,
+  redo as redoEdits,
+  undo as undoEdits,
+  type EditState,
+} from '../grid/edits.js';
+import { fieldForColumn, leaseColumns, withPending } from './rent-roll-columns.js';
 
 /**
  * The rent roll.
  *
- * Leases are edited one at a time in a form rather than in free-floating grid
- * cells: a lease is a coherent record whose dates, area and rent have to be
- * validated together, and a half-saved lease would produce a cash flow nobody
- * could defend. The grid stays the reading surface; the editor is the writing
- * surface.
+ * ## Cells are the input method; the record is still the unit of truth
+ *
+ * A lease is validated as a whole — its dates, area and rent have to agree, and
+ * a half-saved lease produces a cash flow nobody can defend. That has not
+ * changed. What has changed is how an analyst gets values in.
+ *
+ * Editing happens in a spreadsheet grid: select, type, Enter, fill down, paste
+ * a column straight out of Excel. Those edits land in a **pending layer** shown
+ * against the cells rather than being written a keystroke at a time. Saving
+ * sends every touched lease to a batch endpoint that merges each change onto
+ * the stored record and applies the same whole-record checks a single save
+ * does, inside one transaction. So the grid never writes a lease the server
+ * would not have accepted from the form, and a fill-down over forty rows either
+ * lands completely or not at all.
+ *
+ * The form editor is still here and is still the only way to reach an
+ * escalation, a recovery structure or a rent step, because none of those is a
+ * single value and flattening one into a cell would lose part of it.
  *
  * ## Finding a lease
  *
@@ -70,50 +108,63 @@ interface SortState {
 }
 
 /**
- * A column header that reorders the grid.
+ * Sorting, moved off the column headers and onto the toolbar.
  *
- * `aria-sort` on the header and a real button inside it, rather than a click
- * handler on the `th`: a screen reader has to be able to say which column the
- * table is ordered by and in which direction, and a keyboard has to be able to
- * change it. The arrow is decorative and marked so, because the direction is
- * already in `aria-sort`.
+ * The grid's headers are no longer buttons: in a spreadsheet a click on a
+ * header selects the column, and putting a sort control there would make the
+ * two gestures fight. `aria-sort` still lives on the header so assistive
+ * technology can report the order; this is where it is changed.
  */
-function SortableHeader({
-  column,
+function SortMenu({
   sort,
   onSort,
-  numeric = false,
 }: {
-  column: SortKey;
   sort: SortState;
   onSort: (state: SortState) => void;
-  numeric?: boolean;
 }): JSX.Element {
-  const active = sort.key === column;
-  const { label } = SORTS[column];
+  const id = useId();
   return (
-    <th
-      scope="col"
-      className={numeric ? 'numeric' : undefined}
-      aria-sort={active ? (sort.ascending ? 'ascending' : 'descending') : 'none'}
-    >
-      <button
-        type="button"
-        className="subtle"
-        // Re-selecting the current column reverses it; a different column
-        // starts ascending, which is what "sort by this" is taken to mean.
-        onClick={() => onSort({ key: column, ascending: active ? !sort.ascending : true })}
+    <span className="row" style={{ gap: 4 }}>
+      <label className="visually-hidden" htmlFor={id}>
+        Sort leases by
+      </label>
+      <select
+        id={id}
+        value={`${sort.key}:${sort.ascending ? 'asc' : 'desc'}`}
+        style={{ width: 'auto' }}
+        onChange={(event) => {
+          const [key, direction] = event.target.value.split(':');
+          onSort({ key: key as SortKey, ascending: direction === 'asc' });
+        }}
       >
-        {label}
-        {active && (
-          <span aria-hidden="true" style={{ marginLeft: 4 }}>
-            {sort.ascending ? '▲' : '▼'}
-          </span>
-        )}
-      </button>
-    </th>
+        {(Object.keys(SORTS) as SortKey[]).flatMap((key) => [
+          <option key={`${key}:asc`} value={`${key}:asc`}>
+            {SORTS[key].label} ↑
+          </option>,
+          <option key={`${key}:desc`} value={`${key}:desc`}>
+            {SORTS[key].label} ↓
+          </option>,
+        ])}
+      </select>
+    </span>
   );
 }
+
+/**
+ * Sort key to column key.
+ *
+ * The two vocabularies differ on purpose — a sort is "by expiry", a column is
+ * `expirationDate` — so the correspondence is written down here rather than
+ * inferred, and a column the grid cannot show simply has no arrow.
+ */
+const SORT_COLUMN: Record<SortKey, string> = {
+  code: 'code',
+  tenant: 'tenantName',
+  area: 'area',
+  rent: 'baseRent',
+  commencement: 'commencementDate',
+  expiration: 'expirationDate',
+};
 
 function matches(lease: Lease, needle: string): boolean {
   const haystack = [lease.code, lease.tenant_name ?? '', ...lease.space_codes]
@@ -135,6 +186,21 @@ export function RentRollTab(): JSX.Element {
     key: 'expiration',
     ascending: true,
   });
+
+  /*
+   * View preferences persist per model. An analyst who hid six columns and set
+   * a compact density is not asked to do it again tomorrow, and doing it per
+   * model means an office rent roll and an industrial one can differ.
+   */
+  const [layout, setLayout] = useLocalState<ColumnLayout | null>(
+    `rentRoll.layout.${model.id}`,
+    null,
+  );
+  const [density, setDensity] = useLocalState<Density>(`rentRoll.density.${model.id}`, 'standard');
+
+  const [edits, setEdits] = useState<EditState>(emptyEditState);
+  const [refusals, setRefusals] = useState<string[]>([]);
+  const [focused, setFocused] = useState<Lease | null>(null);
 
   const leases = useResource<{ leases: Lease[] }>(`/models/${model.id}/leases`);
   const spaces = useResource<{ spaces: Space[] }>(
@@ -161,13 +227,86 @@ export function RentRollTab(): JSX.Element {
     });
   }, [all, search, sort]);
 
+  /*
+   * The rows the grid draws: sorted, filtered, and with pending edits applied.
+   *
+   * Applying the pending layer here rather than inside the grid means the
+   * totals below, the sort and the eventual save all read the same values the
+   * analyst is looking at. A grid showing 12,500 while the total counts 10,000
+   * is the kind of disagreement nobody reports and everybody distrusts.
+   */
+  const rows = useMemo(
+    () => visible.map((lease) => withPending(lease, edits.pending[lease.code])),
+    [visible, edits.pending],
+  );
+
+  const columns = useMemo(
+    () => leaseColumns({ currency: model.currency, areaUnit: model.area_unit }),
+    [model.currency, model.area_unit],
+  );
+  const shownColumns = useMemo(() => resolveLayout(columns, layout), [columns, layout]);
+
   const totals = useMemo(
     () => ({
-      count: visible.length,
-      area: visible.reduce((acc, lease) => acc + Number(lease.area), 0),
+      count: rows.length,
+      area: rows.reduce((acc, lease) => acc + Number(lease.area), 0),
     }),
-    [visible],
+    [rows],
   );
+
+  const dirty = isDirty(edits);
+  const pendingCount = changeCount(edits);
+  useUnsavedChangesWarning(dirty);
+
+  const applyWrites = useCallback(
+    (writes: Array<{ rowId: string; field: string; value: string }>, label: string) => {
+      setRefusals([]);
+      setEdits((current) =>
+        applyEdits(
+          current,
+          batchFrom(label, writes, (rowId, field) => pendingValue(current, rowId, field)),
+        ),
+      );
+    },
+    [],
+  );
+
+  const save = useMutation(async () => {
+    const byCode = new Map(all.map((lease) => [lease.code, lease]));
+    const changes = dirtyRowIds(edits).flatMap((code) => {
+      const lease = byCode.get(code);
+      const pending = edits.pending[code];
+      if (!lease || !pending) return [];
+      const fields: Record<string, string> = {};
+      for (const [key, value] of Object.entries(pending)) {
+        const field = fieldForColumn(key);
+        if (field) fields[field] = value;
+      }
+      return Object.keys(fields).length === 0
+        ? []
+        : [{ code, expectedVersion: lease.version, fields }];
+    });
+    if (changes.length === 0) return { count: 0 };
+    return api.patch<{ count: number }>(`/models/${model.id}/leases`, { changes });
+  });
+
+  const discard = (): void => {
+    setEdits(emptyEditState());
+    setRefusals([]);
+  };
+
+  // Undo and redo reach the grid wherever focus is, the way they do in a
+  // spreadsheet. `useShortcut` ignores keystrokes inside inputs, which is what
+  // keeps Cmd+Z inside an open cell editor undoing the typing rather than the
+  // last paste.
+  useEditShortcut('z', (event) => {
+    if (!editable) return;
+    if (event.shiftKey) setEdits((current) => redoEdits(current));
+    else setEdits((current) => undoEdits(current));
+  });
+  useEditShortcut('y', () => {
+    if (editable) setEdits((current) => redoEdits(current));
+  });
 
   if (leases.loading) return <Loading label="Loading the rent roll" />;
 
@@ -234,77 +373,153 @@ export function RentRollTab(): JSX.Element {
           </div>
         )}
 
+        {/*
+         * The change bar. Phase 7 of the product direction, and the reason the
+         * pending layer is safe to have: an analyst can always see how much is
+         * unsaved, put it back, or write it.
+         */}
+        {dirty && (
+          <div className="message warning" role="status" aria-label="Unsaved changes">
+            <div className="row">
+              <strong>
+                {pendingCount} unsaved change{pendingCount === 1 ? '' : 's'} across{' '}
+                {dirtyRowIds(edits).length} lease
+                {dirtyRowIds(edits).length === 1 ? '' : 's'}
+              </strong>
+              <div className="spacer" />
+              <button
+                type="button"
+                className="subtle"
+                onClick={() => setEdits((current) => undoEdits(current))}
+                disabled={!canUndo(edits)}
+                title="Undo the last change (Ctrl/Cmd + Z)"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                className="subtle"
+                onClick={() => setEdits((current) => redoEdits(current))}
+                disabled={!canRedo(edits)}
+                title="Redo (Ctrl/Cmd + Shift + Z)"
+              >
+                Redo
+              </button>
+              <button type="button" onClick={discard} disabled={save.pending}>
+                Discard all
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={save.pending}
+                onClick={async () => {
+                  const result = await save.run();
+                  if (!result) return;
+                  setEdits(committed());
+                  leases.reload();
+                  reloadCashFlow();
+                }}
+              >
+                {save.pending ? 'Saving…' : `Save ${pendingCount} change(s)`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {save.error && (
+          <div className="message error" role="alert">
+            <strong>{save.error.message}</strong>
+            <p style={{ marginBottom: 0 }}>
+              {save.error.status === 409
+                ? 'Nothing was saved. Reload the rent roll to see the other change, then reapply yours.'
+                : 'Nothing was saved, so your edits are still here. Correct the value and try again.'}
+            </p>
+          </div>
+        )}
+
+        {refusals.length > 0 && (
+          <div className="message warning" role="alert">
+            <strong>
+              {refusals.length} value{refusals.length === 1 ? '' : 's'} could not be read
+            </strong>
+            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              {refusals.slice(0, 6).map((reason, index) => (
+                <li key={index}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {leases.data && leases.data.leases.length === 0 ? (
-          <EmptyState title="No leases yet">
-            Add a lease, or import a rent roll from a spreadsheet. Space that never carries a lease
-            is absorbed speculatively on the market leasing assumptions.
+          <EmptyState
+            title="No leases have been added yet"
+            action={
+              editable ? (
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => setCreating(true)}>
+                    Add a lease
+                  </button>
+                  <button type="button" onClick={() => setPasting(true)}>
+                    Paste from Excel
+                  </button>
+                </div>
+              ) : undefined
+            }
+          >
+            Add one by hand, paste a rent roll straight out of a spreadsheet, or import an XLSX
+            workbook from the Imports tab. Space that never carries a lease is absorbed
+            speculatively on the market leasing assumptions.
+          </EmptyState>
+        ) : visible.length === 0 ? (
+          <EmptyState title="No lease matches that search">
+            {all.length} lease{all.length === 1 ? '' : 's'} on this model; none has a code, tenant
+            or suite containing “{search.trim()}”.
           </EmptyState>
         ) : (
-          <div className="table-scroll" tabIndex={0}>
-            <table>
-              <caption className="visually-hidden">Leases on this model</caption>
-              <thead>
-                <tr>
-                  <SortableHeader column="code" sort={sort} onSort={setSort} />
-                  <SortableHeader column="tenant" sort={sort} onSort={setSort} />
-                  <th scope="col">Suite</th>
-                  <th scope="col">Status</th>
-                  <SortableHeader column="area" sort={sort} onSort={setSort} numeric />
-                  <SortableHeader column="commencement" sort={sort} onSort={setSort} />
-                  <SortableHeader column="expiration" sort={sort} onSort={setSort} />
-                  <SortableHeader column="rent" sort={sort} onSort={setSort} numeric />
-                  <th scope="col">Basis</th>
-                  <th scope="col" className="numeric">
-                    Steps
-                  </th>
-                  {editable && <th scope="col">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((lease) => (
-                  <tr key={lease.id}>
-                    <th scope="row">{lease.code}</th>
-                    <td>{lease.tenant_name}</td>
-                    <td>{lease.space_codes.join(', ') || '—'}</td>
-                    <td>
-                      <StatusBadge status={lease.status} />
-                    </td>
-                    <td className="numeric">{formatNumber(lease.area, 0)}</td>
-                    <td>{formatDate(lease.commencement_date)}</td>
-                    <td>{formatDate(lease.expiration_date)}</td>
-                    <td className="numeric">
-                      {formatCurrency(lease.base_rent, model.currency, { decimals: 2 })}
-                    </td>
-                    <td>{titleCase(lease.base_rent_basis)}</td>
-                    <td className="numeric">{lease.rent_steps.length || '—'}</td>
-                    {editable && (
-                      <td>
-                        <button
-                          type="button"
-                          className="subtle"
-                          onClick={() => {
-                            setEditing(lease.code);
-                            setCreating(false);
-                          }}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {/* An empty table under a populated header reads as a rent roll with
-                no leases on it, which is a much more alarming thing than a
-                search that matched nothing. */}
-            {visible.length === 0 && (
-              <EmptyState title="No lease matches that search">
-                {all.length} lease{all.length === 1 ? '' : 's'} on this model; none has a code,
-                tenant or suite containing “{search.trim()}”.
-              </EmptyState>
-            )}
-          </div>
+          <DataGrid
+            rows={rows}
+            columns={shownColumns}
+            rowId={(lease) => lease.code}
+            valueFor={(lease, column) => column.value(lease)}
+            isEdited={(lease, column) => pendingValue(edits, lease.code, column.key) !== undefined}
+            onEdit={applyWrites}
+            onRejected={(problems) =>
+              setRefusals(problems.map((problem) => `${problem.rowId}: ${problem.reason}`))
+            }
+            editable={editable}
+            density={density}
+            onFocusedRowChange={setFocused}
+            sortedBy={{ columnKey: SORT_COLUMN[sort.key], ascending: sort.ascending }}
+            label="Leases on this model"
+            toolbar={
+              <>
+                <SortMenu sort={sort} onSort={setSort} />
+                <ColumnMenu
+                  columns={columns}
+                  layout={layout}
+                  shown={shownColumns}
+                  onChange={setLayout}
+                />
+                <DensityMenu density={density} onChange={setDensity} />
+                {editable && (
+                  <button
+                    type="button"
+                    className="subtle"
+                    disabled={!focused}
+                    onClick={() => {
+                      if (focused) {
+                        setEditing(focused.code);
+                        setCreating(false);
+                      }
+                    }}
+                    title="Escalations, recoveries, rent steps and options are records rather than single values, so they are edited here"
+                  >
+                    {focused ? `Edit ${focused.code} in full` : 'Edit in full'}
+                  </button>
+                )}
+              </>
+            }
+          />
         )}
       </div>
 

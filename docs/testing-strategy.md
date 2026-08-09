@@ -65,8 +65,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
 | Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 83 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
+| Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
+| Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
 
-**717 tests in total.**
+**765 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -79,6 +81,7 @@ built bundle:
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
 | Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
+| Spreadsheet editing on the rent roll | `e2e/rent-roll-grid.spec.ts` | 9 |
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 11 |
@@ -95,7 +98,7 @@ built bundle:
 | Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 45 |
 
-**117 browser tests in total**, for 834 across the whole repository.
+**126 browser tests in total**, for 891 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

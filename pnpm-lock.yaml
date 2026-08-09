@@ -90,6 +90,9 @@ importers:
       '@cre/domain-models':
         specifier: workspace:*
         version: link:../../packages/domain-models
+      '@cre/reporting':
+        specifier: workspace:*
+        version: link:../../packages/reporting
       react:
         specifier: ^18.3.1
         version: 18.3.1
