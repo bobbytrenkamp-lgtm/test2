@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 3.3.0 · Last verified 2026-08-05**
+**Engine version 3.3.1 · Last verified 2026-08-05**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -68,11 +68,12 @@ Tests       803 passed  (251 engine regression, 31 engine unit, 16 fund,
                          5 Excel Live Model export, 40 grid behaviour,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs)
-Browser     147 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     155 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
-                         11 record editors, 6 permissions,
+                         11 record editors, 8 explainability,
+                         6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
@@ -219,7 +220,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Property workspace | Functional | Overview, spaces, models |
 | Model workspace with tabs | Functional | Nine tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
-| Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Browser test requires a named formula, a decimal result and its sources |
+| Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Opens from the cash flow and from the traced return metrics. Leads with what made the number up — the contributing tenants, read from the stored calculation — then the formula and its inputs, then links to the lease or record to change. Copies as text. 8 browser tests, including one that follows a link to a rent roll already filtered to the named lease |
 | Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
 | Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
 | Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |

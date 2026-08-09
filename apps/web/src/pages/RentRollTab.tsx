@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { leaseStatusEnum, rentBasisEnum } from '@cre/domain-models';
 import { api, type Lease, type Space, type Tenant } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
@@ -156,7 +157,28 @@ export function RentRollTab(): JSX.Element {
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [pasting, setPasting] = useState(false);
-  const [search, setSearch] = useState('');
+  /*
+   * The search box is URL state.
+   *
+   * "Where is that tenant?" is answered by linking to them — the calculation
+   * inspector names a lease and offers to take you to it — and a link that
+   * lands on an unfiltered rent roll of three hundred rows has not answered
+   * anything. Keeping it in the query also means the browser's back button
+   * returns to what the reader was looking at rather than to a blank filter.
+   */
+  const [params, setParams] = useSearchParams();
+  const search = params.get('lease') ?? '';
+  const setSearch = (value: string): void => {
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value.trim() === '') next.delete('lease');
+        else next.set('lease', value);
+        return next;
+      },
+      { replace: true },
+    );
+  };
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({
     // Expiry first, ascending: the question asked of a rent roll more often
     // than any other is what rolls over next.

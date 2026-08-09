@@ -1083,3 +1083,66 @@ details.chart-data > summary {
   color: var(--text-muted);
   font-variant-numeric: normal;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Calculation inspector additions                                             */
+/* -------------------------------------------------------------------------- */
+
+/* The figure the panel is about, stated before any working. */
+.inspector-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.inspector-headline strong {
+  font-size: 20px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inspector-sources {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+ * A metric that can be explained looks like the number it is, not like a
+ * button — until the pointer or the keyboard reaches it. A dashboard of
+ * button-shaped figures reads as a toolbar, and the figures stop being the
+ * thing you look at.
+ */
+.metric-explain {
+  all: unset;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-explain:hover {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.metric-explain:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

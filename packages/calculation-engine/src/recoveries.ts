@@ -420,6 +420,21 @@ function settlePool(
         }),
         result: withFee.toString(),
         sources: [`lease:${occurrence.sourceLeaseId}`],
+        /*
+         * Dated to the first month of the fiscal year it settles.
+         *
+         * A recovery settlement is annual and so carried no period at all,
+         * which made it unreachable from anything that asks the trace "how was
+         * this month's figure derived?" — the inspector on the cash flow found
+         * nothing and reported, truthfully and uselessly, that a recovery total
+         * had no derivation.
+         *
+         * The year is the honest answer to "when", and stamping its first month
+         * puts the entry inside the span a fiscal-year column asks for. It
+         * changes no calculated value; a trace entry is a record of work, and
+         * this records which year's work it is.
+         */
+        periodIndex: (ctx.calendar.periodsByFiscalYear.get(fiscalYear)?.[0] ?? 0) + 1,
       });
     }
   }

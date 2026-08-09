@@ -52,6 +52,14 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 3.3.1
+ *
+ * A recovery settlement's trace entry is dated to the first month of the fiscal
+ * year it settles. It previously carried no period at all — the settlement is
+ * annual — which made it unreachable from anything asking the trace how a given
+ * month's figure was derived. No calculated value changes; a trace entry is a
+ * record of work, and this records which year's work it is.
+ *
  * ## 3.3.0
  *
  * Per-partner cash flows, and the partner return on both bases.
@@ -196,7 +204,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '3.3.0';
+export const ENGINE_VERSION = '3.3.1';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

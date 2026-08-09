@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.3.0** — `packages/calculation-engine`.
+Engine version **3.3.1** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -809,6 +809,18 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 3.3.1
+
+**A recovery settlement is now dated to its fiscal year.** The trace entry for a
+recovery carried no period at all, because the settlement is annual. That made
+it unreachable from anything asking "how was this figure derived?" — the
+calculation inspector found nothing and reported, truthfully and uselessly, that
+a recovery total had no derivation.
+
+It is now stamped with the first month of the fiscal year it settles. No
+calculated value changes: a trace entry is a record of work, and this records
+which year's work it is.
 
 ### 3.3.0
 

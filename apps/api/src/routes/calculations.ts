@@ -122,7 +122,32 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
         runId: z.string().uuid().optional(),
         target: z.string().max(200).optional(),
         formula: z.string().max(120).optional(),
+        /**
+         * Matches the start of the formula name, e.g. `recovery.`.
+         *
+         * Several lines share a target prefix — everything a lease occurrence
+         * produces sits under `occurrence:` — so narrowing by target alone
+         * cannot separate a recovery derivation from a base-rent one. Doing it
+         * client-side does not work either: the limit is applied after
+         * filtering, so a month with three hundred base-rent entries pushes the
+         * recoveries past it and the caller sees none.
+         */
+        formulaPrefix: z.string().max(120).optional(),
         periodIndex: z.coerce.number().int().min(1).optional(),
+        /**
+         * An inclusive span of periods, for a figure that covers more than one.
+         *
+         * A fiscal-year column on the cash flow is twelve months, and several
+         * derivations — a recovery settlement above all — are recorded in the
+         * month they settle rather than in every month they affect. Filtering
+         * such a figure to the first month of its year returns nothing and the
+         * panel truthfully reports that it has no trace, which is unhelpful
+         * and reads as a defect.
+         *
+         * `periodIndex` still works and still means exactly one period.
+         */
+        periodFrom: z.coerce.number().int().min(1).optional(),
+        periodTo: z.coerce.number().int().min(1).optional(),
         limit: z.coerce.number().int().min(1).max(2000).default(500),
       })
       .parse(request.query);
@@ -147,7 +172,15 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
     const filtered = entries.filter((entry) => {
       if (query.target && !entry.target.startsWith(query.target)) return false;
       if (query.formula && entry.formula !== query.formula) return false;
+      if (query.formulaPrefix && !entry.formula.startsWith(query.formulaPrefix)) return false;
       if (query.periodIndex && entry.periodIndex !== query.periodIndex) return false;
+      if (query.periodFrom !== undefined || query.periodTo !== undefined) {
+        // An entry with no period at all — a valuation, say — is not in any
+        // span, so it is excluded rather than let through.
+        if (entry.periodIndex === undefined) return false;
+        if (query.periodFrom !== undefined && entry.periodIndex < query.periodFrom) return false;
+        if (query.periodTo !== undefined && entry.periodIndex > query.periodTo) return false;
+      }
       return true;
     });
 
