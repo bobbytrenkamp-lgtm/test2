@@ -135,6 +135,28 @@ repository needs a paid plan outright. What to do in that case is set out under
 Every one of these sits behind an interface (`docs/architecture.md`), so a
 provider can be added later by choice — never by default.
 
+**The PDF-assumption import pipeline makes no AI or document-parsing call of
+its own.** `docs/claude-assumption-import.md` describes a paste-in contract:
+a Claude Skill, run entirely outside this platform under the operator's own
+existing Claude subscription, reads a document and produces structured JSON;
+this platform only parses that already-structured text (deterministic JSON
+parsing, no OCR, no LLM call, no document store) and compares it against a
+model. No new dependency, network call, or metered service was added to
+support it.
+
+**The wider property-research architecture (`docs/property-research.md`)
+follows the same rule, and is contracts only today.**
+`packages/domain-models/src/cre-property-research.ts` and
+`research-interfaces.ts` are schemas with no network client behind them —
+nothing added this pass calls a listing site, a geocoder, or a paid
+property-data API. Any future listing-URL retrieval is, by design, a
+Claude Skill running outside this platform, the same separation the PDF
+pipeline already uses; any future test1/test3 integration is expected to
+run on those systems' own zero-cost infrastructure. If a genuinely useful
+dataset only exists behind a paid API, the correct move is documenting it
+as an optional, explicitly-enabled integration — never wiring it into the
+default path.
+
 ## 4. Local-first stack
 
 Everything runs on the developer's machine with no hosted dependency:

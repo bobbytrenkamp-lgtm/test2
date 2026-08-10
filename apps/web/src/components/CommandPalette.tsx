@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, type Model, type Property } from '../api.js';
 import { useFavourites } from '../favourites.js';
 import { useShortcut } from '../hooks.js';
@@ -29,6 +29,7 @@ interface Command {
 
 export function CommandPalette(): JSX.Element | null {
   const navigate = useNavigate();
+  const location = useLocation();
   const { session } = useSession();
   const { favourites } = useFavourites();
   const [open, setOpen] = useState(false);
@@ -90,6 +91,21 @@ export function CommandPalette(): JSX.Element | null {
       { id: 'nav-audit', label: 'Audit history', group: 'Go to', run: go('/audit') },
     ];
 
+    // Importing assumptions always targets whichever model is currently
+    // open — see docs/claude-assumption-import.md — so this only appears
+    // while a model is, rather than as a global destination with nowhere in
+    // particular to land.
+    const modelMatch = /^\/models\/([^/]+)/.exec(location.pathname);
+    if (modelMatch) {
+      list.push({
+        id: 'nav-import-assumptions',
+        label: 'Import assumptions',
+        hint: 'Paste a Claude Skill’s structured extraction for this model',
+        group: 'Go to',
+        run: go(`/models/${modelMatch[1]}/assumption-import`),
+      });
+    }
+
     for (const property of properties) {
       list.push({
         id: `property-${property.id}`,
@@ -111,7 +127,7 @@ export function CommandPalette(): JSX.Element | null {
     }
 
     return list;
-  }, [properties, models, navigate]);
+  }, [properties, models, navigate, location.pathname]);
 
   /**
    * Favourites and recents, shown ahead of everything else when nobody has

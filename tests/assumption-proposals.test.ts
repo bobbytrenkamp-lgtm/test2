@@ -424,6 +424,98 @@ describe.skipIf(!hasDatabase)('assumption proposals', () => {
     expect(Number((await model()).discount_rate)).toBeCloseTo(0.085, 8);
   });
 
+  it('applies a typed proposal per its own valueType, not always as a decimal', async () => {
+    /*
+     * The widened part of the contract: an integer, a date, a boolean and an
+     * enum, each written with the cast its own value_type calls for rather
+     * than the ::numeric cast every proposal used before this. If the cast
+     * were wrong, this would not fail loudly — postgres would silently
+     * truncate or reject, and the wrong error message would show up instead
+     * of a clean apply.
+     */
+    const before = await model();
+
+    const cases: Array<{
+      target: string;
+      value: string;
+      valueType: string;
+      read: (row: Record<string, unknown>) => unknown;
+      expected: unknown;
+    }> = [
+      {
+        target: 'valuation.saleMonth',
+        value: '48',
+        valueType: 'integer',
+        read: (row) => row.sale_month,
+        expected: 48,
+      },
+      {
+        target: 'valuation.terminalNoiBasis',
+        value: 'trailing_12',
+        valueType: 'enum',
+        read: (row) => row.terminal_noi_basis,
+        expected: 'trailing_12',
+      },
+      {
+        target: 'valuation.acquisitionDate',
+        value: '2026-04-01',
+        valueType: 'date',
+        read: (row) => new Date(row.acquisition_date as string).toISOString().slice(0, 10),
+        expected: '2026-04-01',
+      },
+      {
+        target: 'vacancy.netAgainstModelledVacancy',
+        value: 'false',
+        valueType: 'boolean',
+        read: (row) => row.net_against_modelled_vacancy,
+        expected: false,
+      },
+    ];
+
+    for (const testCase of cases) {
+      const posted = await post([
+        {
+          target: testCase.target,
+          value: testCase.value,
+          valueType: testCase.valueType,
+          sourceKind: 'imported',
+          sourceName: 'typed-value-check',
+          evidence: {},
+        },
+      ]);
+      expect(posted.statusCode, testCase.target).toBe(201);
+
+      const proposal = (await list('pending')).find((entry) => entry.target === testCase.target);
+      expect(proposal, testCase.target).toBeDefined();
+      expect(proposal?.applicable, testCase.target).toBe(true);
+
+      const decided = await decide(proposal?.id as string, 'accepted');
+      expect(decided.statusCode, testCase.target).toBe(200);
+
+      const after = await model();
+      expect(testCase.read(after), testCase.target).toEqual(testCase.expected);
+    }
+
+    // The decimal fields beside them did not move.
+    expect(Number((await model()).discount_rate)).toBeCloseTo(0.085, 8);
+    void before;
+  });
+
+  it('refuses a typed value that does not match its own valueType', async () => {
+    const result = await post([
+      {
+        target: 'valuation.saleMonth',
+        value: 'soon',
+        valueType: 'integer',
+        sourceKind: 'imported',
+        sourceName: 'invalid-type-check',
+        evidence: {},
+      },
+    ]);
+    expect(result.statusCode).toBe(400);
+    expect(result.body).toContain('whole number');
+  });
+
   it('cannot be read or decided from another organization', async () => {
     const stranger = await registerActor(ctx.app, 'stranger-prov@example.invalid', 'Stranger');
     await ctx.app.inject({

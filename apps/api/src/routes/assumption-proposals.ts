@@ -8,21 +8,17 @@ import {
   getModel,
   listAssumptionProposals,
   recordAssumptionProposals,
-  upsertCapitalItem,
-  upsertDebtFacility,
-  upsertExpense,
-  upsertGrowthCurve,
-  upsertMarketLeasingProfile,
-  upsertOtherRevenue,
   writeAudit,
 } from '@cre/database';
 import {
   assumptionDecisionEnum,
   assumptionProposalBatchSchema,
+  describeTarget,
   resolveAssumptionValue,
 } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 import { assertEditable } from './models.js';
+import { applyAssumption, AssumptionApplyError } from '../assumption-write.js';
 
 /**
  * The assumption input contract, and the analyst's decision on it.
@@ -38,6 +34,11 @@ import { assertEditable } from './models.js';
  * accept is an act with a name on it, and the reject is recorded too — "we saw
  * the market number and stayed at 3.0%" is a defensible position that only
  * exists if the tool keeps it.
+ *
+ * `target`, `value` and `valueType` resolution now lives in
+ * `@cre/domain-models`'s target registry, shared with the PDF-assumption
+ * import pipeline (`docs/claude-assumption-import.md`) so the two cannot
+ * disagree about what this contract can write.
  */
 export async function registerAssumptionProposalRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -100,7 +101,10 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
     const context = requireCapability(request, 'model:read');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const query = z
-      .object({ status: z.enum(['pending', 'accepted', 'rejected', 'superseded']).optional() })
+      .object({
+        status: z.enum(['pending', 'accepted', 'rejected', 'superseded']).optional(),
+        importSessionId: z.string().uuid().optional(),
+      })
       .parse(request.query);
 
     const model = await getModel(request.db, context.organizationId, id);
@@ -108,6 +112,7 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
 
     const proposals = await listAssumptionProposals(request.db, context.organizationId, id, {
       status: query.status ?? null,
+      importSessionId: query.importSessionId ?? null,
     });
     const input = await buildModelInput(request.db, context.organizationId, id);
 
@@ -198,7 +203,18 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
         );
       }
       if (body.decision === 'accepted' && row.value !== null) {
-        await applyAssumption(tx as unknown as Sql, params.id, row.target, row.value);
+        try {
+          await applyAssumption(
+            tx as unknown as Sql,
+            params.id,
+            row.target,
+            row.value,
+            row.value_type,
+          );
+        } catch (error) {
+          if (error instanceof AssumptionApplyError) throw unprocessable(error.message);
+          throw error;
+        }
       }
       return row;
     });
@@ -219,203 +235,4 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
 
     return { proposal: decided, applied: body.decision === 'accepted' };
   });
-}
-
-/* -------------------------------------------------------------------------- */
-/* Applying an accepted value                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Model-level assumptions an acceptance may write, and their columns.
- *
- * An allowlist, not a derivation. The column name is interpolated into SQL, so
- * it must come from this file and never from a proposal; and confining it to
- * the numeric assumptions keeps the contract's single `value` field honest —
- * a decimal string cannot express a fiscal-year convention or a sale month,
- * and pretending otherwise would turn a parse failure into a wrong model.
- */
-const MODEL_COLUMNS: Record<string, string> = {
-  'valuation.discountRate': 'discount_rate',
-  'valuation.terminalCapRate': 'terminal_cap_rate',
-  'valuation.saleCostPercent': 'sale_cost_percent',
-  'valuation.grossSalePriceOverride': 'gross_sale_price_override',
-  'valuation.directCapRate': 'direct_cap_rate',
-  'valuation.directCapAdjustments': 'direct_cap_adjustments',
-  'valuation.acquisitionPrice': 'acquisition_price',
-  'valuation.acquisitionCosts': 'acquisition_costs',
-  'vacancy.generalVacancyRate': 'general_vacancy_rate',
-  'vacancy.creditLossRate': 'credit_loss_rate',
-};
-
-/**
- * Collections an acceptance may write, and the table and writer for each.
- *
- * The write goes through the same `upsert` a person's edit uses, with the
- * proposed field merged onto the stored row. That is deliberate: it means an
- * accepted proposal cannot clear a recovery structure, a draw schedule or a
- * custom monthly profile that the contract knows nothing about, and it means
- * an invalid value is refused by the collection's own schema rather than
- * landing in a column.
- */
-const COLLECTIONS: Record<
-  string,
-  {
-    table: string;
-    upsert: (
-      db: Sql,
-      modelId: string,
-      body: Record<string, unknown>,
-    ) => Promise<{ id: string; version: number }>;
-  }
-> = {
-  expenses: {
-    table: 'operating_expenses',
-    upsert: (db, modelId, body) =>
-      upsertExpense(db, { ...body, modelId } as Parameters<typeof upsertExpense>[1]),
-  },
-  otherRevenue: {
-    table: 'other_revenue_items',
-    upsert: (db, modelId, body) =>
-      upsertOtherRevenue(db, { ...body, modelId } as Parameters<typeof upsertOtherRevenue>[1]),
-  },
-  capital: {
-    table: 'capital_items',
-    upsert: (db, modelId, body) =>
-      upsertCapitalItem(db, { ...body, modelId } as Parameters<typeof upsertCapitalItem>[1]),
-  },
-  debt: {
-    table: 'debt_facilities',
-    upsert: (db, modelId, body) =>
-      upsertDebtFacility(db, { ...body, modelId } as Parameters<typeof upsertDebtFacility>[1]),
-  },
-  growthCurves: {
-    table: 'growth_curves',
-    upsert: (db, modelId, body) =>
-      upsertGrowthCurve(db, { ...body, modelId } as Parameters<typeof upsertGrowthCurve>[1]),
-  },
-  marketLeasing: {
-    table: 'market_leasing_profiles',
-    upsert: (db, modelId, body) =>
-      upsertMarketLeasingProfile(db, { ...body, modelId } as Parameters<
-        typeof upsertMarketLeasingProfile
-      >[1]),
-  },
-};
-
-type TargetVerdict = { ok: true } | { ok: false; reason: string };
-
-/**
- * Whether accepting this target could write anything, and if not, why.
- *
- * Answered without touching the database so the list can say it about every
- * row at once, and so the decision route can refuse before it opens a
- * transaction.
- */
-function describeTarget(target: string): TargetVerdict {
-  if (MODEL_COLUMNS[target]) return { ok: true };
-
-  const parts = target.split('.');
-  const head = parts[0] ?? '';
-
-  if (head === 'leases') {
-    return {
-      ok: false,
-      reason:
-        'Lease terms are not applied through this contract. A lease is a document, and a ' +
-        'change to one is a change to what was signed — open the rent roll and make it there. ' +
-        'The proposal stays on the list either way.',
-    };
-  }
-
-  // A section the model does have, addressing a field that either is not
-  // numeric or is not one it holds. Worth saying differently from a section it
-  // has never heard of: the first is a limit of this contract, the second is a
-  // limit of the product, and only the second is a gap worth reporting.
-  if (parts.length === 2 && MODEL_SECTIONS.has(head)) {
-    return {
-      ok: false,
-      reason:
-        `${target} is not one of the numeric assumptions this contract can write. A single ` +
-        'decimal value cannot express a convention, a date or a basis, so it is left to you ' +
-        'rather than guessed at; the proposal is kept, and rejecting it records that you ' +
-        'considered it.',
-    };
-  }
-
-  if (parts.length >= 3 && COLLECTIONS[head]) return { ok: true };
-
-  return {
-    ok: false,
-    reason:
-      `This release does not model ${target}, so there is nothing to apply it to. That is ` +
-      'worth knowing on its own — the proposal is kept rather than discarded.',
-  };
-}
-
-/** The model-level sections a target may address. See `MODEL_COLUMNS`. */
-const MODEL_SECTIONS = new Set(Object.keys(MODEL_COLUMNS).map((key) => key.split('.')[0]));
-
-/**
- * Writes an accepted value into the model.
- *
- * Runs inside the caller's transaction, alongside the decision it belongs to.
- */
-async function applyAssumption(
-  tx: Sql,
-  modelId: string,
-  target: string,
-  value: string,
-): Promise<void> {
-  const column = MODEL_COLUMNS[target];
-  if (column) {
-    // `column` is a literal from MODEL_COLUMNS above; `value` and `modelId` are
-    // bound parameters. The cast is what refuses a non-numeric value.
-    await tx.unsafe(
-      `UPDATE models SET ${column} = $1::numeric, version = version + 1, updated_at = now()
-       WHERE id = $2`,
-      [value, modelId],
-    );
-    return;
-  }
-
-  const parts = target.split('.');
-  const [head, code] = [parts[0] ?? '', parts[1] ?? ''];
-  const field = parts.slice(2).join('.');
-  const collection = COLLECTIONS[head];
-  if (!collection || !code || !field) {
-    // Unreachable: the route checks `describeTarget` first. Kept because an
-    // unchecked path here would write to the wrong row rather than fail.
-    throw unprocessable(`${target} cannot be applied automatically.`);
-  }
-
-  const rows = (await tx.unsafe(
-    `SELECT * FROM ${collection.table} WHERE model_id = $1 AND code = $2 FOR UPDATE`,
-    [modelId, code],
-  )) as unknown as Array<Record<string, unknown>>;
-  const row = rows[0];
-  if (!row) {
-    throw unprocessable(
-      `${code} is not in this model, so ${target} has nowhere to go. It may have been renamed ` +
-        'or deleted since the proposal was made.',
-    );
-  }
-
-  await collection.upsert(tx, modelId, { ...toCamelCase(row), [field]: value, code });
-}
-
-/**
- * Rows come back snake_cased; every `upsert` takes camelCase.
- *
- * The same normalisation the batch collection write does, and for the same
- * reason: a `DATE` column arrives as a `Date`, and handing that back to an
- * upsert that expects `YYYY-MM-DD` writes a timestamp.
- */
-function toCamelCase(row: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    const camel = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-    out[camel] =
-      value instanceof Date ? (value.toISOString().split('T')[0] as string) : (value as unknown);
-  }
-  return out;
 }

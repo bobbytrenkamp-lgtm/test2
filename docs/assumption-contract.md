@@ -173,24 +173,29 @@ typed edit is: clone it, or move it back to draft.
 
 ## What an acceptance can and cannot write
 
-**Can** — the numeric model-level assumptions:
-
-`valuation.discountRate`, `valuation.terminalCapRate`,
-`valuation.saleCostPercent`, `valuation.grossSalePriceOverride`,
-`valuation.directCapRate`, `valuation.directCapAdjustments`,
-`valuation.acquisitionPrice`, `valuation.acquisitionCosts`,
-`vacancy.generalVacancyRate`, `vacancy.creditLossRate`
-
-**Can** — any field of a row in `expenses`, `otherRevenue`, `capital`, `debt`,
-`growthCurves` or `marketLeasing`.
+**Can** — every field named in `packages/domain-models/src/assumption-targets.ts`,
+which is the single list this contract's decision route and the PDF-assumption
+import pipeline both consult (see `docs/claude-assumption-import.md`). That
+covers the model-level valuation and vacancy assumptions, and any scalar field
+of a row in `expenses`, `otherRevenue`, `capital`, `debt`, `growthCurves` or
+`marketLeasing` — including, since the value type was widened, fields that
+are not decimals: `valuation.terminalNoiBasis` and `valuation.saleMonth`, a
+debt facility's `fundingDate`, an expense's `method`. `value` is still always
+a single string; `valueType` says which of `decimal`, `integer`, `date`,
+`boolean`, `string` or `enum` it has to parse as, checked by
+`validateTypedValue` before it is ever accepted. A proposal that omits
+`valueType` defaults to `decimal`, so nothing posted before this widening
+changed behaviour.
 
 **Cannot — lease terms.** A lease is a document, and a change to one is a change
 to what was signed. `leases.*` proposals are stored and shown, and applied by
 hand on the rent roll.
 
-**Cannot — conventions, dates and bases.** A single decimal string cannot express
-`terminalNoiBasis`, `prorationConvention` or `acquisitionDate`, so those are left
-to a person rather than guessed at.
+**Cannot — growth-curve and index-curve cross-references, or display order.**
+`growthCurveId`-style fields read and write under different names on this
+release (a read/write mismatch already in the schema, not introduced by this
+contract) and are excluded rather than risk a wrong mapping; `sortOrder` is
+display-only and does not reach the calculation engine either way.
 
 In every case the proposal is still kept, the difference is still shown, and
 rejecting it still records that it was considered. Only the **Apply** button is
@@ -222,10 +227,39 @@ application.
 | Layer | File |
 | --- | --- |
 | Contract and value resolution | `packages/domain-models/src/assumption-proposals.ts` |
-| Storage | `packages/database/migrations/0013_assumption_provenance.sql`, `packages/database/src/repositories/assumption-proposals.ts` |
-| Endpoints and application | `apps/api/src/routes/assumption-proposals.ts` |
+| Writable-target registry | `packages/domain-models/src/assumption-targets.ts` |
+| Storage | `packages/database/migrations/0013_assumption_provenance.sql`, `0015_assumption_import.sql`, `packages/database/src/repositories/assumption-proposals.ts` |
+| Endpoints and application | `apps/api/src/routes/assumption-proposals.ts`, `apps/api/src/assumption-write.ts` |
 | Screen | `apps/web/src/pages/ProvenanceTab.tsx` |
-| Tests | `packages/domain-models/src/assumption-proposals.test.ts`, `tests/assumption-proposals.test.ts`, `e2e/provenance.spec.ts` |
+| Tests | `packages/domain-models/src/assumption-proposals.test.ts`, `assumption-targets.test.ts`, `tests/assumption-proposals.test.ts`, `e2e/provenance.spec.ts` |
+
+## The PDF-assumption import pipeline
+
+A Claude Skill that has read a document — an offering memorandum, an
+appraisal, a term sheet — is one more source under this same contract, not a
+parallel one. It never writes to a model directly either: what it produces is
+a versioned JSON document (`cre-assumption-import`, described in full at
+`docs/claude-assumption-import.md`) that an analyst pastes in, reviews, and
+selectively applies. "Applying" still means an `assumption_proposals` row,
+already decided, written through the identical `applyAssumption` path this
+page describes — the safety boundary is unchanged. What is different is
+upstream of that boundary: a deterministic analyzer compares the paste
+against the model before anything becomes a proposal, so an analyst reviews a
+formatted difference rather than forty raw rows. See
+`docs/claude-assumption-import.md` for the full format, and
+`apps/web/src/pages/AssumptionImportTab.tsx` for the screen.
+
+## Property research
+
+A wider architecture — a listing URL, an address, test1's market
+intelligence, test3's statistical models — converges on this same contract
+at exactly one point: a **recommendation** becomes an `assumption_proposals`
+row with `sourceKind: 'recommended'`, via
+`packages/domain-models/src/research-to-proposal.ts`. Everything upstream of
+that conversion (observations, comparisons, model estimates) is evidence,
+never itself a proposal. As of this writing that upstream architecture is
+contracts only — see `docs/property-research.md` for the full picture and,
+importantly, for what is real versus designed.
 
 ## What does not exist yet
 
