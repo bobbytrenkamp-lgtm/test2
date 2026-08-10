@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1035 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1073 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -76,7 +76,9 @@ Tests       1035 passed (251 engine regression, 31 engine unit, 16 fund,
                          20 the cre-assumption-import parser,
                          20 the deterministic import analyzer,
                          4 the import write path,
-                         24 PDF-assumption import via the API)
+                         24 PDF-assumption import via the API,
+                         20 property-research schema, 10 research interfaces,
+                         8 recommendation-to-proposal conversion)
 Browser     192 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
@@ -384,6 +386,22 @@ current state.)
 | Optimistic locking, assumption collections | Tested | Row-level `version` on all six collections; same-row writers collide, different-row writers do not. 17 locking tests in total |
 | PDF-assumption import: target registry, parser, analyzer, write path, API, browser | Tested | 89 + 20 + 20 + 4 + 24 + 6 = 163 tests across `packages/domain-models`, `apps/api` and the browser suite. The target registry is checked against the real collection and model-level schemas in both directions, so a field renamed in one place and not the other fails a test rather than an import |
 
+## 10. Property research (contracts only)
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| `cre-property-research` v1 schema and parser | Tested | Observation / comparison / model estimate / recommendation kept as four structurally distinct schemas so a fact cannot masquerade as a recommendation. 20 tests |
+| Universal research request, test1 and test3 contracts | Designed | Typed and tested for internal consistency; neither test1 nor test3 is a live endpoint from this repository, so nothing calls them. 10 tests |
+| Conversion of a recommendation into an existing assumption proposal | Tested | The only integration point: reuses `assumption_proposals` and `sourceKind: 'recommended'` with no new write path. 8 tests |
+| Comparable-selection / percentile engine | Not started | Deliberately deferred; does not require test1 to exist to build |
+| Listing/property-URL Claude Skill, live test1/test3 integration, orchestration layer, "Research this property" UI | Not started | See `docs/property-research.md`'s status table for the full breakdown and why each is not yet built |
+
+See `docs/property-research.md` for the full architecture, the boundaries
+this area is built to respect (deterministic test2, no scraping, no access-
+control bypass, zero-cost by default), and the four-kind separation
+(observation / comparison / model estimate / recommendation) this contract
+exists to enforce.
+
 ---
 
 ## The honest summary
@@ -401,7 +419,10 @@ automatically.
 
 **Designed only.** Budgets and actuals, variance reporting, collaboration,
 dashboard configuration, documents, portfolio reports, Excel import, PDF
-rendering, MFA, malware scanning.
+rendering, MFA, malware scanning, and the property-research contracts
+(`cre-property-research`, the test1/test3 interfaces) — schemas and
+conversion logic exist and are tested; no live source, comparable-selection
+engine or UI is wired to them yet.
 
 **Unverified.** The Docker images have never been built. The Compose file
 validates and several defects found by reading the Dockerfiles are fixed, but

@@ -79,8 +79,11 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | The deterministic import analyzer | `packages/domain-models/src/assumption-import-analyze.test.ts` | 20 | No |
 | The import write path, checked against the target registry | `apps/api/src/assumption-write.test.ts` | 4 | No |
 | PDF-assumption import: targets, analyze and apply through the API | `tests/assumption-import.test.ts` | 24 | Yes |
+| Property research: `cre-property-research` v1 schema and parser | `packages/domain-models/src/cre-property-research.test.ts` | 20 | No |
+| Property research: universal request, test1 and test3 contracts | `packages/domain-models/src/research-interfaces.test.ts` | 10 | No |
+| Property research: recommendation to assumption-proposal conversion | `packages/domain-models/src/research-to-proposal.test.ts` | 8 | No |
 
-**1035 tests in total.**
+**1073 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -119,7 +122,7 @@ built bundle:
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 
-**192 browser tests in total**, for 1227 across the whole repository.
+**192 browser tests in total**, for 1265 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

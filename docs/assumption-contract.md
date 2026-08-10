@@ -249,6 +249,18 @@ formatted difference rather than forty raw rows. See
 `docs/claude-assumption-import.md` for the full format, and
 `apps/web/src/pages/AssumptionImportTab.tsx` for the screen.
 
+## Property research
+
+A wider architecture — a listing URL, an address, test1's market
+intelligence, test3's statistical models — converges on this same contract
+at exactly one point: a **recommendation** becomes an `assumption_proposals`
+row with `sourceKind: 'recommended'`, via
+`packages/domain-models/src/research-to-proposal.ts`. Everything upstream of
+that conversion (observations, comparisons, model estimates) is evidence,
+never itself a proposal. As of this writing that upstream architecture is
+contracts only — see `docs/property-research.md` for the full picture and,
+importantly, for what is real versus designed.
+
 ## What does not exist yet
 
 Stated plainly, because a contract document that implies more than the code does
