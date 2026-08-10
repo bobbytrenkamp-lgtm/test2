@@ -3,6 +3,7 @@ import { useSession } from '../session.js';
 import { Loading } from '../components.js';
 import { SignInPage } from './SignIn.js';
 import { CommandPalette } from '../components/CommandPalette.js';
+import { useResource } from '../hooks.js';
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -16,6 +17,10 @@ const NAV = [
 
 export function Shell(): JSX.Element {
   const { session, loading, signOut, switchOrganization } = useSession();
+  // Fetched from the public, unauthenticated health check rather than a
+  // protected route, so establishing what a support conversation needs never
+  // depends on the session actually being valid.
+  const version = useResource<{ appVersion: string; engineVersion: string }>('/health');
 
   if (loading) return <Loading label="Restoring your session" />;
   if (!session) return <SignInPage />;
@@ -75,6 +80,14 @@ export function Shell(): JSX.Element {
             {item.label}
           </NavLink>
         ))}
+        {version.data && (
+          <div
+            className="field-hint"
+            style={{ marginTop: 'var(--space-4)', paddingLeft: 'var(--space-3)' }}
+          >
+            App {version.data.appVersion} · Engine {version.data.engineVersion}
+          </div>
+        )}
       </nav>
 
       <CommandPalette />

@@ -4,9 +4,11 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
-import { createDatabase, recordError, resolveSession, type Sql } from '@cre/database';
+import { ENGINE_VERSION } from '@cre/calculation-engine';
+import { createDatabase, recordError, referenceFor, resolveSession, type Sql } from '@cre/database';
 import type { Env } from './env.js';
 import { HttpError, SESSION_COOKIE, assertSameOriginIntent } from './context.js';
+import { APP_VERSION } from './version.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerOrganizationRoutes } from './routes/organizations.js';
 import { registerPropertyRoutes } from './routes/properties.js';
@@ -160,7 +162,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     if (auth) request.auth = auth;
   });
 
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler(async (error, request, reply) => {
     if (error instanceof HttpError) {
       return reply
         .status(error.statusCode)
@@ -208,7 +210,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
      * or session token. See `error_events` in migration 0011.
      */
     request.log.error({ err: error }, 'Unhandled error');
-    void recordError(db, {
+    const errorEventId = await recordError(db, {
       organizationId: request.auth?.organizationId ?? null,
       userId: request.auth?.user.id ?? null,
       method: request.method,
@@ -218,14 +220,25 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? (error.stack ?? null) : null,
     });
-    return reply
-      .status(500)
-      .send({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.' } });
+    // A customer cannot quote a fingerprint or a stack trace to a support
+    // conversation, but a short reference is exactly what "what's the error
+    // code" already expects the answer to look like — and it is read from
+    // the same row a support conversation would otherwise have to search the
+    // logs to find, not a second identifier invented just for display.
+    const reference = errorEventId ? referenceFor(errorEventId) : null;
+    return reply.status(500).send({
+      error: { code: 'INTERNAL_ERROR', message: 'Something went wrong.', reference },
+    });
   });
 
   app.get('/api/v1/health', async () => {
     const [row] = (await db`SELECT 1 AS ok`) as unknown as Array<{ ok: number }>;
-    return { status: row?.ok === 1 ? 'ok' : 'degraded', engineChecked: true };
+    return {
+      status: row?.ok === 1 ? 'ok' : 'degraded',
+      engineChecked: true,
+      appVersion: APP_VERSION,
+      engineVersion: ENGINE_VERSION,
+    };
   });
 
   await app.register(

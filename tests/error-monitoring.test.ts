@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fingerprintOf, listErrorGroups, pruneErrors, recordError } from '@cre/database';
+import {
+  fingerprintOf,
+  findErrorEventByReference,
+  listErrorGroups,
+  pruneErrors,
+  recordError,
+  referenceFor,
+} from '@cre/database';
 import {
   authed,
   createTestContext,
@@ -144,7 +151,7 @@ describe.skipIf(!hasDatabase)('error monitoring', () => {
           message: 'x',
           organizationId: 'not-a-uuid',
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeNull();
     });
 
     it('truncates rather than storing an unbounded message', async () => {
@@ -215,6 +222,50 @@ describe.skipIf(!hasDatabase)('error monitoring', () => {
     });
   });
 
+  describe('support references', () => {
+    it('returns the id a fault was recorded under, so a reference can be built from it', async () => {
+      const route = `/test/${Math.random().toString(36).slice(2)}`;
+      const id = await recordError(ctx.sql, {
+        method: 'GET',
+        route,
+        statusCode: 500,
+        errorName: 'TestError',
+        message: 'reference check',
+      });
+      expect(id).not.toBeNull();
+      expect(referenceFor(id as string)).toBe(`ERR-${id}`);
+    });
+
+    it('finds the same event back by its reference, or by the bare id', async () => {
+      const route = `/test/${Math.random().toString(36).slice(2)}`;
+      const id = await recordError(ctx.sql, {
+        method: 'POST',
+        route,
+        statusCode: 500,
+        errorName: 'TestError',
+        message: 'lookup check',
+      });
+      const reference = referenceFor(id as string);
+
+      const byReference = await findErrorEventByReference(ctx.sql, reference);
+      expect(byReference?.route).toBe(route);
+
+      const byBareId = await findErrorEventByReference(ctx.sql, String(id));
+      expect(byBareId?.route).toBe(route);
+    });
+
+    it('returns null for a reference naming no recorded fault, rather than guessing', async () => {
+      expect(await findErrorEventByReference(ctx.sql, 'ERR-999999999')).toBeNull();
+    });
+
+    it('refuses a reference that is not shaped like one, rather than treating it as a wildcard', async () => {
+      // A non-numeric reference could otherwise be interpreted by a looser
+      // lookup as "match everything" and hand back an unrelated fault.
+      expect(await findErrorEventByReference(ctx.sql, 'ERR-not-a-number')).toBeNull();
+      expect(await findErrorEventByReference(ctx.sql, '')).toBeNull();
+    });
+  });
+
   describe('the route', () => {
     it('serves the grouped list to someone who may read the audit log', async () => {
       const response = await ctx.app.inject({
@@ -264,6 +315,44 @@ describe.skipIf(!hasDatabase)('error monitoring', () => {
           n: number;
         }>;
       expect(after[0]?.n).toBe(before[0]?.n);
+    });
+
+    it('resolves a support reference for someone who may read the audit log', async () => {
+      const route = `/test/${Math.random().toString(36).slice(2)}`;
+      const id = await recordError(ctx.sql, {
+        method: 'GET',
+        route,
+        statusCode: 500,
+        errorName: 'TestError',
+        message: 'route lookup check',
+      });
+
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/operations/errors/reference/${referenceFor(id as string)}`,
+        headers: authed(owner.cookie),
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json() as { event: { route: string } };
+      expect(body.event.route).toBe(route);
+    });
+
+    it('reports a plain 404 for a reference naming nothing, not a raw lookup failure', async () => {
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: '/api/v1/operations/errors/reference/ERR-999999999',
+        headers: authed(owner.cookie),
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('refuses a reference lookup to someone who may not read the audit log', async () => {
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: '/api/v1/operations/errors/reference/ERR-1',
+        headers: authed(readOnlyCookie),
+      });
+      expect(response.statusCode).toBe(403);
     });
   });
 });

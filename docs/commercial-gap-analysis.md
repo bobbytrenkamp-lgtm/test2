@@ -23,10 +23,10 @@ implementation.
 | 2 | Production deployment path | **Partial** | CI builds, tests, migrates and runs the licence gate on every push. Docker Compose is designed but has never actually been built end-to-end in this environment (blocked on an egress-policy host, per `docs/feature-status.md`). No environment separation, no secrets-management story beyond `.env`, no exercised rollback |
 | 3 | Organization admin improvements | **Partial** | Organizations, invitations, nine roles and a granular capability table (`packages/domain-models/src/permissions.ts`) already exist and are tested (`tests/authorization.test.ts`). There is no consolidated Admin *screen* — member management, MFA status, security policy and audit export are reachable but scattered, not presented as one admin area |
 | 4 | Customer onboarding | **Missing** | No first-run flow. A new organization owner lands on the dashboard with nothing guiding them to their first underwriting |
-| 5 | Application version / release info | **Missing** | `package.json` has a version (`0.1.0`) that is never surfaced — not in the API, not in the UI. The engine version (`ENGINE_VERSION`, currently `3.3.1`) *is* already exposed on every calculation result, which is the harder half of this problem already solved |
+| 5 | Application version / release info | **Done** | `APP_VERSION` (`apps/api/src/version.ts`) and `ENGINE_VERSION` are both returned by the public `GET /api/v1/health` and shown in the app's own navigation ("App 0.1.0 · Engine 3.3.1"), so establishing what a support conversation needs never depends on a valid session |
 | 6 | Product entitlements | **Missing** | No `organization_entitlements` concept, no `canUseFeature(...)`. Every feature is available to every organization today, gated only by role capability, never by plan |
 | 7 | Trial / internal organization state | **Missing** | No organization-level lifecycle state at all (trial/active/suspended/internal). Model-level status (draft → … → approved → published → archived) exists and is unrelated to this |
-| 8 | Feedback / support IDs | **Partial** | Server-side error monitoring exists and is tested: unhandled faults are recorded with a `fingerprint`, grouped, and readable on the Jobs screen (`packages/database/src/repositories/errors.ts`). But the client only ever shows *"Something went wrong."* — no reference ID reaches the user, and there is no in-app feedback form at all |
+| 8 | Feedback / support IDs | **Partial** | Support IDs are now done: an unhandled fault returns a short reference (`ERR-482910`, built from the same row `recordError` already writes) which the client shows next to *"Something went wrong,"* and `GET /operations/errors/reference/:reference` resolves one back to the fault for a support conversation, gated on the same `audit:read` capability as the rest of operational history. Still missing: an in-app feedback form (bug/feature-request/question, current route, app and engine version) — support IDs answer "what broke," not "the user wants to tell us something" |
 | 9 | Data export / offboarding basics | **Partial** | A portable JSON export exists per `docs/feature-status.md` ("Portable JSON export — Functional, documented, non-proprietary"), and the Excel Live Model export is a second, richer export path. There is no *organization-level* "export everything" action, and no deactivation/offboarding workflow |
 | 10 | Pilot readiness checklist | **Missing** | This document and `docs/pilot-readiness.md` (not yet written) close it |
 
@@ -97,15 +97,16 @@ assume commercial infrastructure means starting over:
 
 Within Phase A, the audit above changes the practical order slightly from a
 flat top-to-bottom read of the milestone list: items that are **Partial**
-(3, 8, 9) are cheaper to close than items that are **Missing** from zero (4,
-6, 7, 10), because real infrastructure already exists underneath them. Item
-5 (application version) is nearly free — the hard half (engine-version
-reproducibility) is already solved — and is a prerequisite for item 8
-(a support ID is only useful next to a version). The practical build order
-for Phase A implementation work is therefore: **5 → 8 → 6/7 (entitlements
-and org lifecycle state together, since a trial state is naturally one
-value in the same table an entitlement plan sits in) → 3 → 9 → 4 → 2 → 10**,
-with 2 (production deployment) gated on infrastructure this session cannot
-exercise (see `docs/feature-status.md`'s standing blockers) and 10 (the
-checklist itself) written last, once the items it checks are either done or
-honestly marked outstanding.
+are cheaper to close than items that are **Missing** from zero, because real
+infrastructure already exists underneath them. Items 5 (application version)
+and the support-ID half of item 8 are now **Done** — 5 was nearly free
+because the hard half (engine-version reproducibility) was already solved,
+and it was a genuine prerequisite for 8, since a support reference is only
+useful next to a version. The practical build order for the remaining Phase A
+work is: **6/7 (entitlements and org lifecycle state together, since a trial
+state is naturally one value in the same table an entitlement plan sits in)
+→ 3 → 9 → 4 → 8's remaining feedback-form half → 2 → 10**, with 2 (production
+deployment) gated on infrastructure this session cannot exercise (see
+`docs/feature-status.md`'s standing blockers) and 10 (the checklist itself)
+written last, once the items it checks are either done or honestly marked
+outstanding.
