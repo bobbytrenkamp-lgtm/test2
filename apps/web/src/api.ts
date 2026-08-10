@@ -1,4 +1,11 @@
-import type { Capability, Diagnostic, ModelResult, Role, TraceEntry } from '@cre/domain-models';
+import type {
+  Capability,
+  Diagnostic,
+  Entitlements,
+  ModelResult,
+  Role,
+  TraceEntry,
+} from '@cre/domain-models';
 
 /**
  * API client.
@@ -90,6 +97,7 @@ export interface Session {
   role: Role | null;
   capabilities: Capability[];
   organizations: Array<{ organization_id: string; name: string; slug: string; role: Role }>;
+  entitlements: Entitlements | null;
 }
 
 export interface Property {

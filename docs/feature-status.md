@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1081 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1101 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -79,7 +79,8 @@ Tests       1081 passed (251 engine regression, 31 engine unit, 16 fund,
                          24 PDF-assumption import via the API,
                          20 property-research schema, 10 research interfaces,
                          8 recommendation-to-proposal conversion,
-                         1 application version)
+                         1 application version, 13 entitlements,
+                         7 entitlements via the API)
 Browser     192 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,

@@ -14,4 +14,5 @@ export * from './repositories/budgets.js';
 export * from './repositories/assumption-proposals.js';
 export * from './repositories/import-sessions.js';
 export * from './repositories/favourites.js';
+export * from './repositories/entitlements.js';
 export * from './totp.js';

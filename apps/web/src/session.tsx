@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Capability } from '@cre/domain-models';
+import type { Capability, EntitlementFeature } from '@cre/domain-models';
+import { canUseFeature } from '@cre/domain-models';
 import { ApiError, api, type Session } from './api.js';
 import { clearRecents } from './recents.js';
 
@@ -8,6 +9,14 @@ interface SessionContextValue {
   session: Session | null;
   loading: boolean;
   can: (capability: Capability) => boolean;
+  /**
+   * Whether the caller's organization plan includes a named feature. Mirrors
+   * `canUseFeature` on the server — see `apps/api/src/context.ts`'s
+   * `requireFeature` — so a control can hide or explain itself the same way
+   * `can` already does for role capabilities. The server re-checks on every
+   * request; this only decides what to show.
+   */
+  hasFeature: (feature: EntitlementFeature) => boolean;
   refresh: () => Promise<void>;
   signIn: (email: string, password: string, code?: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -72,6 +81,8 @@ export function SessionProvider({ children }: { children: ReactNode }): JSX.Elem
       loading,
       // The server re-checks every capability; this only decides what to show.
       can: (capability) => session?.capabilities.includes(capability) ?? false,
+      hasFeature: (feature) =>
+        session?.entitlements ? canUseFeature(session.entitlements, feature) : false,
       refresh,
       signIn,
       signOut,
