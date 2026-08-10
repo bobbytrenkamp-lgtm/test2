@@ -53,7 +53,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
-| Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 10 | Yes |
+| Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 17 | Yes |
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
@@ -82,8 +82,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Property research: `cre-property-research` v1 schema and parser | `packages/domain-models/src/cre-property-research.test.ts` | 20 | No |
 | Property research: universal request, test1 and test3 contracts | `packages/domain-models/src/research-interfaces.test.ts` | 10 | No |
 | Property research: recommendation to assumption-proposal conversion | `packages/domain-models/src/research-to-proposal.test.ts` | 8 | No |
+| Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
 
-**1073 tests in total.**
+**1081 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -122,7 +123,7 @@ built bundle:
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 
-**192 browser tests in total**, for 1265 across the whole repository.
+**192 browser tests in total**, for 1273 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

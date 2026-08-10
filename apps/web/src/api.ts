@@ -15,6 +15,13 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly details?: unknown,
+    /**
+     * A short, speakable id ("ERR-482910") for an unexpected server fault —
+     * present only for those, never for an ordinary validation or permission
+     * refusal, which already explain themselves. Lets a customer quote
+     * something to support instead of a stack trace they were never shown.
+     */
+    readonly reference?: string | null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -41,20 +48,22 @@ async function request<T>(
     let code = 'REQUEST_FAILED';
     let message = `Request failed (${response.status}).`;
     let details: unknown;
+    let reference: string | null | undefined;
     try {
       const payload = (await response.json()) as {
-        error?: { code: string; message: string; details?: unknown };
+        error?: { code: string; message: string; details?: unknown; reference?: string | null };
       };
       if (payload.error) {
         code = payload.error.code;
         message = payload.error.message;
         details = payload.error.details;
+        reference = payload.error.reference;
       }
     } catch {
       // A non-JSON error body (a proxy error page, for example) keeps the
       // generic message rather than surfacing raw HTML to the user.
     }
-    throw new ApiError(response.status, code, message, details);
+    throw new ApiError(response.status, code, message, details, reference);
   }
 
   if (response.status === 204) return undefined as T;

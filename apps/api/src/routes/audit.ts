@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  findErrorEventByReference,
   listAudit,
   listAuditPage,
   listErrorEvents,
   listErrorGroups,
   listJobs,
 } from '@cre/database';
-import { requireCapability } from '../context.js';
+import { notFound, requireCapability } from '../context.js';
 
 export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
   app.get('/audit', async (request) => {
@@ -97,6 +98,20 @@ export async function registerAuditRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(request, 'audit:read');
     const params = z.object({ fingerprint: z.string().min(8).max(64) }).parse(request.params);
     return { events: await listErrorEvents(request.db, params.fingerprint) };
+  });
+
+  /**
+   * Resolves the reference a customer reads off an error banner
+   * ("Reference: ERR-482910") back to the fault it names, for a support
+   * conversation. The same capability as the rest of this file's operational
+   * routes — whoever may read the audit log may read what broke.
+   */
+  app.get('/operations/errors/reference/:reference', async (request) => {
+    requireCapability(request, 'audit:read');
+    const params = z.object({ reference: z.string().min(1).max(60) }).parse(request.params);
+    const event = await findErrorEventByReference(request.db, params.reference);
+    if (!event) throw notFound('No recorded fault matches that reference.');
+    return { event };
   });
 
   app.get('/jobs', async (request) => {

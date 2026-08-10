@@ -35,6 +35,11 @@ export function ErrorMessage({ error }: { error: ApiError | null }): JSX.Element
           ))}
         </ul>
       )}
+      {error.reference && (
+        <p className="field-hint" style={{ marginTop: 4, marginBottom: 0 }}>
+          Reference: <code>{error.reference}</code> — quote this if you contact support.
+        </p>
+      )}
     </div>
   );
 }

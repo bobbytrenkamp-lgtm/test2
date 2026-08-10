@@ -53,12 +53,12 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1073 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1081 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          23 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
-                         7 version comparison via the API, 10 error monitoring,
+                         7 version comparison via the API, 17 error monitoring,
                          5 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
@@ -78,7 +78,8 @@ Tests       1073 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 the import write path,
                          24 PDF-assumption import via the API,
                          20 property-research schema, 10 research interfaces,
-                         8 recommendation-to-proposal conversion)
+                         8 recommendation-to-proposal conversion,
+                         1 application version)
 Browser     192 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
@@ -337,11 +338,12 @@ current state.)
 | Demonstration seed | Functional | 5 properties, all calculated |
 | Background worker | Functional | Not covered by automated tests |
 | Structured JSON logs | Functional | Worker; API uses pino |
-| Health endpoint | Functional | |
+| Health endpoint | Tested | Also reports `appVersion` and `engineVersion`, so a support conversation can establish exactly what customer software produced a result. 1 test |
 | Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days. No external provider is wired, and none is needed |
+| Support-facing error reference | Tested | Every unexpected (500) response carries a short reference (`ERR-482910`) built from the same row `recordError` already writes — no second identifier, no stack trace or SQL ever reaches the client. `GET /operations/errors/reference/:reference` resolves one back for a support conversation, gated on `audit:read`. 7 new tests in `tests/error-monitoring.test.ts` (17 total) |
 | Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is documented but not scripted |
 
 ## 8. Budgets, actuals and variance

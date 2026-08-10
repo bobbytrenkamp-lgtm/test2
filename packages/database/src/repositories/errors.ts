@@ -70,16 +70,22 @@ export function fingerprintOf(input: {
 }
 
 /**
- * Records a fault.
+ * Records a fault, and returns the id it was recorded under — or `null` if
+ * recording itself failed.
  *
  * Never throws. A failure to record a failure must not become the response the
  * caller sees, and an error handler that can itself fail is worse than no error
  * handler at all.
+ *
+ * The returned id is what a support-facing reference (`referenceFor`) is built
+ * from: the same row a support conversation needs to find is the one whose
+ * primary key is read back here, rather than a second, separately-generated
+ * identifier that would need its own column and its own index to look up by.
  */
-export async function recordError(sql: Sql, input: ErrorEventInput): Promise<void> {
+export async function recordError(sql: Sql, input: ErrorEventInput): Promise<string | null> {
   try {
     const fingerprint = fingerprintOf(input);
-    await sql`
+    const rows = (await sql`
       INSERT INTO error_events (
         fingerprint, organization_id, user_id, method, route, status_code,
         error_name, message, stack
@@ -88,11 +94,45 @@ export async function recordError(sql: Sql, input: ErrorEventInput): Promise<voi
         ${input.method}, ${input.route}, ${input.statusCode}, ${input.errorName},
         ${input.message.slice(0, 2000)}, ${input.stack?.slice(0, 8000) ?? null}
       )
-    `;
+      RETURNING id
+    `) as unknown as Array<{ id: string | number }>;
+    const id = rows[0]?.id;
+    return id === undefined ? null : String(id);
   } catch {
     // Swallowed on purpose, and only here. The original fault has already been
     // written to the process log by the handler that called this.
+    return null;
   }
+}
+
+/**
+ * A short, speakable identifier for a support conversation — "ERR-482910"
+ * rather than the bare row id, so a customer can read it aloud or paste it
+ * into an email without it looking like an internal implementation detail.
+ * Built from the row's own primary key rather than a separately generated
+ * token, so there is exactly one thing to look up by, not two.
+ */
+export function referenceFor(id: string | number): string {
+  return `ERR-${id}`;
+}
+
+/**
+ * Finds the event a support reference names, for a support conversation to
+ * resolve. Accepts the reference exactly as shown to a customer
+ * (`ERR-482910`) or the bare id, so a person pasting either still finds it.
+ */
+export async function findErrorEventByReference(
+  sql: Sql,
+  reference: string,
+): Promise<Record<string, unknown> | null> {
+  const id = reference.replace(/^ERR-/i, '').trim();
+  if (!/^\d+$/.test(id)) return null;
+  const rows = (await sql`
+    SELECT id, occurred_at, method, route, status_code, error_name, message, stack, fingerprint
+    FROM error_events
+    WHERE id = ${id}
+  `) as unknown as Array<Record<string, unknown>>;
+  return rows[0] ?? null;
 }
 
 /**
