@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { Role } from '@cre/domain-models';
 import type { Sql } from '../client.js';
 import { hashToken } from './auth.js';
+import { ensureEntitlements } from './entitlements.js';
 
 export interface OrganizationRow {
   id: string;
@@ -50,6 +51,11 @@ export async function createOrganization(
       INSERT INTO memberships (organization_id, user_id, role)
       VALUES (${organization.id}, ${input.ownerId}, 'organization_owner')
     `;
+    // Every organization starts on a trial with full access, regardless of
+    // the plan it will fall back to — see `canUseFeature` in
+    // `@cre/domain-models`. Never briefly organization-without-entitlements,
+    // since it runs in the same transaction as the organization itself.
+    await ensureEntitlements(tx as unknown as Sql, organization.id);
     return organization;
   })) as OrganizationRow;
 }

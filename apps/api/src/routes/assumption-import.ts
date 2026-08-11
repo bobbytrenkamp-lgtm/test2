@@ -18,7 +18,7 @@ import {
   MODEL_SECTIONS,
   parseImportPayload,
 } from '@cre/domain-models';
-import { notFound, requireCapability, unprocessable } from '../context.js';
+import { notFound, requireCapability, requireFeature, unprocessable } from '../context.js';
 import { assertEditable } from './models.js';
 import { applyAssumption, AssumptionApplyError } from '../assumption-write.js';
 
@@ -139,6 +139,7 @@ export async function registerAssumptionImportRoutes(app: FastifyInstance): Prom
    */
   app.post('/models/:id/assumption-import/apply', async (request) => {
     const context = requireCapability(request, 'model:write');
+    await requireFeature(request, context.organizationId, 'assumption_import');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
       .object({

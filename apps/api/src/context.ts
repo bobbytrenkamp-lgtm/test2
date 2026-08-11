@@ -1,8 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { Capability, Role } from '@cre/domain-models';
+import type { Capability, EntitlementFeature, Role } from '@cre/domain-models';
 import { z } from 'zod';
-import { roleHasCapability } from '@cre/domain-models';
+import { canUseFeature, roleHasCapability } from '@cre/domain-models';
 import type { AuthenticatedContext, Sql } from '@cre/database';
+import { getEntitlements } from '@cre/database';
 
 /**
  * Request authorization.
@@ -99,6 +100,34 @@ export function requireCapability(request: FastifyRequest, capability: Capabilit
     sessionId: auth.session.id,
     ipAddress: (request.ip as string) ?? null,
   };
+}
+
+/**
+ * Requires the organization's current plan to include a feature, on top of
+ * whatever capability check already gated the route.
+ *
+ * Missing an entitlements row is treated as access, not denial: every
+ * organization gets one at creation (`createOrganization`) and existing ones
+ * were backfilled by migration 0016, so a missing row means the bookkeeping
+ * is broken, not that the customer bought nothing — a workflow should never
+ * go dark over that distinction. See `canUseFeature` in `@cre/domain-models`
+ * for how trial and internal organizations get every feature regardless of
+ * their nominal plan.
+ */
+export async function requireFeature(
+  request: FastifyRequest,
+  organizationId: string,
+  feature: EntitlementFeature,
+): Promise<void> {
+  const entitlements = await getEntitlements(request.db, organizationId);
+  if (!entitlements) return;
+  if (!canUseFeature(entitlements, feature)) {
+    throw new HttpError(
+      402,
+      'FEATURE_NOT_AVAILABLE',
+      'Your plan does not include this feature. Contact your organization admin to upgrade.',
+    );
+  }
 }
 
 /**

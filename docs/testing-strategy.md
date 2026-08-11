@@ -83,8 +83,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Property research: universal request, test1 and test3 contracts | `packages/domain-models/src/research-interfaces.test.ts` | 10 | No |
 | Property research: recommendation to assumption-proposal conversion | `packages/domain-models/src/research-to-proposal.test.ts` | 8 | No |
 | Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
+| Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
+| Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 
-**1081 tests in total.**
+**1101 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -123,7 +125,7 @@ built bundle:
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 
-**192 browser tests in total**, for 1273 across the whole repository.
+**192 browser tests in total**, for 1293 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

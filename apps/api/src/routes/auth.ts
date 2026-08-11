@@ -9,6 +9,7 @@ import {
   createSession,
   createUser,
   findUserByEmail,
+  getEntitlements,
   listMemberships,
   normaliseRecoveryCode,
   revokeSession,
@@ -219,6 +220,9 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
   app.get('/auth/me', async (request) => {
     const auth = requireUser(request);
     const memberships = await listMemberships(request.db, auth.user.id);
+    const entitlements = auth.organizationId
+      ? await getEntitlements(request.db, auth.organizationId)
+      : null;
     return {
       user: {
         id: auth.user.id,
@@ -230,6 +234,7 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
       role: auth.role,
       capabilities: auth.role ? capabilitiesForRole(auth.role) : [],
       organizations: memberships,
+      entitlements,
     };
   });
 

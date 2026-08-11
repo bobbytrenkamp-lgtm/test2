@@ -24,8 +24,8 @@ implementation.
 | 3 | Organization admin improvements | **Partial** | Organizations, invitations, nine roles and a granular capability table (`packages/domain-models/src/permissions.ts`) already exist and are tested (`tests/authorization.test.ts`). There is no consolidated Admin *screen* — member management, MFA status, security policy and audit export are reachable but scattered, not presented as one admin area |
 | 4 | Customer onboarding | **Missing** | No first-run flow. A new organization owner lands on the dashboard with nothing guiding them to their first underwriting |
 | 5 | Application version / release info | **Done** | `APP_VERSION` (`apps/api/src/version.ts`) and `ENGINE_VERSION` are both returned by the public `GET /api/v1/health` and shown in the app's own navigation ("App 0.1.0 · Engine 3.3.1"), so establishing what a support conversation needs never depends on a valid session |
-| 6 | Product entitlements | **Missing** | No `organization_entitlements` concept, no `canUseFeature(...)`. Every feature is available to every organization today, gated only by role capability, never by plan |
-| 7 | Trial / internal organization state | **Missing** | No organization-level lifecycle state at all (trial/active/suspended/internal). Model-level status (draft → … → approved → published → archived) exists and is unrelated to this |
+| 6 | Product entitlements | **Done** | `organization_entitlements` (migration 0016) holds plan, status and a closed feature list per organization. `canUseFeature(entitlements, feature)` in `@cre/domain-models` is the one centralized check — not coupled to Stripe or any payment vendor, per the milestone's own instruction. Wired into a real route as proof it is live, not inert: `POST .../assumption-import/apply` refuses with `402 FEATURE_NOT_AVAILABLE` when the organization's plan does not include `assumption_import`. `requireFeature` in `apps/api/src/context.ts` is the one call site a future route adds to gate a feature, mirroring how `requireCapability` gates a role. `GET /auth/me` returns the caller's entitlements. Not yet done: a self-serve or admin screen to change plan/status — today only `updateEntitlements`/`applyPlanDefaults` exist, called directly, which is enough for this phase and deliberately not a UI yet |
+| 7 | Trial / internal organization state | **Done** | Every organization gets a `trial` row at creation (`createOrganization`, in the same transaction, so one never exists without the other), defaulting to the `starter` plan with a 14-day `trial_ends_at`. `canUseFeature` grants a trial or internal organization every feature regardless of its nominal plan, so a pilot organization can use the whole product during evaluation. `suspended`/`cancelled` deny every gated feature; `active`/`past_due` are gated by the plan's own list, with `past_due` deliberately treated as a grace period rather than an immediate lockout. Existing organizations were backfilled to `trial` by the same migration, so this never collapsed a working organization's access. Model-level status (draft → … → approved → published → archived) remains a separate, untouched system, exactly as this document said it should. **Deliberately not done in this slice**: a global preHandler that blocks writes for a `suspended`/`cancelled` organization across every route. `isAccessSuspended(entitlements)` exists for that purpose, but wiring it everywhere would mean making `requireCapability` — called at dozens of route sites — async and DB-backed, which is a materially larger and riskier change than this slice. Tracked as follow-up work, not silently dropped |
 | 8 | Feedback / support IDs | **Partial** | Support IDs are now done: an unhandled fault returns a short reference (`ERR-482910`, built from the same row `recordError` already writes) which the client shows next to *"Something went wrong,"* and `GET /operations/errors/reference/:reference` resolves one back to the fault for a support conversation, gated on the same `audit:read` capability as the rest of operational history. Still missing: an in-app feedback form (bug/feature-request/question, current route, app and engine version) — support IDs answer "what broke," not "the user wants to tell us something" |
 | 9 | Data export / offboarding basics | **Partial** | A portable JSON export exists per `docs/feature-status.md` ("Portable JSON export — Functional, documented, non-proprietary"), and the Excel Live Model export is a second, richer export path. There is no *organization-level* "export everything" action, and no deactivation/offboarding workflow |
 | 10 | Pilot readiness checklist | **Missing** | This document and `docs/pilot-readiness.md` (not yet written) close it |
@@ -102,11 +102,14 @@ infrastructure already exists underneath them. Items 5 (application version)
 and the support-ID half of item 8 are now **Done** — 5 was nearly free
 because the hard half (engine-version reproducibility) was already solved,
 and it was a genuine prerequisite for 8, since a support reference is only
-useful next to a version. The practical build order for the remaining Phase A
-work is: **6/7 (entitlements and org lifecycle state together, since a trial
-state is naturally one value in the same table an entitlement plan sits in)
-→ 3 → 9 → 4 → 8's remaining feedback-form half → 2 → 10**, with 2 (production
-deployment) gated on infrastructure this session cannot exercise (see
-`docs/feature-status.md`'s standing blockers) and 10 (the checklist itself)
-written last, once the items it checks are either done or honestly marked
-outstanding.
+useful next to a version. Items 6 and 7 (entitlements and organization
+lifecycle state) are now also **Done**, built together as one migration and
+one domain module since a trial state is naturally one value in the same
+table an entitlement plan sits in — see their rows above for what shipped
+and the one thing deliberately deferred (a global write-blocking hook for
+suspended organizations). The practical build order for the remaining Phase A
+work is: **3 → 9 → 4 → 8's remaining feedback-form half → 2 → 10**, with 2
+(production deployment) gated on infrastructure this session cannot exercise
+(see `docs/feature-status.md`'s standing blockers) and 10 (the checklist
+itself) written last, once the items it checks are either done or honestly
+marked outstanding.
