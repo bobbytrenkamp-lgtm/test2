@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **3.3.1** — `packages/calculation-engine`.
+Engine version **4.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,40 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 4.0.0
+
+**Six correctness fixes, found by one repository-wide audit, each changing
+existing numbers on the models they affect** — every one silently produced a
+wrong figure rather than an error, which is why this is a major version
+rather than six patches.
+
+- **Equity distributions stop at the sale date.** `leveredIrr`/
+  `equityMultiple` already truncated at the sale month; the equity cash flow
+  fed to the waterfall, and `cashOnCashByYear`, did not. A forecast stated
+  past its sale month — the ordinary case for a `forward_12` terminal NOI
+  basis, which needs NOI *after* the sale — showed partners paid
+  distributions for months after the property was sold.
+- **A debt facility funded before the forecast start is refused with a
+  `DEBT_FUNDED_BEFORE_FORECAST` diagnostic**, not silently run at a zero
+  balance. Modelling an existing loan's balance as of the forecast start
+  needs its amortisation run from the real funding date, which this engine
+  does not do.
+- **Direct capitalisation's `trailing_12` and `stabilized` bases are now
+  annualised on a forecast shorter than 12 months**, the same way `year_1`
+  already was.
+- **`goingInCapRate`, `yieldOnCost` and `debtYieldYear1` are now annualised**
+  on a forecast shorter than 12 months, for the same reason.
+- **`stabilizedCapRate` reports `null`, not a false `"0"`,** when its 13-24
+  month window does not exist yet.
+- **Portfolio `year1NetOperatingIncome` and `weightedGoingInCapRate` now
+  annualise a member's partial first fiscal-year bucket** — a forecast that
+  does not start on its own fiscal year's first month.
+
+None of the ~250 regression fixtures exercised a forecast shorter than 12
+months, a debt facility funded before the forecast start, a sale month
+earlier than the forecast's last month, or a portfolio member starting mid
+fiscal year, which is why all six survived as long as they did.
 
 ### 3.3.1
 
