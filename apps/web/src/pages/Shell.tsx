@@ -1,8 +1,9 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../session.js';
 import { Loading } from '../components.js';
 import { SignInPage } from './SignIn.js';
 import { CommandPalette } from '../components/CommandPalette.js';
+import { CreateOrganizationForm } from '../components/CreateOrganizationForm.js';
 import { useResource } from '../hooks.js';
 
 const NAV = [
@@ -11,12 +12,22 @@ const NAV = [
   { to: '/portfolios', label: 'Portfolios' },
   { to: '/funds', label: 'Funds' },
   { to: '/tasks', label: 'Tasks' },
+  { to: '/organization', label: 'Organization' },
   { to: '/jobs', label: 'Background jobs' },
   { to: '/audit', label: 'Audit history' },
 ];
 
+/**
+ * Routes reachable without an organization selected. An invitation link
+ * targets a specific organization the recipient has not joined yet, so it
+ * cannot sit behind the "select an organization" gate every other screen
+ * does.
+ */
+const ORGANIZATION_OPTIONAL_PATHS = new Set(['/accept-invitation']);
+
 export function Shell(): JSX.Element {
   const { session, loading, signOut, switchOrganization } = useSession();
+  const location = useLocation();
   // Fetched from the public, unauthenticated health check rather than a
   // protected route, so establishing what a support conversation needs never
   // depends on the session actually being valid.
@@ -93,13 +104,15 @@ export function Shell(): JSX.Element {
       <CommandPalette />
 
       <main className="app-main" id="main" tabIndex={-1}>
-        {!session.organizationId ? (
+        {session.organizationId || ORGANIZATION_OPTIONAL_PATHS.has(location.pathname) ? (
+          <Outlet />
+        ) : session.organizations.length === 0 ? (
+          <CreateOrganizationForm />
+        ) : (
           <div className="message warning">
             Select an organization to continue. Every screen is scoped to the organization you have
             selected.
           </div>
-        ) : (
-          <Outlet />
         )}
       </main>
     </div>

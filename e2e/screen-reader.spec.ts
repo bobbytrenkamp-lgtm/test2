@@ -76,6 +76,13 @@ const SCREENS: Array<{ name: string; open: (page: Page) => Promise<void> }> = [
     },
   },
   {
+    name: 'Organization',
+    open: async (page) => {
+      await page.goto('/organization');
+      await expect(page.getByRole('heading', { name: 'Organization', level: 1 })).toBeVisible();
+    },
+  },
+  {
     name: 'Background jobs',
     open: async (page) => {
       await page.goto('/jobs');

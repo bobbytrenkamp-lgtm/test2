@@ -8,6 +8,8 @@ import { DashboardPage, AuditPage, JobsPage, PortfoliosPage } from './pages/Over
 import { FundsPage } from './pages/Funds.js';
 import { TasksPage } from './pages/Tasks.js';
 import { SecurityPage } from './pages/Security.js';
+import { OrganizationPage } from './pages/Organization.js';
+import { AcceptInvitationPage } from './pages/AcceptInvitation.js';
 import { PropertiesPage } from './pages/Properties.js';
 import { PropertyDetailPage } from './pages/PropertyDetail.js';
 import { ModelWorkspace } from './pages/ModelWorkspace.js';
@@ -45,6 +47,8 @@ createRoot(container).render(
             <Route path="funds" element={<FundsPage />} />
             <Route path="tasks" element={<TasksPage />} />
             <Route path="security" element={<SecurityPage />} />
+            <Route path="organization" element={<OrganizationPage />} />
+            <Route path="accept-invitation" element={<AcceptInvitationPage />} />
             <Route path="jobs" element={<JobsPage />} />
             <Route path="audit" element={<AuditPage />} />
             <Route path="models/:modelId" element={<ModelWorkspace />}>

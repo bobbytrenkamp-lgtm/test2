@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api.js';
 import { Field } from '../components.js';
 import { useSession } from '../session.js';
 
 export function SignInPage(): JSX.Element {
   const { signIn } = useSession();
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -26,8 +24,13 @@ export function SignInPage(): JSX.Element {
     setPending(true);
     setError(null);
     try {
+      // No navigation on success: `Shell` renders this component in place of
+      // the normal layout only while `session` is null, on whatever URL the
+      // browser already had — an invitation link, a deep link to a model, or
+      // just "/". `signIn` resolves the session, `Shell` re-renders with that
+      // same URL against the real routes, and whatever was actually asked for
+      // shows up. Navigating to "/" here would discard that destination.
       await signIn(email, password, code);
-      navigate('/', { replace: true });
     } catch (cause) {
       if (
         cause instanceof ApiError &&
