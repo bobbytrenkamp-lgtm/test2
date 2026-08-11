@@ -44,7 +44,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
-| Authorization and isolation | `tests/authorization.test.ts` | 23 | Yes |
+| Authorization and isolation | `tests/authorization.test.ts` | 26 | Yes |
 | Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
@@ -86,7 +86,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 
-**1101 tests in total.**
+**1104 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -126,7 +126,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1299 across the whole repository.
+**198 browser tests in total**, for 1302 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

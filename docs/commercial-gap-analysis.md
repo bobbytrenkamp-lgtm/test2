@@ -68,6 +68,42 @@ implementation.
 | 32 | Advanced deployment / observability | **Partial** | Local error monitoring and CI gates exist; no multi-environment or hosted-observability story |
 | 33 | Customer-specific configuration | **Missing** | No per-organization configuration of health thresholds, report layouts, or scenario naming |
 
+## Cross-organization security audit
+
+Milestone 64 treats cross-organization exposure as unacceptable and asks
+for authorization/isolation tests on every organization-scoped route. A
+whole-repository sweep (prompted by a broader bug-check request, not tied
+to a specific milestone item) found and closed three real cross-tenant
+leaks, all of the same shape: a route's primary `:id` route param was
+correctly checked against the caller's organization, but a *second*,
+caller-supplied id reached a repository function that queried by that id
+alone with no organization filter.
+
+- `GET /models/:id/trace?runId=...` — `runId` reached `getTrace(sql, runId)`
+  unchecked; `calculation_traces` carries no organization column at all, so
+  any authenticated user who knew or guessed a run id could read another
+  organization's full calculation trace (every formula and value that
+  produced it).
+- `GET /variance?comparisonModelId=...` — `comparisonModelId` reached
+  `getLatestCalculation(sql, modelId)` unchecked, leaking another
+  organization's forecasted NOI/cash-flow lines into a variance report.
+- `POST /budgets/:id/reforecast` with `modelId` in the body — the same
+  unchecked path, and on the write side: another organization's forecast
+  was actually persisted into the caller's own budget record, not just
+  displayed.
+
+All three are fixed by verifying the secondary id against the caller's
+organization before use — `getModel(sql, organizationId, modelId)` for the
+two budgets routes, and a join to `calculation_runs` inside `getTrace`
+itself (the trace table has no organization column of its own to check
+directly). Each fix has a regression test in `tests/authorization.test.ts`
+that was confirmed to fail against the unfixed code before the fix landed,
+per this repository's own testing discipline. A repository-wide sweep for
+the same shape elsewhere in `apps/api/src/routes/*.ts` found no further
+instances — every other secondary id is either checked directly, derived
+from an already-checked value, or filtered by organization in the same SQL
+statement.
+
 ## What is already strong and should not be rebuilt
 
 Worth stating plainly, because the temptation in a productization pass is to
