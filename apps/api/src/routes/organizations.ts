@@ -2,19 +2,34 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   acceptInvitation,
+  buildModelInput,
   createInvitation,
   createOrganization,
+  getLatestCalculation,
   getMembershipRole,
+  getOrganization,
+  listAllProperties,
   listMemberships,
+  listModels,
   listOrganizationMembers,
   removeMember,
   setMemberRole,
   switchSessionOrganization,
   writeAudit,
 } from '@cre/database';
+import { ENGINE_VERSION } from '@cre/calculation-engine';
+import { toPortableDocument } from '@cre/reporting';
 import { roleEnum } from '@cre/domain-models';
 import type { Env } from '../env.js';
-import { HttpError, badRequest, forbidden, requireCapability, requireUser } from '../context.js';
+import {
+  HttpError,
+  badRequest,
+  forbidden,
+  notFound,
+  queryBoolean,
+  requireCapability,
+  requireUser,
+} from '../context.js';
 
 export async function registerOrganizationRoutes(app: FastifyInstance, env: Env): Promise<void> {
   app.get('/organizations', async (request) => {
@@ -159,6 +174,91 @@ export async function registerOrganizationRoutes(app: FastifyInstance, env: Env)
       id: invitation.id,
       ...(env.NODE_ENV === 'production' ? {} : { token: invitation.token }),
     });
+  });
+
+  /**
+   * Everything the organization owns, as one downloadable document — the
+   * organization-level counterpart to a single model's portable export
+   * (`GET /models/:id/export/json`). Exists for offboarding and for a
+   * customer's own peace of mind about data ownership: nothing here depends
+   * on staying a customer of this platform to get the data back out.
+   *
+   * Gated on `organization:manage` rather than a narrower capability,
+   * because bulk-exporting every property and model an organization holds is
+   * exactly the kind of action that should require the same authority as
+   * managing the organization itself, not merely reading one property at a
+   * time.
+   *
+   * Calculation results are included by default and can be dropped
+   * (`includeResults=false`) for a faster export of structure alone. Traces
+   * are never included — see `toPortableDocument`, which already strips them
+   * for the single-model export this reuses.
+   */
+  app.get('/organizations/:id/export', async (request, reply) => {
+    const context = requireCapability(request, 'organization:manage');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    if (id !== context.organizationId) {
+      throw forbidden('You can only export the organization you are signed in to.');
+    }
+    const query = z.object({ includeResults: queryBoolean(true) }).parse(request.query);
+
+    const organization = await getOrganization(request.db, id);
+    if (!organization) throw notFound('That organization does not exist.');
+
+    const [members, properties, models] = await Promise.all([
+      listOrganizationMembers(request.db, id),
+      listAllProperties(request.db, id),
+      listModels(request.db, id),
+    ]);
+
+    const modelDocuments = await Promise.all(
+      models.map(async (model) => {
+        const input = await buildModelInput(request.db, id, model.id);
+        const latest = query.includeResults
+          ? await getLatestCalculation(request.db, model.id)
+          : null;
+        return {
+          modelId: model.id,
+          propertyId: model.property_id,
+          ...toPortableDocument(input, ENGINE_VERSION, latest?.result),
+        };
+      }),
+    );
+
+    await writeAudit(request.db, {
+      organizationId: id,
+      userId: context.userId,
+      action: 'organization.exported',
+      entityType: 'organization',
+      entityId: id,
+      metadata: { propertyCount: properties.length, modelCount: models.length },
+      ipAddress: request.ip,
+    });
+
+    const document = {
+      format: 'cre-platform-organization',
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      engineVersion: ENGINE_VERSION,
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        baseCurrency: organization.base_currency,
+        areaUnit: organization.area_unit,
+        createdAt: organization.created_at,
+      },
+      members,
+      properties,
+      models: modelDocuments,
+    };
+
+    reply.header('content-type', 'application/json; charset=utf-8');
+    reply.header(
+      'content-disposition',
+      `attachment; filename="${organization.slug}-export.crexport.json"`,
+    );
+    return document;
   });
 
   app.post('/invitations/accept', async (request) => {
