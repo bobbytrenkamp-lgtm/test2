@@ -37,7 +37,14 @@ const SCREENS: Array<{ name: string; open: (page: Page) => Promise<void> }> = [
     name: 'Dashboard',
     open: async (page) => {
       await page.goto('/');
-      await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+      // The primary navigation is part of `Shell` and renders as soon as the
+      // session resolves — before `DashboardPage` itself does, which shows a
+      // heading-less loading state until its own data arrives. Waiting on the
+      // nav alone raced that loading state and intermittently found zero
+      // headings; every other screen already waits for its own page heading,
+      // so this makes Dashboard consistent with the rest rather than a
+      // special case.
+      await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
     },
   },
   {

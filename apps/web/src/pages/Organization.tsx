@@ -156,6 +156,7 @@ export function OrganizationPage(): JSX.Element {
                             </label>
                             <select
                               id={`role-${member.user_id}`}
+                              aria-label={`Role for ${member.name}`}
                               value={member.role}
                               disabled={changeRole.pending}
                               onChange={async (event) => {
