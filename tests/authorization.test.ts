@@ -108,6 +108,24 @@ describe.skipIf(!hasDatabase)('authorization', () => {
     return (response.json() as { model: { id: string } }).model.id;
   }
 
+  async function createBudget(
+    cookie: string,
+    propertyId: string,
+    kind: string,
+    label: string,
+  ): Promise<string> {
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/budgets',
+      headers: authed(cookie),
+      payload: { propertyId, kind, fiscalYear: 2026, label },
+    });
+    if (response.statusCode !== 201) {
+      throw new Error(`Budget creation failed (${response.statusCode}): ${response.body}`);
+    }
+    return (response.json() as { period: { id: string } }).period.id;
+  }
+
   /* ---------------------------------------------------------------------- */
   /* Authentication                                                          */
   /* ---------------------------------------------------------------------- */
@@ -272,6 +290,73 @@ describe.skipIf(!hasDatabase)('authorization', () => {
         method: 'GET',
         url: `/api/v1/models/${modelA}/export/json`,
         headers: authed(ownerB.cookie),
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('refuses to read another organization’s calculation trace by guessing its run id', async () => {
+      // The model in the URL belongs to B — the ownership check on the path
+      // param alone would pass. The leak this closes is the *second*,
+      // unchecked id: a run id from A's own calculation, supplied as a query
+      // parameter on B's own model.
+      const calculated = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/models/${modelA}/calculate`,
+        headers: authed(ownerA.cookie),
+        payload: { withTrace: true },
+      });
+      expect(calculated.statusCode).toBe(200);
+      const runId = (calculated.json() as { runId: string }).runId;
+
+      const propertyB = await createProperty(ownerB.cookie, 'Beta Tower');
+      const modelB = await createModel(ownerB.cookie, propertyB, 'Beta base case');
+
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelB}/trace?runId=${runId}`,
+        headers: authed(ownerB.cookie),
+      });
+      // Refused as "no trace for this model", not disclosed as A's trace.
+      expect(response.statusCode).toBe(422);
+    });
+
+    it('refuses to read another organization’s forecast through a variance comparison', async () => {
+      const calculated = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/models/${modelA}/calculate`,
+        headers: authed(ownerA.cookie),
+        payload: {},
+      });
+      expect(calculated.statusCode).toBe(200);
+
+      const propertyB = await createProperty(ownerB.cookie, 'Beta Tower II');
+      const baseB = await createBudget(ownerB.cookie, propertyB, 'original_budget', 'Beta plan');
+
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/variance?baseId=${baseB}&comparisonModelId=${modelA}`,
+        headers: authed(ownerB.cookie),
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('refuses to build a reforecast from another organization’s model', async () => {
+      const calculated = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/models/${modelA}/calculate`,
+        headers: authed(ownerA.cookie),
+        payload: {},
+      });
+      expect(calculated.statusCode).toBe(200);
+
+      const propertyB = await createProperty(ownerB.cookie, 'Beta Tower III');
+      const actualsB = await createBudget(ownerB.cookie, propertyB, 'actual', 'Beta actuals');
+
+      const response = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/budgets/${actualsB}/reforecast`,
+        headers: authed(ownerB.cookie),
+        payload: { modelId: modelA, closedThrough: '2026-06-30', label: 'Hijacked reforecast' },
       });
       expect(response.statusCode).toBe(404);
     });

@@ -113,9 +113,25 @@ export async function getLatestCalculation(
   return { run, result };
 }
 
-export async function getTrace(sql: Sql, runId: string): Promise<ModelResult['trace']> {
+/**
+ * A trace by run id, scoped to the model it is claimed to belong to.
+ *
+ * `runId` reaches this from a query parameter (`GET /models/:id/trace`), so
+ * it is not to be trusted on its own: without the join to `calculation_runs`
+ * and the `model_id` filter, a caller who already has `model:read` on one of
+ * their own models could supply any run id and read another organization's
+ * trace — the trace table itself carries no organization column to check.
+ */
+export async function getTrace(
+  sql: Sql,
+  modelId: string,
+  runId: string,
+): Promise<ModelResult['trace']> {
   const rows = (await sql`
-    SELECT entries FROM calculation_traces WHERE calculation_run_id = ${runId}
+    SELECT ct.entries
+    FROM calculation_traces ct
+    JOIN calculation_runs cr ON cr.id = ct.calculation_run_id
+    WHERE ct.calculation_run_id = ${runId} AND cr.model_id = ${modelId}
   `) as unknown as Array<{ entries: ModelResult['trace'] }>;
   return rows[0]?.entries ?? [];
 }

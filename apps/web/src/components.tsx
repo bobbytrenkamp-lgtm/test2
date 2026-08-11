@@ -114,6 +114,12 @@ const STATUS_TONE: Record<string, string> = {
   future: 'accent',
   expired: '',
   terminated: 'negative',
+  trial: 'accent',
+  active: 'positive',
+  past_due: 'warning',
+  suspended: 'negative',
+  cancelled: 'negative',
+  internal: '',
 };
 
 export function StatusBadge({ status }: { status: string }): JSX.Element {

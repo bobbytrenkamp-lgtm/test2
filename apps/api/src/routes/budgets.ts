@@ -9,6 +9,7 @@ import {
   deleteBudgetPeriod,
   getBudgetPeriod,
   getLatestCalculation,
+  getModel,
   listBudgetEntries,
   listBudgetPeriods,
   listVarianceCommentary,
@@ -312,6 +313,8 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       comparisonLabel = `${comparison.kind} ${comparison.fiscal_year} — ${comparison.label}`;
     } else {
       const modelId = query.comparisonModelId as string;
+      const comparisonModel = await getModel(request.db, context.organizationId, modelId);
+      if (!comparisonModel) throw notFound('That model does not exist in this organization.');
       const latest = await getLatestCalculation(request.db, modelId);
       if (!latest) {
         throw badRequest(
@@ -373,6 +376,9 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
           `${actualsPeriod.kind}, which is a plan rather than a record of what happened.`,
       );
     }
+
+    const reforecastModel = await getModel(request.db, context.organizationId, body.modelId);
+    if (!reforecastModel) throw notFound('That model does not exist in this organization.');
 
     const latest = await getLatestCalculation(request.db, body.modelId);
     if (!latest) {

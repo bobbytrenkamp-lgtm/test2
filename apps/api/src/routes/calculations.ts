@@ -248,7 +248,7 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       runId = latest.run.id;
     }
 
-    const entries = await getTrace(request.db, runId);
+    const entries = await getTrace(request.db, id, runId);
     if (entries.length === 0) {
       throw unprocessable(
         'That calculation was run without a trace. Re-run the calculation with tracing enabled to inspect its values.',
