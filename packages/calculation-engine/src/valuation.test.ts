@@ -228,3 +228,91 @@ describe('an exit capitalization rate that is negative', () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * A discount rate set to a negative value.
+ *
+ * Found by a fifth audit pass sweeping for the same asymmetric-guard pattern
+ * found four times already: `computeSale`/`computeDirectCapitalization`
+ * guard a negative *capitalisation* rate (added in round three), but
+ * `discountRate` — a rate of the identical schema shape, entered the same
+ * way, consumed in the very same module — had no equivalent guard anywhere.
+ * `discountFactors` raises `1 + rate` to a *negative* fractional power, so a
+ * rate below zero (but above -100%) makes each factor *larger* than the
+ * last instead of smaller: present value grows with distance into the
+ * future instead of shrinking, silently inflating the reversion (usually
+ * the largest single cash flow) rather than discounting it.
+ */
+describe('a discount rate that is negative', () => {
+  const model = extendModel(baseModel(), {
+    forecast: {
+      startDate: '2026-01-01',
+      months: 12,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    otherRevenue: [
+      {
+        id: 'OTHER',
+        name: 'Flat other revenue',
+        method: 'custom_monthly_schedule',
+        monthlySchedule: Array.from({ length: 12 }, () => '10000'),
+      },
+    ],
+    valuation: {
+      discountRate: '-0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+      saleMonth: 12,
+      terminalCapRate: '0.06',
+      terminalNoiBasis: 'trailing_12',
+    },
+  });
+  const result = calculate(model);
+
+  it('produces no dcf valuation and no net present value, not an inflated one', () => {
+    expect(result.valuations.find((v) => v.method === 'dcf')).toBeUndefined();
+    expect(result.returns.netPresentValue).toBeNull();
+  });
+
+  it('records a NEGATIVE_DISCOUNT_RATE error naming the cause', () => {
+    const diagnostic = result.diagnostics.find((entry) => entry.code === 'NEGATIVE_DISCOUNT_RATE');
+    expect(diagnostic?.severity).toBe('error');
+    expect(diagnostic?.message).toContain('negative');
+  });
+
+  it('is unaffected by a positive discount rate on the same model', () => {
+    const positiveModel = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat other revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 12 }, () => '10000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        saleMonth: 12,
+        terminalCapRate: '0.06',
+        terminalNoiBasis: 'trailing_12',
+      },
+    });
+    const positiveResult = calculate(positiveModel);
+    expect(positiveResult.valuations.find((v) => v.method === 'dcf')).toBeDefined();
+    expect(positiveResult.returns.netPresentValue).not.toBeNull();
+    expect(
+      positiveResult.diagnostics.find((entry) => entry.code === 'NEGATIVE_DISCOUNT_RATE'),
+    ).toBeUndefined();
+  });
+});

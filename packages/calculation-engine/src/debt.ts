@@ -113,6 +113,23 @@ export function computeDebt(
     }
     for (const draw of facility.draws) {
       const index = monthDifference(forecastStart, parseDate(draw.date));
+      // Same mechanism `DEBT_FUNDED_BEFORE_FORECAST` refuses for the initial
+      // funding above, reached here through the facility's own staged-draw
+      // schedule instead: the period loop below only ever reads `draws.get(i)`
+      // for `i` in `[0, n)`, so a draw dated before the forecast starts or
+      // after it ends is silently never applied — no interest, principal or
+      // fees on it, and nothing to say why. Unlike the funding date, one
+      // out-of-range draw does not disqualify modelling the rest of the
+      // facility, so only this draw is skipped.
+      if (index < 0 || index >= n) {
+        ctx.trace.error(
+          'DEBT_DRAW_OUTSIDE_FORECAST',
+          `Facility "${facility.name}" has a draw of ${d(draw.amount).toFixed(2)} dated ${draw.date}, which falls outside the ${n}-month forecast. It is not applied.`,
+          `debt:${facility.id}`,
+          'draws',
+        );
+        continue;
+      }
       draws.set(index, (draws.get(index) ?? ZERO).plus(d(draw.amount)));
     }
 
@@ -146,12 +163,20 @@ export function computeDebt(
       if (draw.greaterThan(0)) {
         balance = balance.plus(draw);
         result.proceeds[i] = (result.proceeds[i] as Decimal).plus(draw);
-        if (i === fundingIndex) {
-          fees = fees.plus(commitment.times(d(facility.originationFeePercent)));
-        }
       }
 
       if (active) {
+        // Charged once, at closing, on the full commitment — independent of
+        // whether a draw happens to land in this same period. A construction
+        // or staged-draw facility ordinarily closes with `initialFunding: 0`
+        // and draws only once work begins, and gating the fee on `draw >
+        // 0` at `fundingIndex` (as opposed to `active`, which is what
+        // `unusedFeePercent` below already keys its own from-close accrual
+        // on) meant the fee silently never charged for the life of any such
+        // facility.
+        if (i === fundingIndex) {
+          fees = fees.plus(commitment.times(d(facility.originationFeePercent)));
+        }
         appliedRate = periodRate(facility, ctx, i);
         const monthlyRate = appliedRate.dividedBy(TWELVE);
         // Draws are treated as funding on the first day of the period, so they

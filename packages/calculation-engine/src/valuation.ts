@@ -161,6 +161,25 @@ export function computeDcf(ctx: ValuationContext, sale: SaleResult | null): Valu
     );
     return null;
   }
+  // A negative discount rate is not merely "zero, only more so": raising a
+  // base below 1 to the negative fractional power `discountFactors` uses
+  // makes each successive factor *larger* than the last instead of smaller,
+  // so cash flows compound upward with distance instead of discounting
+  // downward — cash further in the future, including the sale reversion,
+  // ends up worth more than cash today. Below -100% the base goes
+  // non-positive and every factor collapses to zero instead. Both are
+  // silently wrong numbers rather than the "no finite value" `computeSale`
+  // already names for the exit cap rate, which is exactly the same class of
+  // sign-typo mistake on a rate of the same schema shape.
+  if (discountRate.isNegative()) {
+    ctx.trace.error(
+      'NEGATIVE_DISCOUNT_RATE',
+      'The discount rate is negative, so present value would increase rather than decrease with time.',
+      'valuation',
+      'discountRate',
+    );
+    return null;
+  }
   if (!sale) return null;
 
   const convention = ctx.assumptions.discountingConvention;
