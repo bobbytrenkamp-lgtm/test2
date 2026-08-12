@@ -197,3 +197,93 @@ describe('two recovery pools on one lease that claim the same expense category',
     expect(total).toBeCloseTo(240_000, 2);
   });
 });
+
+/**
+ * A revenue- or rent-basis expense (e.g. a management fee charged as a
+ * percent of base rent), fully recoverable and marked fully occupancy-
+ * variable.
+ *
+ * Found by an eighth audit pass: `computeExpenseSeries` correctly skips the
+ * `fixedShare + variableShare x occupancy` scaling for
+ * `percent_of_effective_gross_revenue`/`percent_of_base_rent` expenses when
+ * computing the expense's own reported amount — `base` (built from actual
+ * base rent or actual effective gross revenue) already reflects real
+ * occupancy, so scaling it by occupancy again would apply the discount
+ * twice. But the *recoverable* split (`recoverableFixed`/
+ * `recoverableVariableFull`) made no such exception, applying the
+ * `fixedShare`/`variableShare` split unconditionally — and
+ * `recoverableVariableFull` is later rescaled by occupancy a second time in
+ * `poolForYear`, silently understating recovery revenue (and therefore
+ * EGR, NOI and valuation) for exactly this configuration.
+ */
+describe('a revenue-basis expense, fully recoverable and fully occupancy-variable', () => {
+  it('does not apply occupancy to the recoverable split a second time on top of the occupancy already embedded in the expense amount', () => {
+    // 12-month forecast. One lease occupying 8,000 of the building's 10,000
+    // sqft (a physical occupancy of exactly 0.8), flat $15/sqft/year base
+    // rent -> $10,000/month contractual rent, with no escalation or free
+    // rent to complicate the monthly figure.
+    //
+    // Expense: 30% of base rent, 100% recoverable, 100% occupancy-variable
+    // (a deliberately extreme setting, chosen so the bug's effect is not
+    // diluted by a partial fixed/variable split). `proRataShareOverride:
+    // '1'` isolates the test to the bug's own mechanism, independent of the
+    // tenant's own (legitimate, unrelated) pro-rata share of the building.
+    //
+    // Hand-derived: expense amount = 0.30 x $10,000 = $3,000/month, or
+    // $36,000/year. 100% recoverable of a $36,000/year expense is $36,000 —
+    // the base rent it's computed from already reflects this tenant's own
+    // real occupancy, so there is nothing left for a second occupancy
+    // discount to legitimately apply to.
+    const model = buildModel({
+      modelId: 'fx-revenue-basis-expense-occupancy',
+      modelName: 'Revenue-basis expense recoverable split (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '10000' },
+      spaces: [{ id: 'S1', code: 'Whole building', area: '10000' }],
+      tenants: [{ id: 'T1', name: 'Sole tenant' }],
+      leases: [
+        {
+          id: 'L1',
+          tenantId: 'T1',
+          spaceIds: ['S1'],
+          status: 'occupied',
+          area: '8000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2030-12-31',
+          baseRent: '15.00',
+          baseRentBasis: 'per_area_per_year',
+          excludeFromRollover: true,
+          recovery: { method: 'triple_net', proRataShareOverride: '1' },
+        },
+      ],
+      expenses: [
+        {
+          id: 'E1',
+          name: 'Management fee',
+          category: 'management',
+          method: 'percent_of_base_rent',
+          amount: '0.30',
+          recoverableShare: '1',
+          variableShare: '1',
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '1000000',
+        saleMonth: 12,
+      },
+    });
+
+    const result = calculate(model);
+    const recovery = result.recoveryDetail.find((row) => row.fiscalYear === 2026);
+    expect(Number(recovery?.finalRecovery)).toBeCloseTo(36_000, 2);
+  });
+});

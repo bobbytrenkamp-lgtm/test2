@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **10.0.0** — `packages/calculation-engine`.
+Engine version **11.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,44 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 11.0.0
+
+**An eighth audit pass.** Major because two findings change numbers an
+existing model can already be producing today, silently.
+
+- **Two partner objects sharing the same `id` no longer manufacture cash in
+  the waterfall.** Every internal bookkeeping map in `waterfall.ts` was keyed
+  on the user-facing partner id, so two partners sharing an id shared one
+  map entry, and a tier's split allocation was credited in full to each of
+  them independently — paying out more than the tier actually held.
+  Partners now carry an internal array-index key for bookkeeping, and a
+  split's allocation is divided across however many partner objects match
+  its id (ordinarily exactly one) instead of being credited to each in full.
+  The existing `DUPLICATE_PARTNER` diagnostic still fires alongside the fix.
+- **A revenue- or rent-basis expense's recoverable split no longer has
+  occupancy applied twice.** The expense's own reported amount already
+  correctly skips occupancy scaling for `percent_of_effective_gross_revenue`
+  and `percent_of_base_rent` methods, since their basis is already real,
+  occupancy-embedded revenue or rent. The recoverable split made no such
+  exception and was later rescaled by occupancy again during recovery
+  settlement, understating recovery revenue, EGR, NOI and value for any
+  model recovering a management fee or similar charge this way.
+- **Two additive diagnostics close the last gaps in 10.0.0's sweeps**:
+  `DUPLICATE_MARKET_LEASING_PROFILE` for the one entity type the duplicate-id
+  sweep had not yet reached, and `DUPLICATE_GROWTH_CURVE_YEAR` for a second
+  rate override on the same year within one growth curve. The dangling-curve
+  check now also covers a market leasing profile's own growth-curve and
+  escalation-index references.
+- Capital items (development/refinance fee bases, cash-management triggers,
+  waterfall catch-up and IRR-hurdle tiers) were audited this round with no
+  defect found.
+
+None of the ~300 regression fixtures at the time configured two partners
+sharing an id, a recoverable revenue-basis expense with a nonzero variable
+share, a duplicate market leasing profile id, a duplicate `byYear` entry, or
+a dangling curve reference from a market leasing profile — which is why all
+of these survived seven prior audit passes.
 
 ### 10.0.0
 

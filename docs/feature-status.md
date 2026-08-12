@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 10.0.0 · Last verified 2026-08-12**
+**Engine version 11.0.0 · Last verified 2026-08-12**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1154 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1161 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          26 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -82,12 +82,13 @@ Tests       1154 passed (251 engine regression, 31 engine unit, 16 fund,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 5 organization export,
                          4 debt funded pre-forecast/draw/origination fee,
-                         8 waterfall sale truncation and zero-sum shares,
+                         11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 2 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
-                         6 duplicate ids and dangling growth-curve reference,
+                         9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
-                         3 lease-option branching, 2 recovery pool boundaries)
+                         3 lease-option branching,
+                         3 recovery pool boundaries and revenue-basis expense recoverable split)
 Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,

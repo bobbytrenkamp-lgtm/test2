@@ -28,6 +28,21 @@ export interface WaterfallContext {
 }
 
 interface PartnerState {
+  /**
+   * Internal identity for this partner *object* — its array index, stable
+   * for the life of this call. `DUPLICATE_PARTNER` refuses a model where two
+   * partners share their own (user-facing) `id`, but that refusal does not
+   * stop `calculate()` from still computing a result, and every Map here
+   * used to be keyed on the user-facing id directly: two partner objects
+   * sharing one id shared one entry, so each independently read back the
+   * *combined* balance as if it were its own — an accrual paid out twice
+   * over, or a residual/catch-up split credited in full to both instead of
+   * divided between them, manufacturing cash beyond what the tier actually
+   * allocated. Keying on `key` instead makes every accrual and profit-
+   * tracking map exactly as many entries as there are partner objects,
+   * regardless of what their `id` fields say.
+   */
+  key: string;
   id: string;
   name: string;
   role: string;
@@ -45,7 +60,8 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
   const n = calendar.periods.length;
   if (structure.partners.length === 0) return [];
 
-  const partners: PartnerState[] = structure.partners.map((partner) => ({
+  const partners: PartnerState[] = structure.partners.map((partner, index) => ({
+    key: String(index),
     id: partner.id,
     name: partner.name,
     role: partner.role,
@@ -84,13 +100,13 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
   }
   const normalise = sharesAreUseless ? d(partners.length) : shareTotal;
 
-  /** Accrued but unpaid preferred, by tier and partner. */
+  /** Accrued but unpaid preferred, by tier and partner (keyed by `partner.key`). */
   const accrued = new Map<string, Map<string, Decimal>>();
   for (const tier of structure.tiers) {
-    accrued.set(tier.id, new Map(partners.map((p) => [p.id, ZERO])));
+    accrued.set(tier.id, new Map(partners.map((p) => [p.key, ZERO])));
   }
-  /** Cumulative profit distributions, used by catch-up tiers. */
-  const profitDistributed = new Map<string, Decimal>(partners.map((p) => [p.id, ZERO]));
+  /** Cumulative profit distributions, used by catch-up tiers (keyed by `partner.key`). */
+  const profitDistributed = new Map<string, Decimal>(partners.map((p) => [p.key, ZERO]));
 
   const contribute = (amount: Decimal, periodIndex: number | null): void => {
     for (const partner of partners) {
@@ -114,11 +130,11 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
       const monthlyRate = ONE.plus(rate).pow(new Decimal(1).dividedBy(TWELVE)).minus(ONE);
       const balances = accrued.get(tier.id) as Map<string, Decimal>;
       for (const partner of partners) {
-        const unpaid = balances.get(partner.id) as Decimal;
+        const unpaid = balances.get(partner.key) as Decimal;
         const base = tier.compounding
           ? partner.unreturnedCapital.plus(unpaid)
           : partner.unreturnedCapital;
-        balances.set(partner.id, unpaid.plus(base.times(monthlyRate)));
+        balances.set(partner.key, unpaid.plus(base.times(monthlyRate)));
       }
     }
 
@@ -137,7 +153,7 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
 
       if (tier.type === 'preferred_return' || tier.type === 'irr_hurdle') {
         const balances = accrued.get(tier.id) as Map<string, Decimal>;
-        const owed = partners.map((partner) => balances.get(partner.id) as Decimal);
+        const owed = partners.map((partner) => balances.get(partner.key) as Decimal);
         const owedTotal = owed.reduce((acc, v) => acc.plus(v), ZERO);
         if (owedTotal.lessThanOrEqualTo(0)) continue;
         const paid = Decimal.min(remaining, owedTotal);
@@ -146,11 +162,11 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
           const partnerOwed = owed[p] as Decimal;
           if (partnerOwed.lessThanOrEqualTo(0)) continue;
           const amount = paid.times(partnerOwed).dividedBy(owedTotal);
-          balances.set(partner.id, partnerOwed.minus(amount));
+          balances.set(partner.key, partnerOwed.minus(amount));
           creditPartner(partner, tier.id, amount, i);
           profitDistributed.set(
-            partner.id,
-            (profitDistributed.get(partner.id) as Decimal).plus(amount),
+            partner.key,
+            (profitDistributed.get(partner.key) as Decimal).plus(amount),
           );
         }
         remaining = remaining.minus(paid);
@@ -175,13 +191,20 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
         const target = d(tier.catchUpTargetShare ?? '0').clamp(0, new Decimal('0.999'));
         if (target.isZero()) continue;
         const recipients = tier.splits.filter((split) => d(split.share).greaterThan(0));
+        // `profitDistributed` is keyed by `partner.key` (the partner object),
+        // not the split's own `partnerId` (the user-facing id, which more
+        // than one partner object can share) — every recipient id is
+        // resolved to however many partner objects actually carry it.
         const sponsorProfit = recipients.reduce(
-          (acc, split) => acc.plus(profitDistributed.get(split.partnerId) ?? ZERO),
+          (acc, split) =>
+            partners
+              .filter((p) => p.id === split.partnerId)
+              .reduce((inner, p) => inner.plus(profitDistributed.get(p.key) as Decimal), acc),
           ZERO,
         );
         const otherProfit = partners
           .filter((p) => !recipients.some((r) => r.partnerId === p.id))
-          .reduce((acc, p) => acc.plus(profitDistributed.get(p.id) as Decimal), ZERO);
+          .reduce((acc, p) => acc.plus(profitDistributed.get(p.key) as Decimal), ZERO);
         // Bring sponsor profit up to `target` of total profit distributed.
         const needed = otherProfit.times(target).dividedBy(ONE.minus(target)).minus(sponsorProfit);
         if (needed.lessThanOrEqualTo(0)) continue;
@@ -282,15 +305,25 @@ function distributeBySplits(
   if (amount.lessThanOrEqualTo(0)) return;
   const shareTotal = [...splits.values()].reduce((acc, v) => acc.plus(v), ZERO);
   if (shareTotal.isZero()) return;
-  for (const partner of partners) {
-    const share = splits.get(partner.id);
-    if (!share || share.isZero()) continue;
+  // Iterates the *splits* — one per distinct partner id named in the tier —
+  // rather than the partner objects. A split's own allocation is fixed
+  // regardless of how many partner objects happen to share the id it names;
+  // dividing it across however many match (ordinarily exactly one) is what
+  // stops a duplicate id from having that allocation credited in full to
+  // each of them, which would pay out more than this tier actually has.
+  for (const [partnerId, share] of splits) {
+    if (share.isZero()) continue;
+    const recipients = partners.filter((partner) => partner.id === partnerId);
+    if (recipients.length === 0) continue;
     const allocation = amount.times(share).dividedBy(shareTotal);
-    creditPartner(partner, tierId, allocation, periodIndex);
-    profitDistributed.set(
-      partner.id,
-      (profitDistributed.get(partner.id) as Decimal).plus(allocation),
-    );
+    const perRecipient = allocation.dividedBy(recipients.length);
+    for (const partner of recipients) {
+      creditPartner(partner, tierId, perRecipient, periodIndex);
+      profitDistributed.set(
+        partner.key,
+        (profitDistributed.get(partner.key) as Decimal).plus(perRecipient),
+      );
+    }
   }
 }
 

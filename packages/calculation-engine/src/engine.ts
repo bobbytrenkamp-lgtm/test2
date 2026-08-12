@@ -52,6 +52,58 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 11.0.0
+ *
+ * An eighth audit pass. Major because two of its findings change numbers an
+ * existing model can already be producing today, silently.
+ *
+ * **Two partner objects sharing the same `id` no longer manufacture cash in
+ * the waterfall.** Every internal bookkeeping `Map` in `waterfall.ts` —
+ * preferred-return balances, accrual tracking, distributed-profit totals —
+ * was keyed on the user-facing `partner.id`. Two partner entries sharing an
+ * id shared one Map entry, and `distributeBySplits` then credited each
+ * partner *object* the split's full allocation independently, so a tier
+ * with two `id: 'A'` partners paid out twice what it actually held. Partners
+ * now carry an internal `key` (their array index) for all bookkeeping, and
+ * `distributeBySplits` iterates the tier's *splits* — dividing one split's
+ * fixed allocation across however many partner objects match its
+ * `partnerId`, ordinarily exactly one — rather than iterating partner
+ * objects and crediting each in full. `DUPLICATE_PARTNER` (10.0.0) still
+ * fires alongside the correction; only the corrupted numbers are new.
+ *
+ * **A revenue- or rent-basis expense's recoverable split no longer has
+ * occupancy applied twice.** `percent_of_effective_gross_revenue` and
+ * `percent_of_base_rent` expenses already compute their own reported
+ * `amount` from a `base` that is real, occupancy-embedded revenue or rent —
+ * correctly skipping the fixed/variable occupancy scaling every other
+ * method needs, since applying it again would discount occupancy twice. The
+ * recoverable split (`recoverableFixed` / `recoverableVariableFull`) made no
+ * such exception, so its occupancy-variable portion was later rescaled by
+ * occupancy a second time in `recoveries.ts`, understating recovery revenue
+ * — and therefore EGR, NOI and value — for any model billing a management
+ * fee or similar charge as a recoverable percentage of revenue or rent.
+ *
+ * **Two additive diagnostics close the last gaps in 10.0.0's duplicate-id
+ * and dangling-curve sweeps.** `DUPLICATE_MARKET_LEASING_PROFILE` covers the
+ * one entity type that sweep's `reportDuplicateIds` had not yet reached;
+ * `DUPLICATE_GROWTH_CURVE_YEAR` catches a second `byYear` entry for the same
+ * year within one curve, which the same lookup-by-key shadowing silently
+ * dropped with nothing to say why. `collectCurveReferences` now also walks a
+ * market leasing profile's own `marketRentGrowthCurveId` and its renewal and
+ * new-deal escalations' `indexCurveId`s, so a dangling reference from any of
+ * those three fields is now caught by the existing `GROWTH_CURVE_NOT_FOUND`
+ * check rather than silently resolving to flat 0% growth.
+ *
+ * Capital items (development and refinance fee bases, cash-management
+ * triggers, waterfall catch-up and IRR-hurdle tiers) were audited this round
+ * and no defect was found.
+ *
+ * None of the ~300 regression fixtures at the time configured two partners
+ * sharing an id, a recoverable revenue-basis expense with a nonzero variable
+ * share, a duplicate market leasing profile id, a duplicate `byYear` entry,
+ * or a dangling curve reference from a market leasing profile — which is why
+ * all of these survived seven prior audit passes.
+ *
  * ## 10.0.0
  *
  * A seventh audit pass, following up on one unresolved lead from the sixth
@@ -525,7 +577,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '10.0.0';
+export const ENGINE_VERSION = '11.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -1570,6 +1622,35 @@ function validateModel(
     'curve',
     'Growth curve',
   );
+  reportDuplicateIds(
+    trace,
+    input.marketLeasingProfiles,
+    (profile) => profile.id,
+    'DUPLICATE_MARKET_LEASING_PROFILE',
+    'profile',
+    'Market leasing profile',
+  );
+
+  // A duplicate `year` in one curve's own `byYear` overrides has the same
+  // shadowing mechanism as a duplicate id elsewhere: `byYear.find(entry =>
+  // entry.year === year)` always resolves to whichever entry was listed
+  // first, so the second silently never applies, with nothing to say why.
+  for (const curve of input.growthCurves) {
+    const seenYears = new Set<number>();
+    const duplicateYears = new Set<number>();
+    for (const entry of curve.byYear) {
+      if (seenYears.has(entry.year)) duplicateYears.add(entry.year);
+      seenYears.add(entry.year);
+    }
+    for (const year of duplicateYears) {
+      trace.error(
+        'DUPLICATE_GROWTH_CURVE_YEAR',
+        `Growth curve "${curve.id}" has more than one rate override for year ${year}. Only the first is used.`,
+        `curve:${curve.id}`,
+        'byYear',
+      );
+    }
+  }
 
   const knownCurves = new Set(input.growthCurves.map((curve) => curve.id));
   for (const ref of collectCurveReferences(input)) {
@@ -1671,6 +1752,29 @@ function collectCurveReferences(input: ModelInput): CurveReference[] {
         subject: `debt:${facility.id}`,
         field: 'indexCurveId',
         curveId: facility.indexCurveId,
+      });
+    }
+  }
+  for (const profile of input.marketLeasingProfiles) {
+    if (profile.marketRentGrowthCurveId) {
+      refs.push({
+        subject: `profile:${profile.id}`,
+        field: 'marketRentGrowthCurveId',
+        curveId: profile.marketRentGrowthCurveId,
+      });
+    }
+    if (profile.renewalEscalation.indexCurveId) {
+      refs.push({
+        subject: `profile:${profile.id}`,
+        field: 'renewalEscalation.indexCurveId',
+        curveId: profile.renewalEscalation.indexCurveId,
+      });
+    }
+    if (profile.newEscalation.indexCurveId) {
+      refs.push({
+        subject: `profile:${profile.id}`,
+        field: 'newEscalation.indexCurveId',
+        curveId: profile.newEscalation.indexCurveId,
       });
     }
   }
