@@ -198,9 +198,13 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
 
     if (remaining.greaterThan(0)) {
       // Nothing left to allocate the residual to: fall back to ownership shares
-      // so cash is never lost, and record it.
+      // so cash is never lost, and record it. Shares summing to zero get the
+      // same even split `contribute` above already gives a capital call —
+      // using `partner.share` directly here would multiply every partner's
+      // allocation by zero and silently drop this remaining cash instead.
       for (const partner of partners) {
-        const amount = remaining.times(partner.share).dividedBy(normalise);
+        const effectiveShare = sharesAreUseless ? ONE : partner.share;
+        const amount = remaining.times(effectiveShare).dividedBy(normalise);
         creditPartner(partner, 'residual', amount, i);
       }
       ctx.trace.warn(

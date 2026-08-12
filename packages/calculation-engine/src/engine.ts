@@ -52,6 +52,51 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 6.0.0
+ *
+ * Three further correctness fixes, found by a third audit pass targeted at
+ * boundary and extreme-value cases the first two passes did not reach. As
+ * with 4.0.0 and 5.0.0, every one silently produced a wrong figure rather
+ * than an error, which is what makes this major.
+ *
+ * **A negative exit or direct capitalisation rate now reports a diagnostic
+ * (`NEGATIVE_EXIT_CAP_RATE`, `NEGATIVE_DIRECT_CAP_RATE`) instead of silently
+ * producing a negative valuation.** Both `computeSale` and
+ * `computeDirectCapitalization` guarded only a rate of exactly zero; neither
+ * guarded a negative one, and the schema places no floor under
+ * `terminalCapRate`/`directCapRate`. A fat-fingered "-0.06" in place of
+ * "0.06" divided the terminal or selected NOI by a negative number and
+ * produced a large, plausible-looking negative value that flowed straight
+ * into the DCF valuation, cash flows and IRR — not an obviously broken
+ * number, and no diagnostic anywhere in the chain said why.
+ *
+ * **The waterfall's residual-unallocated fallback no longer drops cash when
+ * contribution shares sum to zero.** 5.0.0 fixed the capital-call side of
+ * this (`contribute()`) but not the distribution side: the "nothing left to
+ * allocate the residual to" branch, reached whenever a period's cash flow
+ * has no tier left to absorb it, still multiplied by each partner's raw,
+ * zero `contributionShare` instead of the same even-split fallback
+ * `contribute()` already uses. The branch's own comment claimed "cash is
+ * never lost" and its diagnostic claimed the cash "was allocated on
+ * contribution shares" — both false whenever every partner's stated share
+ * is zero and the waterfall has no `residual_split` tier.
+ *
+ * **Portfolio `weightedExitCapRate` no longer weights a member's rate
+ * against a value basis that excludes that member.** The rate's numerator
+ * was accumulated whenever a member's `exitCapRate` was set — which is
+ * copied from the input assumption unconditionally, independent of whether
+ * `computeSale` actually priced a sale — while the denominator was only
+ * accumulated when a `dcf` valuation existed. A member whose `saleMonth`
+ * falls outside its own forecast (an ordinary data-entry mistake, not a
+ * contrived state) still had its configured exit cap rate pulled into the
+ * numerator with no matching value in the denominator, silently skewing the
+ * portfolio's reported rate toward that member's, with no diagnostic.
+ *
+ * None of the ~270 regression fixtures at the time exercised a negative
+ * capitalisation rate, a zero-share waterfall with no residual-split tier,
+ * or a portfolio member whose sale month falls outside its own forecast —
+ * which is why all three survived the first two audit passes.
+ *
  * ## 5.0.0
  *
  * Four further correctness fixes, found by the same audit's second pass over
@@ -294,7 +339,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '5.0.0';
+export const ENGINE_VERSION = '6.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

@@ -163,7 +163,13 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
       );
       valueWeightBasis = valueWeightBasis.plus(value);
     }
-    if (result.returns.exitCapRate) {
+    // Gated on the same `dcf` presence as `valueWeightBasis` above: `exitCapRate`
+    // is copied from the input assumption regardless of whether a terminal
+    // value was actually computed (`computeSale` can fail for reasons unrelated
+    // to the rate itself, e.g. a sale month outside the forecast), so weighting
+    // it in without that gate would count a member's rate against a value
+    // basis that never included that member's own value.
+    if (dcf && result.returns.exitCapRate) {
       exitCapWeighted = exitCapWeighted.plus(d(result.returns.exitCapRate).times(value));
     }
 

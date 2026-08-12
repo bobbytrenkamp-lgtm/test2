@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **5.0.0** — `packages/calculation-engine`.
+Engine version **6.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,39 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 6.0.0
+
+**Three further correctness fixes, found by a third audit pass targeted at
+boundary and extreme-value cases the first two passes did not reach** — as
+with 4.0.0 and 5.0.0, every one silently produced a wrong figure rather than
+an error, which is why this is a major version rather than three patches.
+
+- **A negative exit or direct capitalisation rate now reports a diagnostic**
+  (`NEGATIVE_EXIT_CAP_RATE`, `NEGATIVE_DIRECT_CAP_RATE`) instead of silently
+  producing a negative valuation. Neither `computeSale` nor
+  `computeDirectCapitalization` guarded a negative rate, only an exactly-zero
+  one, and the schema places no floor under `terminalCapRate`/`directCapRate`.
+  A fat-fingered negative rate divided NOI by a negative number and produced
+  a large, plausible-looking negative value with no diagnostic anywhere in
+  the chain.
+- **The waterfall's residual-unallocated fallback no longer drops cash when
+  contribution shares sum to zero.** 5.0.0 fixed the capital-call side of
+  this; the distribution-side fallback — reached whenever a period's cash
+  flow has no tier left to absorb it — still multiplied by each partner's
+  raw, zero contribution share instead of splitting evenly the same way.
+- **Portfolio `weightedExitCapRate` no longer weights a member's rate
+  against a value basis that excludes that member.** The rate's numerator
+  was accumulated whenever a member's exit cap rate was set — copied from
+  the input assumption unconditionally — while the denominator was only
+  accumulated when a `dcf` valuation existed. A member whose sale month
+  falls outside its own forecast still had its rate pulled into the
+  numerator with no matching value in the denominator.
+
+None of the ~270 regression fixtures at the time exercised a negative
+capitalisation rate, a zero-share waterfall with no residual-split tier, or
+a portfolio member whose sale month falls outside its own forecast, which is
+why all three survived the first two audit passes.
 
 ### 5.0.0
 

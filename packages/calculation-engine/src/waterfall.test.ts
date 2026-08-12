@@ -185,3 +185,80 @@ describe('partner contribution shares that sum to zero', () => {
     expect(Number(gp?.distributions)).toBeCloseTo(totalDistributions * 0.2, 2);
   });
 });
+
+/**
+ * Partner contribution shares that sum to zero, with no residual-split tier.
+ *
+ * Found by a third audit pass: the fix above (splitting a capital call evenly
+ * when contribution shares sum to zero) only touched `contribute()`. The
+ * waterfall's *other* place that falls back to `partner.share` — the
+ * "nothing left to allocate the residual to" branch reached whenever a
+ * period's cash flow has no tier left to absorb it — still divided by the
+ * raw, zero `partner.share` for every partner. `normalise` there is
+ * `partners.length` (matching `contribute`'s own normaliser when shares are
+ * useless), not zero, so the bug was not a division by zero; it was
+ * multiplying by a numerator of zero and rounding every partner's
+ * allocation down to nothing. The fallback's own comment claims "cash is
+ * never lost" and its diagnostic claims the cash "was allocated on
+ * contribution shares" — both false when every partner's stated share is 0.
+ */
+describe('partner contribution shares that sum to zero, with no residual tier', () => {
+  const model = extendModel(baseModel(), {
+    forecast: {
+      startDate: '2026-01-01',
+      months: 6,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    otherRevenue: [
+      {
+        id: 'OTHER',
+        name: 'Flat other revenue',
+        method: 'custom_monthly_schedule',
+        monthlySchedule: Array.from({ length: 6 }, () => '10000'),
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+      acquisitionPrice: '1000000',
+      saleMonth: 3,
+      grossSalePriceOverride: '1000000',
+    },
+    equity: {
+      partners: [
+        { id: 'LP', name: 'LP', role: 'lp' as const, contributionShare: '0' },
+        { id: 'GP', name: 'GP', role: 'gp' as const, contributionShare: '0' },
+      ],
+      // No tiers at all: every period's positive cash flow has nothing to
+      // absorb it and falls straight to the "nothing left to allocate the
+      // residual to" branch.
+      tiers: [],
+    },
+  });
+
+  const result = calculate(model);
+  const lp = result.waterfall.find((partner) => partner.partnerId === 'LP');
+  const gp = result.waterfall.find((partner) => partner.partnerId === 'GP');
+
+  it('splits the unallocated residual evenly across partners instead of losing it from the ledger', () => {
+    // Hand-derived, independent of the engine: 2 months (1-2) of $10,000
+    // operating income, plus month 3's own $10,000 and the full $1,000,000
+    // sale price (0% selling cost, no debt to repay) = $1,030,000 total,
+    // split evenly across the 2 partners since neither has a usable share.
+    const totalDistributed = 10_000 * 2 + 10_000 + 1_000_000;
+    expect(Number(lp?.distributions)).toBeCloseTo(totalDistributed / 2, 2);
+    expect(Number(gp?.distributions)).toBeCloseTo(totalDistributed / 2, 2);
+  });
+
+  it('records both the zero-shares error and the unallocated-residual warning', () => {
+    expect(
+      result.diagnostics.find((entry) => entry.code === 'PARTNER_SHARES_SUM_TO_ZERO')?.severity,
+    ).toBe('error');
+    expect(
+      result.diagnostics.find((entry) => entry.code === 'WATERFALL_RESIDUAL_UNALLOCATED')?.severity,
+    ).toBe('warning');
+  });
+});
