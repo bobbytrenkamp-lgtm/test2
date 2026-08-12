@@ -49,7 +49,7 @@ Also available: a whole-model workbook (every property report as one file) and a
   "format": "cre-platform-model",
   "formatVersion": 1,
   "exportedAt": "...",
-  "engineVersion": "6.0.0",
+  "engineVersion": "7.0.0",
   "model":  { /* the exact engine input */ },
   "result": { /* the calculated result, trace omitted */ }
 }

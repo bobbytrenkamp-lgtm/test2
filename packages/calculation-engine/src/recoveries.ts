@@ -114,6 +114,44 @@ function poolsFor(config: RecoveryConfig): RecoveryPool[] {
 }
 
 /**
+ * Pools do not interact, which is the whole point of modelling several of
+ * them — but only if each expense category is actually claimed by one pool.
+ * A category picked up by two or more of a lease's pools (most easily by
+ * leaving `includedCategories` empty on more than one explicit pool, which
+ * each independently fall back to "every category flagged recoverable")
+ * would have its recoverable amount summed into two independent
+ * entitlements: a genuine double recovery with nothing to say why the
+ * tenant is being billed twice for the same expense.
+ */
+function warnOnOverlappingCategories(
+  pools: RecoveryPool[],
+  occurrence: LeaseOccurrence,
+  ctx: RecoveryContext,
+): void {
+  if (pools.length < 2) return;
+  const claimedBy = new Map<string, string[]>();
+  for (const pool of pools) {
+    const predicate = includedPredicate(pool);
+    for (const series of ctx.expenses) {
+      if (!predicate(series)) continue;
+      const category = series.expense.category;
+      const claimants = claimedBy.get(category) ?? [];
+      claimants.push(pool.code);
+      claimedBy.set(category, claimants);
+    }
+  }
+  for (const [category, claimants] of claimedBy) {
+    if (claimants.length < 2) continue;
+    ctx.trace.warn(
+      'RECOVERY_CATEGORY_CLAIMED_BY_MULTIPLE_POOLS',
+      `Lease ${occurrence.sourceLeaseId}'s expense category "${category}" is recovered by more than one pool (${claimants.join(', ')}), so it is billed to the tenant once per pool that claims it. Set includedCategories/excludedCategories so each category belongs to exactly one pool.`,
+      `lease:${occurrence.sourceLeaseId}`,
+      'recovery.pools',
+    );
+  }
+}
+
+/**
  * The period a fiscal year's true-up is billed in, or null if it falls beyond
  * the forecast.
  *
@@ -149,7 +187,12 @@ export function computeRecoveries(
     const recoveries = zeros(n);
     byOccurrence.set(occurrence.id, recoveries);
 
-    for (const pool of poolsFor(occurrence.recovery)) {
+    const pools = poolsFor(occurrence.recovery).filter(
+      (pool) => pool.method !== 'none' && pool.method !== 'full_service_gross',
+    );
+    warnOnOverlappingCategories(pools, occurrence, ctx);
+
+    for (const pool of pools) {
       settlePool(
         pool,
         series,
@@ -241,6 +284,7 @@ function settlePool(
 
   let priorRecovery: Decimal | null = null;
   let firstRecovery: Decimal | null = null;
+  let firstRecoveryOrdinal = 0;
   let priorSettled: Decimal | null = null;
   let yearOrdinal = 0;
 
@@ -293,26 +337,50 @@ function settlePool(
     // Caps and floors constrain year-over-year movement in the recovered
     // amount. A cumulative cap compounds off the first billed year; a
     // non-cumulative cap resets against the immediately preceding year.
+    //
+    // A baseline of exactly zero is not a small-growth case to constrain the
+    // way a normal prior year is — it is the ordinary state for a base-year
+    // or expense-stop pool's first billed year or years, whenever the year's
+    // own recoverable pool has not yet grown past the stop. A percentage of
+    // zero is zero, so a multiplicative cap anchored there pins every later
+    // year's recovery at zero forever, even once real growth exists to
+    // recover — the cap silently eliminates the recovery it is only meant to
+    // limit. Capping (and flooring) is skipped for as long as the applicable
+    // baseline is zero; the cumulative baseline re-anchors to the first year
+    // that actually settles a nonzero amount, and compounds from there.
     if (priorRecovery !== null && firstRecovery !== null) {
-      if (pool.capPercent !== null && pool.capPercent !== undefined) {
-        const cap = d(pool.capPercent);
-        const ceiling = pool.capIsCumulative
-          ? firstRecovery.times(ONE.plus(cap).pow(yearOrdinal - 1))
-          : priorRecovery.times(ONE.plus(cap));
-        withFee = Decimal.min(withFee, ceiling);
-      }
-      if (pool.floorPercent !== null && pool.floorPercent !== undefined) {
-        const floor = d(pool.floorPercent);
-        const minimum = pool.capIsCumulative
-          ? firstRecovery.times(ONE.plus(floor).pow(yearOrdinal - 1))
-          : priorRecovery.times(ONE.plus(floor));
-        withFee = Decimal.max(withFee, minimum);
+      const baselineIsZero = pool.capIsCumulative ? firstRecovery.isZero() : priorRecovery.isZero();
+      if (baselineIsZero && (pool.capPercent != null || pool.floorPercent != null)) {
+        ctx.trace.warn(
+          'RECOVERY_CAP_ZERO_BASELINE',
+          `Lease ${occurrence.sourceLeaseId}'s ${pool.name} recovery has a zero baseline going into FY${fiscalYear} (the ${pool.capIsCumulative ? 'first billed year' : 'immediately preceding year'} settled at zero), so a cap or floor cannot constrain growth from it. This year is billed uncapped and becomes the new baseline.`,
+          `lease:${occurrence.sourceLeaseId}`,
+          'recovery.capPercent',
+        );
+      } else {
+        if (pool.capPercent !== null && pool.capPercent !== undefined) {
+          const cap = d(pool.capPercent);
+          const ceiling = pool.capIsCumulative
+            ? firstRecovery.times(ONE.plus(cap).pow(yearOrdinal - firstRecoveryOrdinal))
+            : priorRecovery.times(ONE.plus(cap));
+          withFee = Decimal.min(withFee, ceiling);
+        }
+        if (pool.floorPercent !== null && pool.floorPercent !== undefined) {
+          const floor = d(pool.floorPercent);
+          const minimum = pool.capIsCumulative
+            ? firstRecovery.times(ONE.plus(floor).pow(yearOrdinal - firstRecoveryOrdinal))
+            : priorRecovery.times(ONE.plus(floor));
+          withFee = Decimal.max(withFee, minimum);
+        }
       }
     }
 
     const capAdjustment = withFee.minus(beforeCaps);
     priorRecovery = withFee;
-    if (firstRecovery === null) firstRecovery = withFee;
+    if (firstRecovery === null || firstRecovery.isZero()) {
+      firstRecovery = withFee;
+      firstRecoveryOrdinal = yearOrdinal;
+    }
 
     /*
      * Split the settled year between what is billed monthly and what is

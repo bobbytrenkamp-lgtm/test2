@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **6.0.0** — `packages/calculation-engine`.
+Engine version **7.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,34 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 7.0.0
+
+**Four further correctness fixes, found by a fourth audit pass targeted at
+lease-option branching and recovery-pool boundary cases** — as with the three
+prior audit rounds, every one silently produced a wrong figure rather than an
+error, which is why this is a major version rather than four patches.
+
+- **A renewal option no longer drops the exercised branch's weight when the
+  current term already runs through (or past) the forecast horizon.** An
+  ordinary configuration — any lease whose term happens to span the whole
+  hold period — silently understated the lease's own already-elapsed term,
+  and at 100% renewal probability erased the lease from the model entirely.
+- **A termination option's exercise cost now reaches the cash flow.** The
+  fee was recorded in the trace but never applied to `tenantImprovements`;
+  every termination fee configured on any model was silently worth $0.
+- **A base-year or expense-stop recovery pool's cap or floor no longer pins
+  the recovery at zero forever once the first billed year settles at exactly
+  zero.** A multiplicative ceiling anchored at a zero baseline capped every
+  later year at zero regardless of how much expenses actually grew.
+- **Two recovery pools on the same lease that both claim the same expense
+  category now warn**, instead of silently doubling the tenant's bill for
+  the overlapping category.
+
+None of the ~280 regression fixtures at the time exercised a lease-option
+fixture at all, a base-year recovery pool combined with a cap, or two
+explicit recovery pools with overlapping categories, which is why all four
+survived three prior audit passes.
 
 ### 6.0.0
 

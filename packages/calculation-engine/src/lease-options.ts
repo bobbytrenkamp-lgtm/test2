@@ -183,7 +183,17 @@ function branchOnOption(
     // that has been exercised still runs the lease to its contractual expiry
     // first.
     const start = addDays(tail.expiration, 1);
-    if (compareDates(start, ctx.forecastEnd) > 0) return branches;
+    if (compareDates(start, ctx.forecastEnd) > 0) {
+      // The current term already runs through (or past) the forecast horizon,
+      // so the extension itself is entirely invisible — but the decision to
+      // renew is not: this weight is still "the tenant occupies the visible
+      // term," exactly as the lapsed branch is, and dropping it here (as
+      // opposed to just skipping the extension) would silently understate the
+      // lease's own already-elapsed term, or at probability 1 erase the lease
+      // from the forecast entirely.
+      branches.push({ weight: exercisedWeight, occurrences: path.occurrences });
+      return branches;
+    }
 
     const end = addDays(addMonths(start, option.termMonths), -1);
     const rent = optionRent(option, start, tail, ctx);
@@ -240,7 +250,40 @@ function branchOnOption(
       exerciseCost: d(option.cost),
       result: d(option.cost),
     });
-    branches.push({ weight: exercisedWeight, occurrences: [...head, ended] });
+    const occurrences = [...head, ended];
+    // The termination fee is its own cost, independent of whatever `ended`
+    // already carries at its own (inherited, pre-termination) cost date —
+    // overwriting `ended`'s tiCost would lose that pre-existing cost, and
+    // adding to it would misdate the fee onto a month that is not when it is
+    // actually paid. It gets its own zero-footprint occurrence instead: an
+    // empty date range (`expiration` one day before `commencement`) reads as
+    // zero coverage for every period, exactly as `periodCoverage` treats any
+    // empty interval, so it contributes no rent, area or occupancy of its
+    // own — only the fee, landed on the exercise date.
+    if (!d(option.cost).isZero()) {
+      occurrences.push({
+        ...tail,
+        id: `${id}:fee`,
+        generation: tail.generation + 1,
+        commencement: exerciseDate,
+        expiration: addDays(exerciseDate, -1),
+        rentStart: exerciseDate,
+        area: d('0'),
+        schedule: {
+          ...tail.schedule,
+          rentStart: exerciseDate,
+          leaseEnd: addDays(exerciseDate, -1),
+          baseRent: d('0'),
+          steps: [],
+        },
+        freeRent: [],
+        otherRevenue: [],
+        tiCost: d(option.cost),
+        lcCost: d('0'),
+        costDate: exerciseDate,
+      });
+    }
+    branches.push({ weight: exercisedWeight, occurrences });
     return branches;
   }
 
