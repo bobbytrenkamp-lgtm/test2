@@ -290,9 +290,16 @@ function lineDelta(line: CashFlowLine, before: string, after: string): LineDelta
     before: a.toString(),
     after: b.toString(),
     delta: delta.toString(),
-    // Against the magnitude of the base, so a cost that grew more negative
-    // reports a positive percentage increase rather than a sign flip.
-    percentChange: toStringOrNull(safeDivide(delta, a.abs())),
+    // Against the magnitude of each side, not the raw signed delta, so a
+    // cost — reported negative, an outflow — that grew more negative reports
+    // a positive percentage increase rather than a sign flip. `delta` itself
+    // carries the reporting sign (more negative is a *smaller* raw number,
+    // so a bigger cost is a *negative* delta); comparing magnitudes instead
+    // is what makes "increase"/"decrease" here track the reader's own sense
+    // of the line getting bigger or smaller, on a revenue line exactly as
+    // before (both sides positive, so this reduces to the plain formula) and
+    // correctly on a cost line too.
+    percentChange: toStringOrNull(safeDivide(b.abs().minus(a.abs()), a.abs())),
   };
 }
 
