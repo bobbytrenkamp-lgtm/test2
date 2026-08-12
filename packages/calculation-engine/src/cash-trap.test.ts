@@ -125,3 +125,119 @@ describe('a cash trap open through the sale date', () => {
     }
   });
 });
+
+/**
+ * A cash trap sprung by one facility, alongside a second, unrelated
+ * facility that is also cash-trap-enabled but never itself breaches.
+ *
+ * Found by a sixth audit pass (multi-entity interaction): the release
+ * threshold (`cureAfter`) was computed once, as the *maximum*
+ * `cureConsecutivePeriods` across every cash-trap-enabled facility —
+ * regardless of whether that facility ever actually breached a covenant.
+ * A facility that is enabled for cash trapping but never breaches has no
+ * claim on cash a *different* facility's breach trapped, so inflating the
+ * release threshold to match its (unrelated, unexercised) cure requirement
+ * held the cash hostage for no reason the diagnostics explained.
+ */
+describe('a cash trap sprung by one facility while a second, unrelated facility never breaches', () => {
+  // 12-month forecast. $1,000 other revenue in January, $10,000 every month
+  // after. January's DSCR is based purely on January's own annualised NOI
+  // (the trailing window has nothing else to average yet: $1,000 x 12 =
+  // $12,000), which a 3.0x covenant against $6,000 of annual debt service
+  // fails outright (2.0x). February's DSCR averages January and February
+  // ($1,000 + $10,000 = $11,000 over 2 months, x 12 = $66,000, an 11.0x
+  // multiple) and clears the covenant comfortably — a clean, one-month
+  // breach-then-cure with a genuine (if small) operating surplus in the
+  // breach month itself to trap.
+  //
+  // directCapRate is used instead of a DCF sale so the property's concluded
+  // value is hand-derivable: $1,000 + 11 x $10,000 = $111,000 year-1 NOI /
+  // 5% = $2,220,000.
+  const model = extendModel(baseModel(), {
+    forecast: {
+      startDate: '2026-01-01',
+      months: 12,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    otherRevenue: [
+      {
+        id: 'OTHER',
+        name: 'Flat other revenue, reduced in January',
+        method: 'custom_monthly_schedule',
+        monthlySchedule: ['1000', ...Array.from({ length: 11 }, () => '10000')],
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+      directCapRate: '0.05',
+      directCapNoiBasis: 'year_1',
+    },
+    debt: [
+      {
+        id: 'D-BREACHES',
+        name: 'Senior loan (breaches once)',
+        type: 'permanent',
+        commitment: '100000',
+        initialFunding: '100000',
+        fundingDate: '2026-01-01',
+        rateType: 'fixed' as const,
+        fixedRate: '0.06',
+        interestOnlyMonths: 999,
+        amortizationMonths: 0,
+        termMonths: 24,
+        minimumDscr: '3.0',
+        cashTrap: { enabled: true, trigger: 'any_covenant' as const, cureConsecutivePeriods: 1 },
+      },
+      {
+        id: 'D-NEVER-BREACHES',
+        name: 'Mezzanine (never breaches)',
+        type: 'mezzanine',
+        commitment: '50000',
+        initialFunding: '50000',
+        fundingDate: '2026-01-01',
+        rateType: 'fixed' as const,
+        fixedRate: '0.08',
+        interestOnlyMonths: 999,
+        amortizationMonths: 0,
+        termMonths: 24,
+        // $50,000 against a $2,220,000 property is a ~2.3% LTV — nowhere
+        // near this 99% ceiling, so this facility never once breaches.
+        maximumLtv: '0.99',
+        cashTrap: { enabled: true, trigger: 'any_covenant' as const, cureConsecutivePeriods: 12 },
+      },
+    ],
+  });
+
+  const result = calculate(model);
+
+  it('releases on the breaching facility own one-period cure, not the other facilitys unreached twelve', () => {
+    // Hand-derived: January's surplus is its $1,000 NOI less the two
+    // facilities' interest ($100,000 x 6%/12 = $500, $50,000 x 8%/12 =
+    // $333.33) = $166.67 — small, but real, and enough to confirm something
+    // was actually trapped and then actually released, not merely that the
+    // diagnostics look right.
+    expect(result.monthly.restrictedCash[0]).toBe('-166.67');
+    expect(result.monthly.restrictedCash[1]).toBe('166.67');
+
+    const sprung = result.diagnostics.find((entry) => entry.code === 'CASH_TRAP_SPRUNG');
+    expect(sprung?.message).toContain('period 1');
+
+    // Released in period 2 — one compliant period, exactly what the
+    // breaching facility's own `cureConsecutivePeriods: 1` requires. The bug
+    // borrowed the *never-breaching* mezzanine facility's `12` instead,
+    // which twelve consecutive compliant periods starting from month 2
+    // would never satisfy inside a 12-month forecast.
+    const released = result.diagnostics.find((entry) => entry.code === 'CASH_TRAP_RELEASED');
+    expect(released?.message).toContain('period 2');
+    expect(released?.message).toContain('Covenant met for 1 consecutive periods');
+
+    // Nothing remains trapped from March onward.
+    for (let i = 2; i < 12; i += 1) {
+      expect(result.monthly.restrictedCash[i]).toBe('0.00');
+    }
+  });
+});

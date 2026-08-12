@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **8.0.0** — `packages/calculation-engine`.
+Engine version **9.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,24 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 9.0.0
+
+**One further correctness fix, found by a sixth audit pass targeted at
+multi-entity interaction** — what happens when more than one instance of the
+same kind of thing (here, more than one debt facility) is present, since
+every fix through 8.0.0 was a single-entity edge case.
+
+- **A cash trap sprung by one facility no longer waits on a cure requirement
+  borrowed from a second, unrelated facility that never itself breaches.**
+  The release threshold was the maximum `cureConsecutivePeriods` across
+  every cash-trap-enabled facility on the deal, regardless of whether that
+  facility ever actually breached. The threshold is now recomputed per trap
+  episode from only the facilities actually part of it.
+
+None of the ~300 regression fixtures at the time configured more than one
+cash-trap-enabled facility on the same deal, which is why this survived five
+prior audit passes.
 
 ### 8.0.0
 

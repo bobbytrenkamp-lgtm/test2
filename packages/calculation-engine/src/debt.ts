@@ -423,11 +423,16 @@ export function applyCashTrap(
   let held = ZERO;
   let trapped = false;
   let compliantRun = 0;
-  // The strictest cure requirement among the facilities that can trap, because
-  // cash held for one lender is not available to equity whatever the others say.
-  const cureAfter = Math.max(
-    ...triggering.map((facility) => facility.cashTrap.cureConsecutivePeriods),
-  );
+  // The strictest cure requirement among the facilities actually breaching in
+  // the *current* episode — recomputed as each new episode starts and
+  // expanded if a stricter facility joins one already open — rather than a
+  // fixed value drawn from every cash-trap-enabled facility regardless of
+  // whether it has ever breached. A facility that is enabled for cash
+  // trapping but never itself breaches has no claim on cash a different
+  // facility's breach trapped: cash held for one lender is not available to
+  // equity whatever the *others currently breaching* say, but a facility
+  // that has never breached has said nothing at all.
+  let cureAfter = 0;
 
   // The facility no longer exists once the deal has sold — it is repaid there
   // (`repayOnSale`), and equity's own cash flow already stops being reported
@@ -441,6 +446,10 @@ export function applyCashTrap(
 
     if (breachedNow.length > 0) {
       compliantRun = 0;
+      cureAfter = Math.max(
+        cureAfter,
+        ...breachedNow.map((facility) => facility.cashTrap.cureConsecutivePeriods),
+      );
       if (!trapped) {
         trapped = true;
         events.push({
@@ -467,6 +476,7 @@ export function applyCashTrap(
         }
         trapped = false;
         compliantRun = 0;
+        cureAfter = 0;
       }
     }
 
