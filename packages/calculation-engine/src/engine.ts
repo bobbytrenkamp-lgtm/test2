@@ -52,6 +52,50 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 8.0.0
+ *
+ * Three further correctness fixes, found by a fifth audit pass — this one a
+ * general sweep for the one defect pattern that has produced every bug found
+ * in the four rounds before it: a guard added on one code path but not an
+ * equally-reachable sibling. As with those rounds, every one silently
+ * produced a wrong figure rather than an error, which is what makes this
+ * major.
+ *
+ * **A negative discount rate now reports `NEGATIVE_DISCOUNT_RATE`** instead
+ * of silently inflating present value. `computeSale` and
+ * `computeDirectCapitalization` have guarded a negative *capitalisation*
+ * rate since 6.0.0; `discountRate` — the same schema shape, the same module,
+ * entered the same way — had no equivalent guard. `discountFactors` raises
+ * `1 + rate` to a negative fractional power, so a rate below zero makes each
+ * factor larger than the last instead of smaller: the DCF value and the
+ * property-level net present value both grow with distance into the future
+ * instead of discounting it, most visibly inflating the reversion. Both are
+ * now `null` rather than a silently wrong number when the rate is negative.
+ *
+ * **A debt facility's staged draw dated outside the forecast is now refused
+ * per-draw with `DEBT_DRAW_OUTSIDE_FORECAST`**, the same mechanism
+ * `DEBT_FUNDED_BEFORE_FORECAST` (4.0.0) already applies to the funding date
+ * on the same facility. The period loop only ever reads a draw at an index
+ * inside the forecast; one dated before it starts or after it ends silently
+ * never reached the balance, understating interest, principal, DSCR, LTV
+ * and debt yield for the facility's entire term. Unlike an invalid funding
+ * date, one out-of-range draw does not disqualify the rest of the facility.
+ *
+ * **An origination fee is now charged at closing regardless of whether a
+ * draw lands in the same period.** The fee was gated on `draw > 0` at the
+ * funding index, conflating "a draw happened this period" with "this is the
+ * closing period" — `unusedFeePercent`, a few lines below in the same
+ * function, already keys its own from-close accrual on `active` rather than
+ * on draw timing. A staged-draw facility that closes with `initialFunding:
+ * 0` and draws only once work begins — the ordinary shape of a construction
+ * loan, not a contrived one — silently never charged its origination fee
+ * for the life of the loan.
+ *
+ * None of the ~290 regression fixtures at the time exercised a negative
+ * discount rate, a debt draw dated outside the forecast, or a staged-draw
+ * facility with a delayed first draw and an origination fee, which is why
+ * all three survived four prior audit passes.
+ *
  * ## 7.0.0
  *
  * Four further correctness fixes, found by a fourth audit pass targeted at
@@ -392,7 +436,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '7.0.0';
+export const ENGINE_VERSION = '8.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -1231,12 +1275,19 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
     unleveredXirr: toStringOrNull(xirr(datedUnlevered)),
     leveredXirr: toStringOrNull(xirr(datedLevered)),
     equityMultiple: toStringOrNull(equityMultiple([initialEquity.negated(), ...leveredFlows])),
-    netPresentValue: npvMonthly(
-      unleveredFlows,
-      d(input.valuation.discountRate),
-      input.valuation.discountingConvention,
-      initialOutflow,
-    ).toString(),
+    // A negative discount rate makes `discountFactors` grow instead of
+    // shrink with time — the same defect `computeDcf` already refuses with
+    // `NEGATIVE_DISCOUNT_RATE`, which will already have fired by the time
+    // this runs (`computeDcf` is called unconditionally, earlier in
+    // `calculate`), so this does not duplicate the diagnostic.
+    netPresentValue: d(input.valuation.discountRate).isNegative()
+      ? null
+      : npvMonthly(
+          unleveredFlows,
+          d(input.valuation.discountRate),
+          input.valuation.discountingConvention,
+          initialOutflow,
+        ).toString(),
     profit: unleveredFlows.reduce((acc, v) => acc.plus(v), initialOutflow).toString(),
     goingInCapRate: toStringOrNull(goingInCap),
     // Months 13-24 have to actually exist: `slice` sums whatever falls in an

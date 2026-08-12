@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **7.0.0** — `packages/calculation-engine`.
+Engine version **8.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,38 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 8.0.0
+
+**Three further correctness fixes, found by a fifth audit pass — a general
+sweep for the one defect pattern that produced every bug found in the four
+rounds before it: a guard added on one code path but not an equally-reachable
+sibling** — every one silently produced a wrong figure rather than an error,
+which is why this is a major version rather than three patches.
+
+- **A negative discount rate now reports `NEGATIVE_DISCOUNT_RATE`** instead
+  of silently inflating present value. `discountFactors` raises `1 + rate`
+  to a negative fractional power, so a rate below zero makes each factor
+  larger than the last instead of smaller — the DCF value and the
+  property-level net present value both grow with distance into the future
+  instead of discounting it. Both are now `null` for a negative rate, the
+  same treatment `computeSale`/`computeDirectCapitalization` already give a
+  negative capitalisation rate.
+- **A debt facility's staged draw dated outside the forecast is now refused
+  per-draw with `DEBT_DRAW_OUTSIDE_FORECAST`**, the same mechanism
+  `DEBT_FUNDED_BEFORE_FORECAST` already applies to the funding date on the
+  same facility. One out-of-range draw does not disqualify the rest of the
+  facility.
+- **An origination fee is now charged at closing regardless of whether a
+  draw lands in the same period.** The fee was gated on a draw happening in
+  the funding month, so a staged-draw facility that closes with
+  `initialFunding: 0` and draws only once work begins — the ordinary shape
+  of a construction loan — silently never charged its origination fee.
+
+None of the ~290 regression fixtures at the time exercised a negative
+discount rate, a debt draw dated outside the forecast, or a staged-draw
+facility with a delayed first draw and an origination fee, which is why all
+three survived four prior audit passes.
 
 ### 7.0.0
 
