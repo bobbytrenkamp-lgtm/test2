@@ -69,7 +69,7 @@ export function buildDebt(
 
   for (const facility of facilities) {
     const schedule = result.debtSchedules.find((entry) => entry.facilityId === facility.id);
-    buildFacility(sheet, workbook, facility, schedule, axis);
+    buildFacility(sheet, workbook, input, facility, schedule, axis);
   }
 
   /* ------------------------------------------------------------------ */
@@ -154,6 +154,7 @@ export function buildDebt(
 function buildFacility(
   sheet: ReturnType<WorkbookModel['sheet']>,
   workbook: WorkbookModel,
+  input: ModelInput,
   facility: DebtFacility,
   schedule: { rows: Array<{ appliedRate: string; endingBalance: string }> } | undefined,
   axis: TimeAxis,
@@ -163,7 +164,20 @@ function buildFacility(
 
   const fundingIndex = axis.periods.findIndex((period) => period.endDate >= facility.fundingDate);
   const funded = fundingIndex < 0 ? 0 : fundingIndex;
-  const maturityIndex = Math.min(funded + facility.termMonths - 1, axis.count - 1);
+  // The engine's own `maturityIndex` is never clamped to the modelled axis —
+  // a facility whose term simply outlives the forecast horizon stays active
+  // (and its balance stays outstanding) through the last modelled period,
+  // with no payoff or exit fee charged at all, because the engine's loop
+  // never reaches an index that far out. Clamping here is fine for `active`/
+  // `amortises` below (`period` itself never exceeds `axis.count - 1`
+  // either way), but using the clamped value to decide *where the payoff
+  // formula fires* silently forced a payoff, and an exit fee, into the
+  // sheet's last period whenever the loan's real maturity fell beyond the
+  // axis — a nonzero engine balance zeroed out in Excel with a fee the
+  // engine never charges.
+  const rawMaturityIndex = funded + facility.termMonths - 1;
+  const maturityIndex = Math.min(rawMaturityIndex, axis.count - 1);
+  const maturityWithinAxis = rawMaturityIndex <= axis.count - 1;
 
   /*
    * Amortisation months remaining, per period.
@@ -354,8 +368,20 @@ function buildFacility(
   );
 
   /* Payoff at maturity or at sale. */
-  const saleIndex = axis.count - 1;
-  const payoffPeriod = facility.repayOnSale ? Math.min(maturityIndex, saleIndex) : maturityIndex;
+  // Resolved exactly as `returns.ts` resolves it, not hardcoded to the last
+  // modelled period: the axis is deliberately extended past the sale date
+  // whenever `terminalNoiBasis: 'forward_12'` needs NOI after it (an
+  // ordinary configuration, not a rare one — see the engine's own 5.0.0
+  // changelog), so "last period" and "sale period" are different periods on
+  // exactly the models this sheet most needs to get right.
+  const last = axis.count - 1;
+  const saleMonth = input.valuation.saleMonth ?? axis.count;
+  const saleIndex = Math.min(Math.max(saleMonth - 1, 0), last);
+  const payoffPeriod = facility.repayOnSale
+    ? Math.min(maturityIndex, saleIndex)
+    : maturityWithinAxis
+      ? maturityIndex
+      : -1;
 
   seriesRow(
     sheet,

@@ -172,7 +172,7 @@ describe('what the change did', () => {
     const expenses = deltas
       .find((entry) => entry.fiscalYear === 2027)
       ?.lines.find((line) => line.line === 'operatingExpenses');
-    expect(Number(expenses?.percentChange)).toBeCloseTo(-1, 6);
+    expect(Number(expenses?.percentChange)).toBeCloseTo(1, 6);
     expect(Number(expenses?.before)).toBeLessThan(0);
   });
 

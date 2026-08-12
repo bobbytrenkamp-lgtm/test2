@@ -52,6 +52,66 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 10.0.0
+ *
+ * A seventh audit pass, following up on one unresolved lead from the sixth
+ * round (no validation exists anywhere against a duplicate id on the entity
+ * types the engine looks up by id) and covering ground no prior round had
+ * targeted (growth curves, and the version-comparison report). Major because
+ * one of these — `compareResults`'s `percentChange` — changes a number an
+ * existing comparison would report; the rest are additive diagnostics that
+ * change no model's own figures.
+ *
+ * **Six entity types now refuse a duplicate id with an error**: leases, debt
+ * facilities, waterfall tiers, partners and growth curves (alongside the
+ * existing `DUPLICATE_SPACE` for spaces). Every one of these is looked up
+ * elsewhere by its own id via a `Map`, and a duplicate does not merge or sum
+ * there — it silently shadows, so a second entity's own figures (a
+ * facility's covenant breaches invisible to its cash trap, a tier's accrual
+ * balance shared and double-counted, a lease's percentage rent and recovery
+ * detail displayed as a different lease's) come out wrong with nothing to
+ * say why. The underlying shadowing is not itself resolved — refusing here,
+ * once, centrally, is what makes every individual lookup site not have to
+ * guard against a collision it should never see, and the diagnostic is what
+ * tells whoever built the model to fix the id at its source.
+ *
+ * **A `growthCurveId` (or `indexCurveId`, `salesGrowthCurveId`) that names a
+ * curve the model does not have now reports `GROWTH_CURVE_NOT_FOUND`.**
+ * Every consumer resolved a missing curve to flat 0% growth with no
+ * diagnostic anywhere — a typo'd id, or a curve deleted after something was
+ * wired to it, silently stopped escalation from applying with nothing on
+ * screen to explain it. Distinguished from a `growthCurveId` that is simply
+ * unset, which is unaffected and remains correct as-is.
+ *
+ * **`compareResults`'s `percentChange` now reads the direction a reader
+ * expects on a cost line.** Cash-flow lines like `operatingExpenses` report
+ * negative (an outflow); the raw signed delta divided by the base's
+ * magnitude gave a cost that grew *more negative* a *negative* percentage —
+ * reading as a decrease when the cost actually increased, the exact inverse
+ * of what the function's own code comment already documented as intended.
+ * Comparing the two sides' magnitudes instead reduces to the same formula
+ * on an always-positive line (no change there) and correctly flips the
+ * reported sign on a cost line.
+ *
+ * **The Excel Live Model's Debt sheet** (`packages/reporting`, not governed
+ * by this version number but found and fixed in the same pass) **resolves
+ * the sale date and a facility's real maturity the same way the engine and
+ * every other sheet already do**, instead of hardcoding the sale as the
+ * axis's own last period and clamping maturity to it — both silently
+ * produced a materially wrong workbook (a `repayOnSale` facility kept
+ * amortising for every month between the real sale and the axis end; a
+ * facility whose term outlives the forecast was forced to a phantom payoff,
+ * plus an erroneous exit fee, in the axis's last period) on exactly the
+ * `forward_12` and long-term-loan configurations this platform's own prior
+ * audit rounds have repeatedly found are ordinary, not rare.
+ *
+ * None of the ~300 regression fixtures at the time configured a duplicate
+ * id on any of these five entity types, a dangling growth-curve reference,
+ * a version comparison against a cost line that changed, or (in the
+ * reporting package's own fixtures) a `repayOnSale` facility with the sale
+ * before the axis's last period or a facility whose term outlives the
+ * forecast — which is why all of these survived six prior audit passes.
+ *
  * ## 9.0.0
  *
  * One further correctness fix, found by a sixth audit pass targeted at
@@ -465,7 +525,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '9.0.0';
+export const ENGINE_VERSION = '10.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -1466,6 +1526,155 @@ function validateModel(
   if (currencies.size > 1) {
     trace.error('MULTIPLE_CURRENCIES', 'A model cannot mix currencies.', 'model', 'currency');
   }
+
+  // Every one of these entity types is looked up elsewhere in the engine by
+  // its own id, via a Map keyed on that id. A duplicate id is not a merge or
+  // a sum there — it is one entry silently shadowing another (whichever the
+  // lookup happens to resolve to first, or last, depending on the site), so
+  // the shadowed entity's own figures (a facility's covenant breaches, a
+  // tier's accrual, a curve's rate, a lease's percentage rent and recovery
+  // detail) silently come out as someone else's instead of its own, or as
+  // zero. Refusing here, once, centrally, is simpler and more complete than
+  // guarding every individual lookup site against a collision it should
+  // never have to consider.
+  reportDuplicateIds(trace, input.leases, (lease) => lease.id, 'DUPLICATE_LEASE', 'lease', 'Lease');
+  reportDuplicateIds(
+    trace,
+    input.debt,
+    (facility) => facility.id,
+    'DUPLICATE_DEBT_FACILITY',
+    'debt',
+    'Debt facility',
+  );
+  reportDuplicateIds(
+    trace,
+    input.equity.tiers,
+    (tier) => tier.id,
+    'DUPLICATE_WATERFALL_TIER',
+    'equity:tier',
+    'Waterfall tier',
+  );
+  reportDuplicateIds(
+    trace,
+    input.equity.partners,
+    (partner) => partner.id,
+    'DUPLICATE_PARTNER',
+    'equity:partner',
+    'Partner',
+  );
+  reportDuplicateIds(
+    trace,
+    input.growthCurves,
+    (curve) => curve.id,
+    'DUPLICATE_GROWTH_CURVE',
+    'curve',
+    'Growth curve',
+  );
+
+  const knownCurves = new Set(input.growthCurves.map((curve) => curve.id));
+  for (const ref of collectCurveReferences(input)) {
+    if (knownCurves.has(ref.curveId)) continue;
+    trace.error(
+      'GROWTH_CURVE_NOT_FOUND',
+      `${ref.subject} references growth curve "${ref.curveId}", which does not exist in this model. It is treated as flat (0% growth) with nothing to say why.`,
+      ref.subject,
+      ref.field,
+    );
+  }
+}
+
+/** Reports an error, once per id, for every id that appears more than once. */
+function reportDuplicateIds<T>(
+  trace: TraceRecorder,
+  items: T[],
+  idOf: (item: T) => string,
+  code: string,
+  subjectPrefix: string,
+  label: string,
+): void {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const item of items) {
+    const id = idOf(item);
+    if (seen.has(id)) duplicates.add(id);
+    seen.add(id);
+  }
+  for (const id of duplicates) {
+    trace.error(code, `${label} id ${id} appears more than once.`, `${subjectPrefix}:${id}`);
+  }
+}
+
+interface CurveReference {
+  subject: string;
+  field: string;
+  curveId: string;
+}
+
+/** Every non-null growth-curve reference in the model, wherever one can be set. */
+function collectCurveReferences(input: ModelInput): CurveReference[] {
+  const refs: CurveReference[] = [];
+  for (const lease of input.leases) {
+    if (lease.escalation.indexCurveId) {
+      refs.push({
+        subject: `lease:${lease.id}`,
+        field: 'escalation.indexCurveId',
+        curveId: lease.escalation.indexCurveId,
+      });
+    }
+    if (lease.percentageRent.salesGrowthCurveId) {
+      refs.push({
+        subject: `lease:${lease.id}`,
+        field: 'percentageRent.salesGrowthCurveId',
+        curveId: lease.percentageRent.salesGrowthCurveId,
+      });
+    }
+    for (const item of lease.otherRevenue) {
+      if (item.growthCurveId) {
+        refs.push({
+          subject: `lease:${lease.id}:otherRevenue:${item.id}`,
+          field: 'growthCurveId',
+          curveId: item.growthCurveId,
+        });
+      }
+    }
+  }
+  for (const item of input.otherRevenue) {
+    if (item.growthCurveId) {
+      refs.push({
+        subject: `otherRevenue:${item.id}`,
+        field: 'growthCurveId',
+        curveId: item.growthCurveId,
+      });
+    }
+  }
+  for (const expense of input.expenses) {
+    if (expense.growthCurveId) {
+      refs.push({
+        subject: `expense:${expense.id}`,
+        field: 'growthCurveId',
+        curveId: expense.growthCurveId,
+      });
+    }
+  }
+  for (const item of input.capital) {
+    if (item.growthCurveId) {
+      refs.push({
+        subject: `capital:${item.id}`,
+        field: 'growthCurveId',
+        curveId: item.growthCurveId,
+      });
+    }
+  }
+  for (const facility of input.debt) {
+    if (facility.indexCurveId) {
+      refs.push({
+        subject: `debt:${facility.id}`,
+        field: 'indexCurveId',
+        curveId: facility.indexCurveId,
+      });
+    }
+  }
+  return refs;
 }
 
 export { monthDifference, TWELVE, ONE };

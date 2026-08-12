@@ -49,6 +49,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Zero and negative capitalization and discount rates | `packages/calculation-engine/src/valuation.test.ts` | 11 | No |
 | A renewal option at the forecast horizon, and a termination fee | `packages/calculation-engine/src/lease-options.test.ts` | 3 | No |
 | A zero-baseline recovery cap, and overlapping recovery pools | `packages/calculation-engine/src/recoveries.test.ts` | 2 | No |
+| Duplicate entity ids, and a dangling growth-curve reference | `packages/calculation-engine/src/validation.test.ts` | 6 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
@@ -71,7 +72,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
-| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 83 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 85 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
@@ -95,7 +96,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1146 tests in total.**
+**1154 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -135,7 +136,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1344 across the whole repository.
+**198 browser tests in total**, for 1352 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

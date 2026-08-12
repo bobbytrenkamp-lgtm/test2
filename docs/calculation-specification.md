@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **9.0.0** — `packages/calculation-engine`.
+Engine version **10.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,33 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 10.0.0
+
+**A seventh audit pass**, following up on one unresolved lead from the sixth
+round and covering ground no prior round had targeted (growth curves, and
+the version-comparison report). Major because one fix changes a number an
+existing comparison would report; the rest are additive diagnostics.
+
+- **Six entity types now refuse a duplicate id with an error**: leases, debt
+  facilities, waterfall tiers, partners and growth curves (alongside the
+  existing space check). Each is looked up elsewhere by its own id via a
+  `Map`, and a duplicate silently shadows one entity's figures with
+  another's rather than merging or summing them.
+- **A `growthCurveId` that names a curve the model does not have now reports
+  `GROWTH_CURVE_NOT_FOUND`** instead of silently resolving to flat 0%
+  growth. Unset remains unaffected.
+- **`compareResults`'s `percentChange` now reads the direction a reader
+  expects on a cost line.** A cost that grew more negative previously
+  reported a negative percentage — reading as a decrease when it actually
+  increased.
+- **The Excel Live Model's Debt sheet** (`packages/reporting`, not governed
+  by this version number) **resolves the sale date and a facility's real
+  maturity the same way the engine already does**, instead of hardcoding
+  the sale as the axis's last period and clamping maturity to it.
+
+None of the ~300 regression fixtures at the time exercised any of these
+cases, which is why they survived six prior audit passes.
 
 ### 9.0.0
 

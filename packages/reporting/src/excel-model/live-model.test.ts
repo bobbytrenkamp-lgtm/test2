@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import ExcelJS from 'exceljs';
 import { ALL_FIXTURES, calculate } from '@cre/calculation-engine';
-import type { CashFlowLine, ModelInput, ModelResult } from '@cre/domain-models';
+import {
+  parseModelInput,
+  type CashFlowLine,
+  type ModelInput,
+  type ModelResult,
+} from '@cre/domain-models';
 import { buildLiveModel, liveModelFilename } from './build.js';
 import { renderWorkbook } from './render.js';
 import type { CellSpec, WorkbookModel } from './model.js';
@@ -1285,5 +1290,162 @@ describe('the partnership waterfall', () => {
       ),
     };
     expect(() => buildLiveModel(input, mangled)).toThrow(/different waterfall tiers/);
+  });
+});
+
+/**
+ * Two defects in the Debt sheet's payoff/maturity resolution, found by a
+ * seventh audit pass.
+ *
+ * 1. `saleIndex` was hardcoded to the sheet's own last modelled period,
+ *    ignoring `input.valuation.saleMonth` entirely — unlike `returns.ts`,
+ *    which resolves it correctly and whose own comments explain why the
+ *    axis is deliberately extended past the sale date for a `forward_12`
+ *    terminal basis. A `repayOnSale` facility's payoff formula fired at the
+ *    axis's last period instead of the real sale month, so the workbook
+ *    kept amortising and accruing interest on a facility the engine
+ *    considers already repaid.
+ * 2. `maturityIndex` was clamped to the axis's last period before being
+ *    used to decide *where the payoff formula fires* — a facility whose
+ *    real term (the engine's own, unclamped) simply outlives the forecast
+ *    is left outstanding by the engine, with no payoff and no exit fee ever
+ *    charged, but the sheet forced a phantom payoff, and an erroneous exit
+ *    fee, into the axis's last period regardless.
+ */
+describe('the debt sheet resolves the sale date and maturity the same way the engine does', () => {
+  it('stops amortising a repayOnSale facility at the real sale month, not the last modelled period', () => {
+    // 18-month forecast, sale at month 6, forward_12 terminal basis (which
+    // needs exactly the 12 months after the sale that this forecast length
+    // provides) — the axis therefore runs 12 months past the real sale, the
+    // ordinary `forward_12` shape the fix's own comment describes.
+    const input: ModelInput = parseModelInput({
+      modelId: 'fx-debt-sale-index',
+      modelName: 'Debt sheet sale index (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 18,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '10000' },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat other revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 18 }, () => '10000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        saleMonth: 6,
+        terminalCapRate: '0.06',
+        terminalNoiBasis: 'forward_12',
+      },
+      debt: [
+        {
+          id: 'D1',
+          name: 'Senior loan',
+          type: 'permanent',
+          commitment: '1000000',
+          initialFunding: '1000000',
+          fundingDate: '2026-01-01',
+          rateType: 'fixed',
+          fixedRate: '0.06',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 24,
+          repayOnSale: true,
+        },
+      ],
+    });
+    const result = calculate(input);
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    // Hand-derived and cross-checked against the engine's own schedule: the
+    // facility is repaid at the sale (month 6, index 5), so the engine
+    // reports a zero balance for every period from there on. If the sheet
+    // still resolves the sale as its own last period (17), it keeps
+    // amortising the facility through month 18 instead.
+    expect(Number(result.debtSchedules[0]?.rows[5]?.endingBalance)).toBeCloseTo(0, 2);
+    for (let period = 5; period < 18; period += 1) {
+      expect(
+        Math.abs(evaluator.value('debt.endingBalance', period)),
+        `ending balance at period ${period}`,
+      ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    }
+  });
+
+  it('leaves a facility outstanding, with no phantom payoff or exit fee, when its term outlives the forecast', () => {
+    // 12-month forecast; a 120-month term means the engine's own (unclamped)
+    // maturity index falls far outside the axis, so the balance is left
+    // outstanding with no payoff or fee ever charged within the 12 modelled
+    // months — the ordinary shape of, say, a 10-year permanent loan modelled
+    // over a shorter hold.
+    const input: ModelInput = parseModelInput({
+      modelId: 'fx-debt-maturity-beyond-axis',
+      modelName: 'Debt sheet maturity beyond axis (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '10000' },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat other revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 12 }, () => '10000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        saleMonth: 12,
+        terminalCapRate: '0.06',
+        terminalNoiBasis: 'trailing_12',
+      },
+      debt: [
+        {
+          id: 'D1',
+          name: 'Permanent loan',
+          type: 'permanent',
+          commitment: '1000000',
+          initialFunding: '1000000',
+          fundingDate: '2026-01-01',
+          rateType: 'fixed',
+          fixedRate: '0.06',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 120,
+          repayOnSale: false,
+          exitFeePercent: '0.02',
+        },
+      ],
+    });
+    const result = calculate(input);
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    // Interest-only, so the balance never amortises down: it stays at the
+    // full $1,000,000 through the last modelled period. Confirmed against
+    // the engine's own schedule first, independent of anything Excel does.
+    expect(Number(result.debtSchedules[0]?.rows[11]?.endingBalance)).toBeCloseTo(1_000_000, 2);
+    expect(
+      Math.abs(evaluator.value('debt.endingBalance', 11) - 1_000_000),
+      'ending balance at the last modelled period',
+    ).toBeLessThanOrEqual(SUM_TOLERANCE);
+    expect(
+      Math.abs(evaluator.value('debt.fees', 11)),
+      'no exit fee charged when the loan has not actually matured',
+    ).toBeLessThanOrEqual(SUM_TOLERANCE);
   });
 });
