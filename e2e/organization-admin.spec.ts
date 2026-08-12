@@ -45,6 +45,9 @@ test.describe('an organization owner', () => {
     // send themselves — that string is the proof the invitation actually
     // has somewhere to go, not just a row in a table.
     await expect(page.getByText(/Share this link:/)).toBeVisible();
+
+    await expect(page.getByRole('heading', { name: 'Data export' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Export everything' })).toBeVisible();
   });
 });
 
@@ -63,5 +66,9 @@ test.describe('a reviewer', () => {
     // the members request at all — see `Organization.tsx`.
     await expect(page.getByRole('heading', { name: 'Members' })).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Invite someone' })).toBeHidden();
+    // organization:manage is an owner-only capability, same as the member
+    // management above — a reviewer cannot bulk-export the organization's
+    // data any more than they can invite someone to it.
+    await expect(page.getByRole('heading', { name: 'Data export' })).toBeHidden();
   });
 });

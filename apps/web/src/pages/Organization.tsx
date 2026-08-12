@@ -14,7 +14,9 @@ import { useSession } from '../session.js';
  *
  * Deliberately does not include audit export (a separate screen already
  * does that) or plan/status changes (no self-serve or admin route exists
- * yet for that — see item 6's "what remains").
+ * yet for that — see item 6's "what remains"). Data export (below) is the
+ * organization-level counterpart to audit export: everything the
+ * organization owns, in one download, independent of staying a customer.
  */
 
 interface Member {
@@ -45,6 +47,7 @@ export function OrganizationPage(): JSX.Element {
   const orgId = session?.organizationId ?? null;
   const canManageMembers = can('member:manage');
   const canInvite = can('organization:invite');
+  const canExport = can('organization:manage');
 
   // The list route itself requires `member:manage`, so a caller without it
   // never issues the request rather than displaying a 403 to every analyst
@@ -259,6 +262,19 @@ export function OrganizationPage(): JSX.Element {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {canExport && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Data export</h2>
+          <p className="field-hint">
+            Every property and model this organization owns, as one downloadable, documented JSON
+            file — independent of staying a customer of this platform.
+          </p>
+          <a className="button" href={`/api/v1/organizations/${orgId}/export`} download>
+            Export everything
+          </a>
         </div>
       )}
     </>

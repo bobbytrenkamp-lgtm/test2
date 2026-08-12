@@ -39,6 +39,21 @@ export interface PropertyListFilters {
   offset?: number;
 }
 
+/**
+ * Every property in the organization, unpaginated.
+ *
+ * `listProperties` caps at 200 rows because it backs a browsing screen; an
+ * offboarding export cannot silently drop the properties past the cap, so
+ * this is a separate, deliberately unbounded query for that one use.
+ */
+export async function listAllProperties(sql: Sql, organizationId: string): Promise<PropertyRow[]> {
+  return (await sql`
+    SELECT * FROM properties
+    WHERE organization_id = ${organizationId} AND deleted_at IS NULL
+    ORDER BY name
+  `) as unknown as PropertyRow[];
+}
+
 export async function listProperties(
   sql: Sql,
   organizationId: string,
