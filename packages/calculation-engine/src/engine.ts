@@ -52,6 +52,52 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 4.0.0
+ *
+ * Six correctness fixes, all found by the same repository-wide audit and all
+ * changing existing numbers on the models they affect — every one of them
+ * silently produced a wrong figure rather than an error, which is what makes
+ * this a major version rather than six patches.
+ *
+ * **Equity distributions no longer continue after the sale date.**
+ * `computeReturns` already truncated `leveredIrr`/`equityMultiple` at the
+ * sale month; the equity cash flow fed to `computeWaterfall`, and
+ * `cashOnCashByYear`, did not. A forecast stated past its sale month —
+ * ordinary, not contrived: `terminalNoiBasis: 'forward_12'` needs NOI *after*
+ * the sale to value the exit — showed partners receiving distributions for
+ * months after the property was sold. Affects every waterfall on a model
+ * whose forecast runs past its sale month.
+ *
+ * **A debt facility funded before the forecast start is now refused with a
+ * diagnostic (`DEBT_FUNDED_BEFORE_FORECAST`) instead of silently running at a
+ * zero balance.** Modelling an existing loan's balance as of the forecast
+ * start needs its amortisation run from the real funding date, which this
+ * engine does not do; refusing is correct until that is built. Affects any
+ * model with a facility whose funding date predates the forecast.
+ *
+ * **Direct capitalisation's `trailing_12` and `stabilized` bases are now
+ * annualised on a forecast shorter than 12 months**, the same way `year_1`
+ * already was. Affects direct-cap value on any forecast under a year long.
+ *
+ * **`goingInCapRate`, `yieldOnCost` and `debtYieldYear1` are now annualised**
+ * on a forecast shorter than 12 months, for the same reason. Understated by
+ * up to 2x on a 6-month forecast.
+ *
+ * **`stabilizedCapRate` now reports `null`, not a false `"0"`, when its
+ * 13-24 month window does not exist** — the figure the rest of this engine's
+ * documented "never a silent zero" principle already promised.
+ *
+ * **Portfolio `year1NetOperatingIncome` and `weightedGoingInCapRate` now
+ * annualise a member's partial first fiscal-year bucket** — a forecast that
+ * does not start on its own fiscal year's first month (a mid-year
+ * acquisition into a calendar-fiscal-year fund) is the ordinary case this
+ * missed, not an edge one.
+ *
+ * None of the ~250 regression fixtures exercised a forecast shorter than 12
+ * months, a debt facility funded before the forecast start, a sale month
+ * earlier than the forecast's last month, or a portfolio member starting
+ * mid fiscal year — which is why all six survived as long as they did.
+ *
  * ## 3.3.1
  *
  * A recovery settlement's trace entry is dated to the first month of the fiscal
@@ -204,7 +250,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '3.3.1';
+export const ENGINE_VERSION = '4.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -681,10 +727,22 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
     acquisitionBasis.plus(acquisitionCosts).plus(sponsorFees.atClose).minus(closingDebt),
     ZERO,
   );
+  // `leveredCashFlow` stays full-length past the sale date because
+  // `unleveredCashFlow` legitimately needs to (the forward_12 terminal-value
+  // basis reads NOI *after* the sale date — see docs/calculation-
+  // specification.md). But once the property is sold, equity has exited: it
+  // receives nothing more, however positive the property's hypothetical
+  // future cash flow reads. Zeroing here, rather than only at the point
+  // `computeReturns` derives IRR/multiple, is what stops those same phantom
+  // periods from also reaching the waterfall — a partner cannot be paid a
+  // distribution for a deal they are no longer in.
+  const saleIndex = sale?.saleIndex ?? null;
   const equityCashFlow = leveredCashFlow.map((cf, i) =>
-    i === 0
-      ? cf.minus(closingDebt).minus(sponsorFees.total[i] as Decimal)
-      : cf.minus(sponsorFees.total[i] as Decimal),
+    saleIndex !== null && i > saleIndex
+      ? ZERO
+      : i === 0
+        ? cf.minus(closingDebt).minus(sponsorFees.total[i] as Decimal)
+        : cf.minus(sponsorFees.total[i] as Decimal),
   );
 
   const waterfall = computeWaterfall({
@@ -974,7 +1032,17 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
     })),
   ];
 
-  const year1Noi = slice(netOperatingIncome, 0, Math.min(12, netOperatingIncome.length));
+  // `computeDirectCapitalization`'s `year_1` basis annualises a forecast
+  // shorter than 12 months rather than dividing a partial year's income by a
+  // cap rate calibrated to a full one; these three metrics read the same
+  // "year 1 NOI" concept and were not annualised the same way, understating
+  // going-in cap rate, yield on cost and year-1 debt yield by up to 2x on a
+  // 6-month forecast.
+  const year1NoiMonths = Math.min(12, netOperatingIncome.length);
+  let year1Noi = slice(netOperatingIncome, 0, year1NoiMonths);
+  if (year1NoiMonths < 12 && year1NoiMonths > 0) {
+    year1Noi = year1Noi.times(TWELVE).dividedBy(year1NoiMonths);
+  }
   const goingInCap = safeDivide(year1Noi, acquisitionBasis);
   const yieldOnCost = safeDivide(year1Noi, totalCost);
 
@@ -988,8 +1056,14 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
   const cashOnCashByYear = [...calendar.periodsByFiscalYear.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([fiscalYear, indices]) => {
+      // Excludes the sale period itself (its cash flow is a capital event,
+      // the lump-sum sale proceeds, not operating income) and, the same
+      // fix as the waterfall above, everything after it — a fiscal year
+      // that falls entirely after the sale has no operating cash flow to
+      // this deal at all, not the property's still-projected income from an
+      // ownership that already ended.
       const operating = indices
-        .filter((index) => index !== saleIndex)
+        .filter((index) => index < saleIndex)
         .reduce((acc, index) => acc.plus(leveredCashFlow[index] ?? ZERO), ZERO);
       return {
         fiscalYear,
@@ -1017,9 +1091,16 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
     ).toString(),
     profit: unleveredFlows.reduce((acc, v) => acc.plus(v), initialOutflow).toString(),
     goingInCapRate: toStringOrNull(goingInCap),
-    stabilizedCapRate: toStringOrNull(
-      safeDivide(slice(netOperatingIncome, 12, 24), acquisitionBasis),
-    ),
+    // Months 13-24 have to actually exist: `slice` sums whatever falls in an
+    // out-of-range window rather than signalling "unavailable", so a
+    // forecast shorter than 24 months summed an empty or partial window to
+    // zero — reported as a real "0%" stabilised cap rate rather than the
+    // missing figure it actually is. See docs/calculation-specification.md:
+    // a figure that cannot be computed is `null`, never a silent zero.
+    stabilizedCapRate:
+      netOperatingIncome.length >= 24
+        ? toStringOrNull(safeDivide(slice(netOperatingIncome, 12, 24), acquisitionBasis))
+        : null,
     exitCapRate: input.valuation.terminalCapRate ?? null,
     yieldOnCost: toStringOrNull(yieldOnCost),
     cashOnCashByYear,

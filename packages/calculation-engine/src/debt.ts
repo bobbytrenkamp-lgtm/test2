@@ -79,6 +79,25 @@ export function computeDebt(
       );
       continue;
     }
+    if (fundingIndex < 0) {
+      // The period loop below only ever indexes forward from 0, so a draw
+      // stored at a negative index is never applied: the facility would
+      // silently run at a zero balance for its entire term — no interest, no
+      // principal, no fees, and nothing in the diagnostics to say why. An
+      // existing loan carried into the forecast is a real scenario (a
+      // refinance, an assumed mortgage), but computing its balance as of the
+      // forecast start means running its amortization from `fundingDate`
+      // first, which this engine does not do. Refusing outright is the
+      // correct behaviour until that is built — silently pretending the
+      // facility does not exist is worse than refusing.
+      ctx.trace.error(
+        'DEBT_FUNDED_BEFORE_FORECAST',
+        `Facility "${facility.name}" is funded on ${facility.fundingDate}, before the forecast starts. An existing facility's balance as of the forecast start cannot be computed without modelling its amortization from the funding date; set the funding date to on or after the forecast start, or model the balance as of the forecast start as the facility's initial funding.`,
+        `debt:${facility.id}`,
+        'fundingDate',
+      );
+      continue;
+    }
     if (maturityIndex < n - 1 && ctx.saleIndex !== null && maturityIndex < ctx.saleIndex) {
       ctx.trace.warn(
         'DEBT_MATURES_BEFORE_SALE',

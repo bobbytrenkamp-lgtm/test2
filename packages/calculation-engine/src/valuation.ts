@@ -226,10 +226,21 @@ export function computeDirectCapitalization(ctx: ValuationContext): ValuationRes
   let basisLabel: string;
 
   switch (ctx.assumptions.directCapNoiBasis) {
-    case 'trailing_12':
+    case 'trailing_12': {
+      const monthsAvailable = Math.min(12, noi.length);
       selectedNoi = slice(noi, Math.max(0, noi.length - 12), noi.length);
+      // A forecast shorter than 12 months has no trailing twelve to select —
+      // what it has is annualised, the same way `year_1` already does below,
+      // rather than reported as however many months happen to exist. Reusing
+      // the raw sum here understated value on any short forecast: half of it
+      // on a 6-month one, since it was the "trailing twelve" divided by a
+      // cap rate calibrated to a full year's income.
+      if (monthsAvailable < 12 && monthsAvailable > 0) {
+        selectedNoi = selectedNoi.times(TWELVE).dividedBy(monthsAvailable);
+      }
       basisLabel = 'trailing twelve months of the forecast';
       break;
+    }
     case 'stabilized': {
       // The stabilised year is the first fiscal year whose NOI stops growing by
       // more than 2% against the following year, or the last full year.
@@ -252,6 +263,13 @@ export function computeDirectCapitalization(ctx: ValuationContext): ValuationRes
         }
       }
       selectedNoi = chosen ? chosen.noi : ZERO;
+      // No full fiscal year exists yet on a forecast shorter than one (the
+      // same reason `full` can be empty and this falls back to a partial
+      // `annual[]` entry) — annualise it rather than capitalising a partial
+      // year's income at a full-year cap rate.
+      if (chosen && chosen.months < 12 && chosen.months > 0) {
+        selectedNoi = selectedNoi.times(TWELVE).dividedBy(chosen.months);
+      }
       basisLabel = `stabilised year (FY${chosen?.year ?? 'n/a'})`;
       break;
     }

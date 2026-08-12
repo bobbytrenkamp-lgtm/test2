@@ -1,5 +1,5 @@
 import type { ModelResult } from '@cre/domain-models';
-import { Decimal, ONE, ZERO, d, zeros } from './decimal.js';
+import { Decimal, ONE, TWELVE, ZERO, d, zeros } from './decimal.js';
 import { equityMultiple, irrMonthly, safeDivide, toStringOrNull } from './metrics.js';
 
 /**
@@ -85,6 +85,25 @@ function annualLine(
   return d(result.annual[index]?.lines[line] ?? '0');
 }
 
+/**
+ * A model's first fiscal-year NOI, annualised when that year is a partial
+ * one.
+ *
+ * `AnnualSummaryRow.months` is "12 except at the ends" — and a forecast that
+ * does not start on the fiscal year's own first month (a calendar-fiscal-year
+ * fund with a mid-year acquisition is the ordinary case, not an edge one) has
+ * a partial first bucket. Reading it as "year 1 NOI" unannualised understated
+ * both the reported figure and the going-in cap rate built from it by however
+ * much of the year the forecast missed.
+ */
+function annualizedYear1Noi(result: ModelResult): Decimal {
+  const row = result.annual[0];
+  const value = d(row?.lines.netOperatingIncome ?? '0');
+  const months = row?.months ?? 0;
+  if (months > 0 && months < 12) return value.times(TWELVE).dividedBy(months);
+  return value;
+}
+
 export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggregate {
   const horizonMonths = members.reduce(
     (acc, member) => Math.max(acc, member.result.periods.length),
@@ -129,7 +148,7 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     totalArea = totalArea.plus(area.times(share));
     totalUnits = totalUnits.plus(d(member.unitCount).times(share));
 
-    year1Noi = year1Noi.plus(annualLine(result, 0, 'netOperatingIncome').times(share));
+    year1Noi = year1Noi.plus(annualizedYear1Noi(result).times(share));
     year1Capex = year1Capex.plus(annualLine(result, 0, 'capitalExpenditures').abs().times(share));
 
     const occupancy = d(result.occupancy[0]?.physicalOccupancyPercent ?? '0');
