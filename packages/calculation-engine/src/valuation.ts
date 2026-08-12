@@ -93,11 +93,21 @@ export function computeSale(ctx: ValuationContext): SaleResult | null {
   }
 
   const grossSalePrice =
-    override ?? (capRate && !capRate.isZero() ? terminalNoi.dividedBy(capRate) : ZERO);
+    override ??
+    (capRate && !capRate.isZero() && !capRate.isNegative() ? terminalNoi.dividedBy(capRate) : ZERO);
   if (!override && capRate && capRate.isZero()) {
     ctx.trace.error(
       'ZERO_EXIT_CAP_RATE',
       'The exit capitalisation rate is zero, which has no finite terminal value.',
+      'valuation',
+      'terminalCapRate',
+    );
+    return null;
+  }
+  if (!override && capRate && capRate.isNegative()) {
+    ctx.trace.error(
+      'NEGATIVE_EXIT_CAP_RATE',
+      'The exit capitalisation rate is negative, which produces a negative terminal value rather than a market exit price.',
       'valuation',
       'terminalCapRate',
     );
@@ -233,6 +243,15 @@ export function computeDirectCapitalization(ctx: ValuationContext): ValuationRes
     ctx.trace.error(
       'ZERO_DIRECT_CAP_RATE',
       'The direct capitalisation rate is zero, which has no finite value.',
+      'valuation',
+      'directCapRate',
+    );
+    return null;
+  }
+  if (rate.isNegative()) {
+    ctx.trace.error(
+      'NEGATIVE_DIRECT_CAP_RATE',
+      'The direct capitalisation rate is negative, which produces a negative value rather than a market valuation.',
       'valuation',
       'directCapRate',
     );

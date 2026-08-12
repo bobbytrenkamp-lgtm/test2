@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 5.0.0 · Last verified 2026-08-12**
+**Engine version 6.0.0 · Last verified 2026-08-12**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1127 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1135 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          26 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -82,9 +82,10 @@ Tests       1127 passed (251 engine regression, 31 engine unit, 16 fund,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 5 organization export,
                          2 debt funded pre-forecast,
-                         6 waterfall sale truncation and zero-sum shares,
-                         4 short-forecast metrics, 1 portfolio year-1 NOI,
-                         2 cash trap through the sale date, 3 zero direct-cap rate)
+                         8 waterfall sale truncation and zero-sum shares,
+                         4 short-forecast metrics, 2 portfolio boundary cases,
+                         2 cash trap through the sale date,
+                         8 zero/negative capitalization rates)
 Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
