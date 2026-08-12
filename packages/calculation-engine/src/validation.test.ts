@@ -279,3 +279,92 @@ describe('a growth curve id referenced but not defined on the model', () => {
     ).toBeUndefined();
   });
 });
+
+/**
+ * Found by an eighth audit pass, following up on round seven's note that
+ * the same duplicate-id collision pattern likely extended to entity types
+ * it hadn't checked. Market leasing profiles are looked up by id from a
+ * `Map` the same way debt facilities, tiers and leases are — a duplicate
+ * silently keeps only the last profile with that id, so a lease resolved to
+ * "the wrong profile" reads a different market rent, renewal probability
+ * and downtime with nothing to say why.
+ */
+describe('duplicate market leasing profile ids', () => {
+  it('is flagged with an error', () => {
+    const model = extendModel(baseModel(), {
+      marketLeasingProfiles: [
+        { id: 'DUP', name: 'Office A', marketRent: '30', marketRentBasis: 'per_area_per_year' },
+        { id: 'DUP', name: 'Office B', marketRent: '45', marketRentBasis: 'per_area_per_year' },
+      ],
+    });
+
+    const result = calculate(model);
+    const diagnostic = result.diagnostics.find(
+      (entry) => entry.code === 'DUPLICATE_MARKET_LEASING_PROFILE',
+    );
+    expect(diagnostic?.severity).toBe('error');
+    expect(diagnostic?.message).toContain('DUP');
+  });
+});
+
+/**
+ * The same shadowing mechanism found in a curve's own `byYear` overrides:
+ * `curve.byYear.find(entry => entry.year === year)` always resolves to
+ * whichever entry was listed first, so a second override for the same year
+ * silently never applies.
+ */
+describe('a growth curve with two rate overrides for the same year', () => {
+  it('is flagged with an error', () => {
+    const model = extendModel(baseModel(), {
+      growthCurves: [
+        {
+          id: 'G1',
+          name: 'Escalation',
+          defaultRate: '0.02',
+          byYear: [
+            { year: 2, rate: '0.05' },
+            { year: 2, rate: '0.10' },
+          ],
+        },
+      ],
+    });
+
+    const result = calculate(model);
+    const diagnostic = result.diagnostics.find(
+      (entry) => entry.code === 'DUPLICATE_GROWTH_CURVE_YEAR',
+    );
+    expect(diagnostic?.severity).toBe('error');
+    expect(diagnostic?.message).toContain('G1');
+    expect(diagnostic?.message).toContain('year 2');
+  });
+});
+
+/**
+ * `collectCurveReferences` originally enumerated every place a growth curve
+ * can be referenced except a market leasing profile's own three curve
+ * fields (`marketRentGrowthCurveId`, `renewalEscalation.indexCurveId`,
+ * `newEscalation.indexCurveId`) — exactly the gap `GROWTH_CURVE_NOT_FOUND`
+ * was built to close, just missed for this one entity type.
+ */
+describe('a dangling growth curve reference on a market leasing profile', () => {
+  it('is flagged for marketRentGrowthCurveId', () => {
+    const model = extendModel(baseModel(), {
+      marketLeasingProfiles: [
+        {
+          id: 'MLA',
+          name: 'Office',
+          marketRent: '30',
+          marketRentBasis: 'per_area_per_year',
+          marketRentGrowthCurveId: 'MISSING',
+        },
+      ],
+    });
+
+    const result = calculate(model);
+    const diagnostic = result.diagnostics.find((entry) => entry.code === 'GROWTH_CURVE_NOT_FOUND');
+    expect(diagnostic?.severity).toBe('error');
+    expect(diagnostic?.message).toContain('MISSING');
+    expect(diagnostic?.message).toContain('profile:MLA');
+    expect(diagnostic?.field).toBe('marketRentGrowthCurveId');
+  });
+});

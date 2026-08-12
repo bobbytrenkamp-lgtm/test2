@@ -262,3 +262,165 @@ describe('partner contribution shares that sum to zero, with no residual tier', 
     ).toBe('warning');
   });
 });
+
+/**
+ * Two partners sharing the same id — not just a validation gap, but real
+ * cash manufactured beyond what the tier ever had to give.
+ *
+ * Found by an eighth audit pass, following up on a low-confidence extension
+ * of the round-seven duplicate-waterfall-tier fix that round seven had only
+ * checked for the `DUPLICATE_PARTNER` diagnostic firing, not independently
+ * re-traced for a numeric consequence. Every Map in `computeWaterfall` used
+ * to be keyed on the partner's own (user-facing) `id`; two partner objects
+ * sharing an id shared one entry, and each read that shared entry back as
+ * if it were entirely its own:
+ *
+ * - A `residual_split` (or `catch_up`) tier's `splits` are keyed by
+ *   `partnerId`; `distributeBySplits` used to loop the partner *objects*,
+ *   so both objects sharing an id independently read the *same* split share
+ *   and were each credited the *full* allocation — crediting up to twice
+ *   the cash the tier actually had to distribute.
+ * - A `preferred_return`/`irr_hurdle` tier's per-partner accrual balance is
+ *   also id-keyed; both objects sharing an id read back the *combined*
+ *   balance as their own individual entitlement, doubling `owedTotal` and
+ *   therefore doubling what the tier pays out.
+ *
+ * `calculate()` does not gate its returned numbers on `DUPLICATE_PARTNER`
+ * (or any other validation error) being present — the corrupted waterfall
+ * reaches `ModelResult` regardless, alongside the diagnostic, not instead
+ * of it. Both mechanisms are fixed by keying every internal accrual/profit
+ * map on the partner *object* (its array index) rather than its id.
+ */
+describe('two partners sharing the same id', () => {
+  function equityCashFlowModel(equity: Parameters<typeof extendModel>[1]['equity']) {
+    return extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 1,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '1000000',
+        saleMonth: 1,
+        grossSalePriceOverride: '1100000',
+      },
+      equity,
+    });
+  }
+
+  it('does not manufacture cash on a residual_split tier: the single split is divided between the two objects, not credited to each in full', () => {
+    const model = equityCashFlowModel({
+      partners: [
+        { id: 'A', name: 'First object', role: 'lp' as const, contributionShare: '0.5' },
+        { id: 'A', name: 'Second object', role: 'lp' as const, contributionShare: '0.5' },
+      ],
+      tiers: [
+        {
+          id: 'RESIDUAL',
+          name: 'Residual',
+          type: 'residual_split' as const,
+          // One split entry naming the shared id "A" — the only sensible
+          // reading, since the schema has no way to distinguish which of
+          // two same-id partners a split refers to.
+          splits: [{ partnerId: 'A', share: '1' }],
+        },
+      ],
+    });
+
+    const result = calculate(model);
+    const [first, second] = result.waterfall;
+
+    // Hand-derived: $1,000,000 acquisition funded entirely by equity, sold
+    // in month 1 at $1,100,000 (0% selling cost, no debt) = $100,000 of
+    // residual profit distributed on top of returned capital. The single
+    // split's 100% share is divided between the two objects that share its
+    // id: $50,000 each, $100,000 total — not $100,000 each ($200,000
+    // total), which is what crediting the split's full share to both
+    // objects independently would manufacture.
+    const totalDistributions = Number(first?.distributions) + Number(second?.distributions);
+    expect(totalDistributions).toBeCloseTo(1_100_000, 2);
+    expect(Number(first?.distributions)).toBeCloseTo(Number(second?.distributions), 2);
+  });
+
+  it('does not manufacture cash on a preferred_return tier: the combined payout matches a single partner holding the same combined capital', () => {
+    // Two partners sharing id "A" (30%/70% contribution split) against one
+    // reference model with a single partner holding 100% — same total
+    // capital, same preferred terms. Non-compounding, so the accrual
+    // doesn't depend on order. If the engine handles the shared id
+    // correctly, the *combined* amount the preferred tier pays out should
+    // be identical between the two models: splitting one partner's capital
+    // across two objects that happen to share an id must not change how
+    // much the tier as a whole is entitled to or pays.
+    const preferredTier = {
+      id: 'PREF',
+      name: 'Preferred',
+      type: 'preferred_return' as const,
+      hurdleRate: '0.08',
+      compounding: false,
+      splits: [],
+    };
+    const residualTier = {
+      id: 'RESIDUAL',
+      name: 'Residual',
+      type: 'residual_split' as const,
+      splits: [{ partnerId: 'A', share: '1' }],
+    };
+
+    const duplicateModel = equityCashFlowModel({
+      partners: [
+        { id: 'A', name: 'First object', role: 'lp' as const, contributionShare: '0.3' },
+        { id: 'A', name: 'Second object', role: 'lp' as const, contributionShare: '0.7' },
+      ],
+      tiers: [preferredTier, residualTier],
+    });
+    const singleModel = equityCashFlowModel({
+      partners: [{ id: 'A', name: 'Sole partner', role: 'lp' as const, contributionShare: '1' }],
+      tiers: [preferredTier, residualTier],
+    });
+
+    const duplicateResult = calculate(duplicateModel);
+    const singleResult = calculate(singleModel);
+
+    const duplicatePreferredTotal = duplicateResult.waterfall.reduce(
+      (acc, partner) =>
+        acc + Number(partner.byTier.find((tier) => tier.tierId === 'PREF')?.amount ?? '0'),
+      0,
+    );
+    const singlePreferredTotal = Number(
+      singleResult.waterfall[0]?.byTier.find((tier) => tier.tierId === 'PREF')?.amount ?? '0',
+    );
+
+    // The bug would double `duplicatePreferredTotal` relative to
+    // `singlePreferredTotal` (each duplicate-id object independently
+    // reading, and being paid against, the full combined accrual balance
+    // instead of its own share of it).
+    expect(duplicatePreferredTotal).toBeGreaterThan(0);
+    expect(duplicatePreferredTotal).toBeCloseTo(singlePreferredTotal, 6);
+  });
+
+  it('still records the DUPLICATE_PARTNER error alongside the (now correct) figures', () => {
+    const model = equityCashFlowModel({
+      partners: [
+        { id: 'A', name: 'First object', role: 'lp' as const, contributionShare: '0.5' },
+        { id: 'A', name: 'Second object', role: 'lp' as const, contributionShare: '0.5' },
+      ],
+      tiers: [
+        {
+          id: 'RESIDUAL',
+          name: 'Residual',
+          type: 'residual_split' as const,
+          splits: [{ partnerId: 'A', share: '1' }],
+        },
+      ],
+    });
+    const result = calculate(model);
+    const diagnostic = result.diagnostics.find((entry) => entry.code === 'DUPLICATE_PARTNER');
+    expect(diagnostic?.severity).toBe('error');
+    expect(result.waterfall).toHaveLength(2);
+  });
+});

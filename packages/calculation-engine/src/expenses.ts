@@ -90,18 +90,34 @@ export function computeExpenseSeries(
           base = ZERO;
       }
 
-      // The variable portion scales with occupancy; the fixed portion does not.
+      // The variable portion scales with occupancy; the fixed portion does
+      // not. A revenue- or rent-basis expense's `base` is already occupancy-
+      // embedded — an actual period's effective gross revenue or base rent,
+      // not a theoretical full-occupancy figure — so it skips this scaling
+      // entirely rather than having occupancy applied on top of occupancy.
       const occupancy = (ctx.occupancy[i] ?? ONE).clamp(0, 1);
-      const occupancyAdjusted =
+      const isRevenueBased =
         expense.method === 'percent_of_effective_gross_revenue' ||
-        expense.method === 'percent_of_base_rent'
-          ? base
-          : base.times(fixedShare.plus(variableShare.times(occupancy)));
+        expense.method === 'percent_of_base_rent';
+      const occupancyAdjusted = isRevenueBased
+        ? base
+        : base.times(fixedShare.plus(variableShare.times(occupancy)));
 
       amount[i] = occupancyAdjusted;
       recoverable[i] = occupancyAdjusted.times(recoverableShare);
-      recoverableFixed[i] = base.times(fixedShare).times(recoverableShare);
-      recoverableVariableFull[i] = base.times(variableShare).times(recoverableShare);
+      // The recoverable split has to make the same exception, for the same
+      // reason: `recoverableVariableFull` is restated at 100% occupancy so
+      // `recoveries.ts` can rescale it to whatever occupancy applies at
+      // settlement time. For a revenue/rent-basis expense there is no such
+      // restatement to give — `base` is anchored to the period's real
+      // occupancy already — so the whole recoverable amount is carried as
+      // fixed instead of being scaled by occupancy a second time.
+      recoverableFixed[i] = isRevenueBased
+        ? base.times(recoverableShare)
+        : base.times(fixedShare).times(recoverableShare);
+      recoverableVariableFull[i] = isRevenueBased
+        ? ZERO
+        : base.times(variableShare).times(recoverableShare);
     }
 
     if (recordTrace) {
