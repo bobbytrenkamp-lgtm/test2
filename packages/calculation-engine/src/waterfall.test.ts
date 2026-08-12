@@ -94,3 +94,94 @@ describe('equity distributions stop at the sale date', () => {
     expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
   });
 });
+
+/**
+ * Partner contribution shares that sum to zero.
+ *
+ * Found by the same audit's second round (extreme-value cases): a capital
+ * call is allocated by dividing each partner's stated `contributionShare` by
+ * the sum of every partner's share. When every partner is entered at "0" —
+ * a plausible data-entry state for a deal being drafted before ownership
+ * percentages are finalized, not a deliberately malformed one — that sum is
+ * zero, and dividing by it produced a zero allocation for every partner. The
+ * capital call itself did not disappear from `equityCashFlow`; only each
+ * partner's share of it did, silently, with no diagnostic. Contribution
+ * shares are unrelated to a waterfall tier's own `splits`, so distributions
+ * (governed by the residual-split tier below) are unaffected and exist here
+ * only to give the LP/GP split something to check independently of the
+ * contribution-share bug.
+ */
+describe('partner contribution shares that sum to zero', () => {
+  const model = extendModel(baseModel(), {
+    forecast: {
+      startDate: '2026-01-01',
+      months: 6,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    otherRevenue: [
+      {
+        id: 'OTHER',
+        name: 'Flat other revenue',
+        method: 'custom_monthly_schedule',
+        monthlySchedule: Array.from({ length: 6 }, () => '10000'),
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+      acquisitionPrice: '1000000',
+      saleMonth: 3,
+      grossSalePriceOverride: '1000000',
+    },
+    equity: {
+      partners: [
+        { id: 'LP', name: 'LP', role: 'lp' as const, contributionShare: '0' },
+        { id: 'GP', name: 'GP', role: 'gp' as const, contributionShare: '0' },
+      ],
+      tiers: [
+        {
+          id: 'RESIDUAL',
+          name: 'Residual',
+          type: 'residual_split' as const,
+          splits: [
+            { partnerId: 'LP', share: '0.8' },
+            { partnerId: 'GP', share: '0.2' },
+          ],
+        },
+      ],
+    },
+  });
+
+  const result = calculate(model);
+  const lp = result.waterfall.find((partner) => partner.partnerId === 'LP');
+  const gp = result.waterfall.find((partner) => partner.partnerId === 'GP');
+
+  it('splits the capital call evenly across partners instead of losing it from the ledger', () => {
+    // Hand-derived: the $1,000,000 acquisition is funded entirely by equity
+    // (no debt in this fixture), so initialEquity is exactly $1,000,000.
+    // Split evenly across the 2 partners since neither has a usable share.
+    expect(Number(lp?.contributions)).toBeCloseTo(500_000, 2);
+    expect(Number(gp?.contributions)).toBeCloseTo(500_000, 2);
+  });
+
+  it('records a PARTNER_SHARES_SUM_TO_ZERO error naming the cause', () => {
+    const diagnostic = result.diagnostics.find(
+      (entry) => entry.code === 'PARTNER_SHARES_SUM_TO_ZERO',
+    );
+    expect(diagnostic?.severity).toBe('error');
+    expect(diagnostic?.message).toContain('sum to zero');
+  });
+
+  it('still splits residual distributions by the waterfall tier, not the contribution shares', () => {
+    // Hand-derived, independent of the contribution-share bug: 2 months
+    // (1-2) of $10,000 operating income, plus month 3's own $10,000 and the
+    // full $1,000,000 sale price (0% selling cost, no debt to repay),
+    // split 80/20 by the residual tier's own splits.
+    const totalDistributions = 10_000 * 2 + 10_000 + 1_000_000;
+    expect(Number(lp?.distributions)).toBeCloseTo(totalDistributions * 0.8, 2);
+    expect(Number(gp?.distributions)).toBeCloseTo(totalDistributions * 0.2, 2);
+  });
+});

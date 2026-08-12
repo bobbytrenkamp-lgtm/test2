@@ -369,6 +369,8 @@ export function applyCashTrap(
   facilities: DebtFacility[],
   schedules: DebtSchedule[],
   leveredCashFlow: Decimal[],
+  debtProceeds: Decimal[],
+  saleIndex: number | null,
 ): CashTrapResult {
   const n = leveredCashFlow.length;
   const movement = zeros(n);
@@ -402,7 +404,14 @@ export function applyCashTrap(
     ...triggering.map((facility) => facility.cashTrap.cureConsecutivePeriods),
   );
 
-  for (let i = 0; i < n; i += 1) {
+  // The facility no longer exists once the deal has sold — it is repaid there
+  // (`repayOnSale`), and equity's own cash flow already stops being reported
+  // past this point (see `equityCashFlow` in engine.ts). A period after it has
+  // nothing left to trap from and nowhere for a lender's security interest to
+  // still reach, so the trap is only ever active through the sale month.
+  const lastActiveIndex = saleIndex !== null ? Math.min(saleIndex, n - 1) : n - 1;
+
+  for (let i = 0; i <= lastActiveIndex; i += 1) {
     const breachedNow = triggering.filter((facility) => breachedIn.get(facility.id)?.has(i));
 
     if (breachedNow.length > 0) {
@@ -437,9 +446,17 @@ export function applyCashTrap(
     }
 
     if (trapped) {
-      // Only a surplus can be trapped. A deficit is money the owner has to
-      // fund, and a lender does not collect it by refusing a distribution.
-      const surplus = Decimal.max(leveredCashFlow[i] as Decimal, ZERO);
+      // Only a surplus can be trapped, and loan proceeds are not surplus: a
+      // draw funds the acquisition or a later capital need, not operating
+      // performance, so netting it out here is what stops a facility's own
+      // funding period — routinely cash-flow-negative before the draw lands —
+      // from being swept as if the property had generated it. A deficit is
+      // money the owner has to fund, and a lender does not collect it by
+      // refusing a distribution either.
+      const operatingCashFlow = (leveredCashFlow[i] as Decimal).minus(
+        (debtProceeds[i] as Decimal) ?? ZERO,
+      );
+      const surplus = Decimal.max(operatingCashFlow, ZERO);
       if (!surplus.isZero()) {
         movement[i] = (movement[i] as Decimal).plus(surplus);
         held = held.plus(surplus);
@@ -449,18 +466,24 @@ export function applyCashTrap(
     restrictedBalance[i] = held;
   }
 
-  // Anything still held at the end of the forecast is released: the loan is
-  // repaid on sale, and cash the lender no longer secures belongs to equity.
-  // Leaving it stranded would understate the return by the full amount.
-  if (!held.isZero() && n > 0) {
-    const last = n - 1;
-    movement[last] = (movement[last] as Decimal).minus(held);
-    restrictedBalance[last] = ZERO;
+  // Anything still held once the facility is gone is released: the loan is
+  // repaid at that point, and cash the lender no longer secures belongs to
+  // equity. Leaving it stranded past the facility's own last active period —
+  // formerly always the end of the whole stated forecast, which could run
+  // well past the sale — would understate the return by the full amount, or
+  // lose it entirely once the sale-truncation in engine.ts stops reporting
+  // equity cash flow for periods after the sale.
+  if (!held.isZero()) {
+    movement[lastActiveIndex] = (movement[lastActiveIndex] as Decimal).minus(held);
+    restrictedBalance[lastActiveIndex] = ZERO;
     events.push({
-      periodIndex: n,
+      periodIndex: lastActiveIndex + 1,
       event: 'released',
       amount: held.toString(),
-      reason: 'End of the forecast: the facility is repaid and the balance released',
+      reason:
+        saleIndex !== null && lastActiveIndex === saleIndex
+          ? 'The facility is repaid at sale and the balance released'
+          : 'End of the forecast: the facility is repaid and the balance released',
     });
   }
 

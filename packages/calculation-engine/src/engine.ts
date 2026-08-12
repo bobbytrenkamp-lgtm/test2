@@ -52,6 +52,50 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 5.0.0
+ *
+ * Four further correctness fixes, found by the same audit's second pass over
+ * boundary and extreme-value cases. As with 4.0.0, every one silently produced
+ * a wrong figure rather than an error, which is what makes this major.
+ *
+ * **A cash trap no longer treats a facility's own funding-period draw as
+ * trappable surplus.** `applyCashTrap` swept `Decimal.max(leveredCashFlow[i],
+ * ZERO)` for a breached covenant, and `leveredCashFlow` includes debt
+ * proceeds. A covenant that breaches in the funding month — an annualised
+ * one-month NOI stub tripping a DSCR threshold a full year would clear is an
+ * ordinary way for that to happen — could sweep the entire loan proceeds
+ * meant to fund the acquisition, over-calling equity by that amount. Proceeds
+ * are now excluded from what counts as surplus.
+ *
+ * **A cash trap open when the facility is repaid now releases its held cash
+ * at the sale date, not at the literal last index of the stated forecast.**
+ * Combined with 4.0.0's sale truncation of equity cash flow, a trap still
+ * open at sale lost the held cash outright whenever the forecast ran past the
+ * sale month, which `terminalNoiBasis: 'forward_12'` deliberately does.
+ * `applyCashTrap` now takes `saleIndex` and stops trapping, releasing what it
+ * holds, there. Affects any model with an uncured cash trap on a facility
+ * that is repaid before the forecast's last period.
+ *
+ * **Partner contribution shares that sum to zero no longer lose the capital
+ * call.** Every partner entered at a 0% contribution share — plausible while
+ * a deal's ownership is still being drafted, not a malformed state — made
+ * `computeWaterfall`'s normalising sum zero; dividing by it silently zeroed
+ * every partner's allocation. Shares that sum to zero are now split evenly
+ * across partners instead, with a `PARTNER_SHARES_SUM_TO_ZERO` error naming
+ * the cause.
+ *
+ * **A direct capitalisation rate of exactly zero now reports
+ * `ZERO_DIRECT_CAP_RATE`** instead of silently producing no valuation, the
+ * same way `computeSale` already names `ZERO_EXIT_CAP_RATE` for the exit cap
+ * rate. Behaviour is unchanged when `directCapRate` is simply not
+ * configured — only the explicit zero, which has no finite value to divide
+ * by, now says why the method is absent.
+ *
+ * None of the ~260 regression fixtures at the time exercised a cash trap
+ * still open at a facility's own funding month, a cash trap still open past
+ * the sale date, contribution shares summing to zero, or an explicit zero
+ * direct-cap rate — which is why all three survived 4.0.0's audit.
+ *
  * ## 4.0.0
  *
  * Six correctness fixes, all found by the same repository-wide audit and all
@@ -250,7 +294,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '4.0.0';
+export const ENGINE_VERSION = '5.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
@@ -688,7 +732,13 @@ export function calculate(input: ModelInput, options: CalculateOptions = {}): Mo
    * Zero on every model that has no trigger configured, which is every model
    * written before one existed.
    */
-  const cashTrap = applyCashTrap(input.debt, debt.schedules, leveredBeforeTrap);
+  const cashTrap = applyCashTrap(
+    input.debt,
+    debt.schedules,
+    leveredBeforeTrap,
+    debt.proceeds,
+    sale?.saleIndex ?? null,
+  );
   for (const event of cashTrap.events) {
     trace.warn(
       event.event === 'trapped' ? 'CASH_TRAP_SPRUNG' : 'CASH_TRAP_RELEASED',

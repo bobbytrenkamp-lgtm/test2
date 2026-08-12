@@ -59,7 +59,22 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
   }));
 
   const shareTotal = partners.reduce((acc, p) => acc.plus(p.share), ZERO);
-  if (!shareTotal.isZero() && shareTotal.minus(ONE).abs().greaterThan('0.0001')) {
+  // Every partner at 0% is not a proportion problem to normalise, the way a
+  // total of, say, 0.9 is — it states that nobody funds this deal, which no
+  // capital call can honour. Dividing by a zero-sum normaliser would make
+  // every allocation zero and the contribution would vanish from every
+  // partner's ledger with nothing to say where it went. Splitting evenly
+  // keeps the money accounted for while the error says plainly that the
+  // shares, not the split this fell back to, need fixing.
+  const sharesAreUseless = shareTotal.isZero() && partners.length > 0;
+  if (sharesAreUseless) {
+    ctx.trace.error(
+      'PARTNER_SHARES_SUM_TO_ZERO',
+      'Partner contribution shares sum to zero, so no partner is allocated any share of a capital call by the shares as stated. Contributions were split evenly across partners instead of being lost from the ledger; set contribution shares that reflect who actually funds this deal.',
+      'equity',
+      'partners',
+    );
+  } else if (shareTotal.minus(ONE).abs().greaterThan('0.0001')) {
     ctx.trace.warn(
       'PARTNER_SHARES_DO_NOT_SUM',
       `Partner contribution shares sum to ${shareTotal.toFixed(4)} rather than 1. Contributions were normalised proportionally.`,
@@ -67,7 +82,7 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
       'partners',
     );
   }
-  const normalise = shareTotal.isZero() ? ONE : shareTotal;
+  const normalise = sharesAreUseless ? d(partners.length) : shareTotal;
 
   /** Accrued but unpaid preferred, by tier and partner. */
   const accrued = new Map<string, Map<string, Decimal>>();
@@ -79,7 +94,8 @@ export function computeWaterfall(ctx: WaterfallContext): WaterfallDistribution[]
 
   const contribute = (amount: Decimal, periodIndex: number | null): void => {
     for (const partner of partners) {
-      const allocation = amount.times(partner.share).dividedBy(normalise);
+      const effectiveShare = sharesAreUseless ? ONE : partner.share;
+      const allocation = amount.times(effectiveShare).dividedBy(normalise);
       partner.contributions = partner.contributions.plus(allocation);
       partner.unreturnedCapital = partner.unreturnedCapital.plus(allocation);
       if (periodIndex === null) partner.initialFlow = partner.initialFlow.minus(allocation);
