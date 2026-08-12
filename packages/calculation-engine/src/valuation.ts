@@ -218,8 +218,26 @@ export function computeDcf(ctx: ValuationContext, sale: SaleResult | null): Valu
 
 /** Direct capitalisation: a selected NOI divided by a capitalisation rate. */
 export function computeDirectCapitalization(ctx: ValuationContext): ValuationResult | null {
-  const rate = ctx.assumptions.directCapRate ? d(ctx.assumptions.directCapRate) : null;
-  if (!rate || rate.isZero()) return null;
+  // Not configured at all and configured to literally 0% are different
+  // things. The first means direct capitalisation was never requested as a
+  // valuation method, and silently producing nothing is correct. The second
+  // is a rate with no finite value to divide by — the same situation
+  // `computeSale` already names with `ZERO_EXIT_CAP_RATE` for the exit cap
+  // rate — and deserves the same diagnostic rather than looking identical to
+  // "not requested".
+  if (ctx.assumptions.directCapRate === null || ctx.assumptions.directCapRate === undefined) {
+    return null;
+  }
+  const rate = d(ctx.assumptions.directCapRate);
+  if (rate.isZero()) {
+    ctx.trace.error(
+      'ZERO_DIRECT_CAP_RATE',
+      'The direct capitalisation rate is zero, which has no finite value.',
+      'valuation',
+      'directCapRate',
+    );
+    return null;
+  }
 
   const { noi, calendar } = ctx;
   let selectedNoi: Decimal;

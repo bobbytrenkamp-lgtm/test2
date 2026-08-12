@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **4.0.0** — `packages/calculation-engine`.
+Engine version **5.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -871,6 +871,42 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 5.0.0
+
+**Four further correctness fixes, found by the same audit's second pass over
+boundary and extreme-value cases** — as with 4.0.0, every one silently
+produced a wrong figure rather than an error, which is why this is a major
+version rather than four patches.
+
+- **A cash trap no longer treats a facility's own funding-period draw as
+  trappable surplus.** The trap swept every positive levered cash flow while a
+  covenant was breached, and levered cash flow includes debt proceeds. A
+  covenant that breaches in the funding month — an annualised one-month NOI
+  stub tripping a DSCR threshold a full year would clear is an ordinary way
+  for that to happen — could sweep the entire loan proceeds meant to fund the
+  acquisition, over-calling equity by that amount. Debt proceeds are now
+  excluded from what counts as trappable surplus.
+- **A cash trap open when its facility is repaid now releases the held cash
+  at the sale date, not at the last index of the stated forecast.** Combined
+  with 4.0.0's sale-date truncation of equity cash flow, a trap still open at
+  sale lost the held cash outright whenever the forecast ran past the sale
+  month, which a `forward_12` terminal NOI basis deliberately does.
+- **Partner contribution shares that sum to zero no longer lose the capital
+  call.** Every partner entered at a 0% contribution share — plausible while
+  a deal's ownership is still being drafted — made the normalising sum zero;
+  dividing by it silently zeroed every partner's allocation. Shares summing
+  to zero are now split evenly across partners, with a
+  `PARTNER_SHARES_SUM_TO_ZERO` error naming the cause.
+- **A direct capitalisation rate of exactly zero now reports
+  `ZERO_DIRECT_CAP_RATE`** instead of silently producing no valuation, the
+  same way the exit cap rate already names `ZERO_EXIT_CAP_RATE`. Behaviour is
+  unchanged when `directCapRate` is simply not configured.
+
+None of the ~260 regression fixtures at the time exercised a cash trap still
+open at a facility's own funding month, a cash trap still open past the sale
+date, contribution shares summing to zero, or an explicit zero direct-cap
+rate, which is why all four survived 4.0.0's audit.
 
 ### 4.0.0
 
