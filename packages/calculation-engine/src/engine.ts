@@ -52,6 +52,35 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 9.0.0
+ *
+ * One further correctness fix, found by a sixth audit pass targeted at
+ * multi-entity interaction — what happens when more than one instance of the
+ * same kind of thing (here, more than one debt facility) is present, since
+ * every fix through 8.0.0 was a single-entity edge case. Silently produced a
+ * wrong figure rather than an error, which is what makes this major.
+ *
+ * **A cash trap sprung by one facility no longer waits on a cure requirement
+ * borrowed from a second, unrelated facility that never itself breaches.**
+ * `applyCashTrap`'s release threshold was computed once, as the maximum
+ * `cureConsecutivePeriods` across every cash-trap-enabled facility on the
+ * deal — regardless of whether that facility ever actually breached a
+ * covenant. A facility enabled for cash trapping but never breaching has no
+ * claim on cash a different facility's breach trapped; a two-facility model
+ * where one breaches once (a one-period cure) and the other never breaches
+ * at all (a twelve-period cure it never needs) held the first facility's
+ * cash for the second facility's unrelated, unexercised requirement — twelve
+ * consecutive compliant periods that, starting from a breach in month one,
+ * cannot occur inside a twelve-month forecast at all. The threshold is now
+ * recomputed per trap episode from only the facilities actually part of it,
+ * expanding if a stricter one joins an already-open episode and resetting
+ * once the episode resolves.
+ *
+ * None of the ~300 regression fixtures at the time configured more than one
+ * cash-trap-enabled facility on the same deal, which is why this survived
+ * five prior audit passes, four of which were themselves general or
+ * single-entity sweeps.
+ *
  * ## 8.0.0
  *
  * Three further correctness fixes, found by a fifth audit pass — this one a
@@ -436,7 +465,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '8.0.0';
+export const ENGINE_VERSION = '9.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

@@ -45,7 +45,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Equity distributions stop at the sale date, and zero-sum contribution shares (capital calls and the residual fallback) | `packages/calculation-engine/src/waterfall.test.ts` | 8 | No |
 | Metrics that annualise a forecast shorter than 12 months | `packages/calculation-engine/src/short-forecast.test.ts` | 4 | No |
 | Portfolio year-1 NOI and weighted exit cap rate on boundary members | `packages/calculation-engine/src/portfolio.test.ts` | 2 | No |
-| A cash trap open through the sale date | `packages/calculation-engine/src/cash-trap.test.ts` | 2 | No |
+| A cash trap open through the sale date, and a multi-facility cure period | `packages/calculation-engine/src/cash-trap.test.ts` | 3 | No |
 | Zero and negative capitalization and discount rates | `packages/calculation-engine/src/valuation.test.ts` | 11 | No |
 | A renewal option at the forecast horizon, and a termination fee | `packages/calculation-engine/src/lease-options.test.ts` | 3 | No |
 | A zero-baseline recovery cap, and overlapping recovery pools | `packages/calculation-engine/src/recoveries.test.ts` | 2 | No |
@@ -95,7 +95,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1145 tests in total.**
+**1146 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -135,7 +135,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1343 across the whole repository.
+**198 browser tests in total**, for 1344 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
