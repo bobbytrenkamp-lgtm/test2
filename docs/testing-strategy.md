@@ -47,6 +47,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio year-1 NOI and weighted exit cap rate on boundary members | `packages/calculation-engine/src/portfolio.test.ts` | 2 | No |
 | A cash trap open through the sale date | `packages/calculation-engine/src/cash-trap.test.ts` | 2 | No |
 | Zero and negative capitalization rates | `packages/calculation-engine/src/valuation.test.ts` | 8 | No |
+| A renewal option at the forecast horizon, and a termination fee | `packages/calculation-engine/src/lease-options.test.ts` | 3 | No |
+| A zero-baseline recovery cap, and overlapping recovery pools | `packages/calculation-engine/src/recoveries.test.ts` | 2 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 30 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 21 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
@@ -93,7 +95,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1135 tests in total.**
+**1140 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -133,7 +135,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1333 across the whole repository.
+**198 browser tests in total**, for 1338 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

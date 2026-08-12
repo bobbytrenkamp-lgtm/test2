@@ -52,6 +52,59 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 7.0.0
+ *
+ * Four further correctness fixes, found by a fourth audit pass targeted at
+ * lease-option branching and recovery-pool boundary cases. As with the three
+ * prior audit rounds, every one silently produced a wrong figure rather than
+ * an error, which is what makes this major.
+ *
+ * **A renewal option no longer drops the exercised branch's weight when the
+ * current term already runs through (or past) the forecast horizon.**
+ * `branchOnOption` returned before pushing the exercised-weight branch
+ * whenever the extension's own start date fell after the forecast end — an
+ * ordinary configuration, not a rare one: any lease whose term happens to
+ * span the whole hold period hits it. The already-elapsed, fully visible
+ * term was understated by however much weight the exercised branch carried,
+ * and at 100% renewal probability the lease vanished from the model
+ * entirely, since the lapsed branch carries zero weight in that case too.
+ * The exercised branch now keeps the tail's own (unextended) occurrences at
+ * full weight — the extension itself is skipped, not the lease.
+ *
+ * **A termination option's exercise cost now reaches the cash flow.** The
+ * `cost` on a termination option (a landlord buyout payment, or a
+ * tenant-paid fee entered as negative) was recorded in the trace but never
+ * applied to `tenantImprovements` — every termination fee configured on any
+ * model was silently worth $0 in the reported output. It now lands on the
+ * exercise date as its own zero-footprint cost entry, without disturbing
+ * whatever the lease's own tenant-improvement cost already carried.
+ *
+ * **A base-year (or expense-stop) recovery pool's cap or floor no longer
+ * pins the recovery at zero forever once the first billed year settles at
+ * exactly zero.** A base-year pool's own first billed year settles at zero
+ * by definition — the entitlement is the excess over the base year, and the
+ * base year has no excess over itself — and zero is not `null`, so the cap
+ * check ran anyway. A multiplicative ceiling anchored at a zero baseline
+ * (`0 x (1 + capPercent) = 0`) capped every later year at zero regardless of
+ * how much expenses actually grew, permanently eliminating the recovery line
+ * instead of limiting its growth. Capping is now skipped for as long as the
+ * applicable baseline is zero; the cumulative baseline re-anchors to the
+ * first year that actually settles a nonzero amount, and compounds from
+ * there.
+ *
+ * **Two recovery pools on the same lease that both claim the same expense
+ * category now warn.** A pool with an empty `includedCategories` falls back
+ * to "every category flagged recoverable," which is easy to collide with a
+ * second, more specific pool naming one of those same categories — an easy
+ * misconfiguration, and one that silently doubled the tenant's bill for the
+ * overlapping category with no diagnostic saying why.
+ *
+ * None of the ~280 regression fixtures at the time exercised a lease-option
+ * fixture at all (`lease-options.ts` had no dedicated test file before this
+ * round), a base-year recovery pool combined with a cap, or two explicit
+ * recovery pools with overlapping categories — which is why all four
+ * survived three prior audit passes.
+ *
  * ## 6.0.0
  *
  * Three further correctness fixes, found by a third audit pass targeted at
@@ -339,7 +392,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '6.0.0';
+export const ENGINE_VERSION = '7.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
