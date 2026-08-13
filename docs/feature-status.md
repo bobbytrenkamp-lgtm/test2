@@ -53,8 +53,8 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1199 passed (251 engine regression, 31 engine unit, 16 fund,
-                         13 version comparison, 25 variance, 51 import,
+Tests       1204 passed (251 engine regression, 31 engine unit, 16 fund,
+                         13 version comparison, 25 variance, 52 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
@@ -85,12 +85,13 @@ Tests       1199 passed (251 engine regression, 31 engine unit, 16 fund,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
                          11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
-                         4 short-forecast metrics, 2 portfolio boundary cases,
+                         4 short-forecast metrics, 3 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
                          9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
                          3 lease-option branching,
-                         3 recovery pool boundaries and revenue-basis expense recoverable split)
+                         3 recovery pool boundaries and revenue-basis expense recoverable split,
+                         3 job reaper attempt cap)
 Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,

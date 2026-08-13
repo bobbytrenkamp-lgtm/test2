@@ -52,6 +52,56 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 13.0.0
+ *
+ * A tenth audit pass. Major because its portfolio-aggregation finding changes
+ * `weightedGoingInCapRate` and `loanToValue` for an existing portfolio with an
+ * unvalued member.
+ *
+ * **Portfolio `weightedGoingInCapRate` and `loanToValue` no longer weight
+ * income and debt from every member against a value basis that only some of
+ * them contributed to.** `grossAssetValue` sums `dcfValue`, which is ZERO for
+ * a member with neither a `dcf` nor a `direct_capitalization` result —
+ * reachable by an ordinary, fully-calculable member that simply has no
+ * `terminalCapRate` and no `directCapRate` configured, not a contrived state.
+ * That member's own NOI and debt were still pulled into the portfolio-wide
+ * numerators of both ratios unconditionally, while its zero contribution to
+ * `grossAssetValue` silently inflated both ratios by exactly however much of
+ * the portfolio that member represented. This is the same class of bug 6.0.0
+ * fixed for `weightedExitCapRate` — a numerator accumulated unconditionally
+ * against a denominator gated on a valuation existing — recurring in the two
+ * ratios that fix did not touch. New `capRateNoiBasis`/`ltvDebtBasis`
+ * accumulators, gated the same way `discountRateWeighted`/`exitCapWeighted`
+ * already are, now back both ratios; the plain `year1NetOperatingIncome` and
+ * `totalDebt` totals are unaffected and still sum every member.
+ *
+ * **The background job reaper now respects `max_attempts`** (`packages/database`,
+ * not governed by this version number). `reapStalledJobs` unconditionally
+ * requeued a job whose worker died mid-run, with no cap — unlike `failJob`,
+ * which has always stopped retrying a job that throws once it exhausts
+ * `max_attempts`. A job whose handler reliably crashes the worker process
+ * itself, rather than throwing a catchable error, could be claimed, die, and
+ * be reaped back to `queued` forever. A stalled job that has already reached
+ * its attempt limit is now left `failed` instead.
+ *
+ * **Rent-roll import now flags every row past the first when a lease
+ * reference repeats three or more times** (`packages/reporting`, not governed
+ * by this version number). Only the second occurrence was ever flagged; a
+ * third or later row silently imported and overwrote an earlier row on write
+ * via `ON CONFLICT (model_id, code) DO UPDATE`, with no error naming what it
+ * clobbered.
+ *
+ * A fourth finding — scenario-batch numeric overrides accepting a non-numeric
+ * string, producing `NaN` that defeats range guards and eventually throws a
+ * cryptic error deep in `computeDcf` — was investigated and left unfixed,
+ * sized for a dedicated round: it needs validation at the API boundary, not a
+ * one-line engine change.
+ *
+ * None of the ~300 regression fixtures at the time exercised a portfolio
+ * member with a calculated result but no valuation at all — which is why it
+ * survived nine prior audit passes despite 6.0.0 fixing the identical bug
+ * class in a sibling ratio.
+ *
  * ## 12.0.0
  *
  * A ninth audit pass. Major because its one confirmed engine-level finding
@@ -625,7 +675,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '12.0.0';
+export const ENGINE_VERSION = '13.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

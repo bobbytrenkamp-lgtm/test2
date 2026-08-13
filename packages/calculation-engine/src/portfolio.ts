@@ -120,6 +120,17 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
   let discountRateWeighted = ZERO;
   let exitCapWeighted = ZERO;
   let valueWeightBasis = ZERO;
+  // NOI and debt from only the members `grossAssetValue` actually includes,
+  // for the two ratios built against it (`weightedGoingInCapRate`,
+  // `loanToValue`). A member with no exit cap rate and no direct cap rate
+  // configured is still real, still calculable, and still contributes its
+  // own NOI and debt to the portfolio's plain totals below — but it
+  // contributes zero to `grossAssetValue` (`dcfValue` returns ZERO with no
+  // valuation to read), so a ratio built from the *full* NOI/debt against
+  // that reduced value basis would overstate income-to-value and understate
+  // leverage by exactly however much of the portfolio that member represents.
+  let capRateNoiBasis = ZERO;
+  let ltvDebtBasis = ZERO;
 
   const unleveredFlows = zeros(horizonMonths);
   const leveredFlows = zeros(horizonMonths);
@@ -137,6 +148,14 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     const result = member.result;
     const value = dcfValue(result).times(share);
     grossAssetValue = grossAssetValue.plus(value);
+    // Whether this member contributed anything to `grossAssetValue` above —
+    // `dcfValue` returns ZERO for a model with neither a dcf nor a
+    // direct_capitalization result, which a model can reach and be calculated
+    // and included here without configuring an exit cap rate or a direct cap
+    // rate at all.
+    const hasValuation = result.valuations.some(
+      (valuation) => valuation.method === 'dcf' || valuation.method === 'direct_capitalization',
+    );
 
     const debtAtStart = result.debtSchedules.reduce(
       (acc, schedule) => acc.plus(d(schedule.rows[0]?.endingBalance ?? '0')),
@@ -150,6 +169,10 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
 
     year1Noi = year1Noi.plus(annualizedYear1Noi(result).times(share));
     year1Capex = year1Capex.plus(annualLine(result, 0, 'capitalExpenditures').abs().times(share));
+    if (hasValuation) {
+      capRateNoiBasis = capRateNoiBasis.plus(annualizedYear1Noi(result).times(share));
+      ltvDebtBasis = ltvDebtBasis.plus(debtAtStart.times(share));
+    }
 
     const occupancy = d(result.occupancy[0]?.physicalOccupancyPercent ?? '0');
     occupiedArea = occupiedArea.plus(area.times(occupancy).times(share));
@@ -243,11 +266,11 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     totalUnits: totalUnits.toFixed(0),
     year1NetOperatingIncome: year1Noi.toFixed(2),
     year1CapitalExpenditure: year1Capex.toFixed(2),
-    weightedGoingInCapRate: toStringOrNull(safeDivide(year1Noi, grossAssetValue)),
+    weightedGoingInCapRate: toStringOrNull(safeDivide(capRateNoiBasis, grossAssetValue)),
     weightedDiscountRate: toStringOrNull(safeDivide(discountRateWeighted, valueWeightBasis)),
     weightedExitCapRate: toStringOrNull(safeDivide(exitCapWeighted, valueWeightBasis)),
     physicalOccupancy: toStringOrNull(safeDivide(occupiedArea, totalArea)),
-    loanToValue: toStringOrNull(safeDivide(totalDebt, grossAssetValue)),
+    loanToValue: toStringOrNull(safeDivide(ltvDebtBasis, grossAssetValue)),
     portfolioUnleveredIrr: toStringOrNull(irrMonthly(unleveredFlows, initialUnlevered)),
     portfolioLeveredIrr: toStringOrNull(irrMonthly(leveredFlows, initialEquity)),
     portfolioEquityMultiple: toStringOrNull(equityMultiple([initialEquity, ...leveredFlows])),

@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **12.0.0** — `packages/calculation-engine`.
+Engine version **13.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -942,6 +942,46 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 13.0.0
+
+**A tenth audit pass.** Major because its portfolio-aggregation finding
+changes `weightedGoingInCapRate` and `loanToValue` for an existing portfolio
+with an unvalued member.
+
+- **Portfolio `weightedGoingInCapRate` and `loanToValue` no longer weight
+  income and debt from every member against a value basis only some of them
+  contributed to.** `grossAssetValue` sums `dcfValue`, which is ZERO for a
+  member with neither a `dcf` nor a `direct_capitalization` result — reachable
+  by an ordinary, fully-calculable member that simply has no `terminalCapRate`
+  and no `directCapRate` configured. That member's own NOI and debt were still
+  pulled into both ratios' numerators unconditionally, while its zero
+  contribution to `grossAssetValue` silently inflated both ratios by however
+  much of the portfolio it represented — the same class of bug 6.0.0 fixed for
+  `weightedExitCapRate`, recurring in the two ratios that fix did not touch.
+  The plain `year1NetOperatingIncome` and `totalDebt` totals are unaffected
+  and still sum every member.
+- **The background job reaper now respects `max_attempts`** (`packages/database`,
+  not governed by this version number). `reapStalledJobs` unconditionally
+  requeued a job whose worker died mid-run; a job whose handler reliably
+  crashes the worker process itself could be reaped back to `queued` forever.
+  A stalled job that has already reached its attempt limit is now left
+  `failed` instead.
+- **Rent-roll import now flags every row past the first when a lease
+  reference repeats three or more times** (`packages/reporting`, not governed
+  by this version number). Only the second occurrence was ever flagged; a
+  third or later row silently imported and overwrote an earlier row on write,
+  with no error naming what it clobbered.
+- **A fourth finding was investigated and left unfixed**: scenario-batch
+  numeric overrides accept a non-numeric string, producing `NaN` that defeats
+  range guards and eventually throws a cryptic error deep in `computeDcf`.
+  Sized for a dedicated round — it needs validation at the API boundary, not
+  a one-line engine change.
+
+None of the ~300 regression fixtures at the time exercised a portfolio member
+with a calculated result but no valuation at all, which is why it survived
+nine prior audit passes despite 6.0.0 fixing the identical bug class in a
+sibling ratio.
 
 ### 12.0.0
 

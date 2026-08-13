@@ -194,3 +194,133 @@ describe('a portfolio member whose sale month falls outside its own forecast', (
     expect(Number(aggregate.weightedExitCapRate)).toBeCloseTo(0.05, 6);
   });
 });
+
+/**
+ * Portfolio going-in cap rate and loan-to-value, when one member has no
+ * valuation at all.
+ *
+ * Found by an eleventh audit pass: `grossAssetValue` correctly reads ZERO for
+ * a member with neither a `dcf` nor a `direct_capitalization` result (both
+ * are legitimately optional — a model with no exit cap rate and no direct
+ * cap rate configured still calculates and can still be a portfolio member),
+ * but `year1Noi` and `totalDebt` were accumulated from *every* member
+ * regardless, unconditionally. `weightedGoingInCapRate` and `loanToValue` are
+ * both built as that full NOI/debt over the reduced `grossAssetValue` — a
+ * numerator drawn from more members than the denominator, the exact mismatch
+ * the already-fixed `weightedExitCapRate` gate above exists to prevent for
+ * the same reason.
+ */
+describe('a portfolio member with no valuation at all', () => {
+  it('excludes that member’s NOI and debt from the value-weighted ratios, without dropping them from the plain totals', () => {
+    // Member A: a normal, valued property. $600,000/year NOI (flat,
+    // $50,000/month, so annualisation is exact with nothing to round), a 6%
+    // direct cap rate -> value = 600,000 / 0.06 = $10,000,000 exactly. No
+    // debt.
+    const modelA = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 12 }, () => '50000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '9500000',
+        directCapRate: '0.06',
+        directCapNoiBasis: 'year_1',
+      },
+    });
+    const resultA = calculate(modelA);
+    expect(resultA.valuations.find((v) => v.method === 'direct_capitalization')?.value).toBe(
+      '10000000',
+    );
+
+    // Member B: no terminalCapRate, no grossSalePriceOverride and no
+    // directCapRate anywhere in its valuation block (baseModel's own default
+    // already omits all three) -> valuations is empty, but the model is
+    // otherwise perfectly calculable. $300,000/year NOI, and a fully-drawn
+    // $5,000,000 interest-only facility -> debtSchedules[0].rows[0]
+    // .endingBalance is exactly $5,000,000.
+    const modelB = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 12 }, () => '25000'),
+        },
+      ],
+      debt: [
+        {
+          id: 'D1',
+          name: 'Bridge loan',
+          type: 'bridge',
+          commitment: '5000000',
+          initialFunding: '5000000',
+          fundingDate: '2026-01-01',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 12,
+        },
+      ],
+    });
+    const resultB = calculate(modelB);
+    expect(resultB.valuations).toEqual([]);
+    expect(resultB.debtSchedules[0]?.rows[0]?.endingBalance).toBe('5000000');
+
+    const memberA: PortfolioMember = {
+      propertyId: 'A',
+      propertyName: 'Property A',
+      propertyType: 'office',
+      market: null,
+      ownershipPercent: '1',
+      rentableArea: '100000',
+      unitCount: 0,
+      result: resultA,
+    };
+    const memberB: PortfolioMember = {
+      propertyId: 'B',
+      propertyName: 'Property B',
+      propertyType: 'office',
+      market: null,
+      ownershipPercent: '1',
+      rentableArea: '100000',
+      unitCount: 0,
+      result: resultB,
+    };
+    const aggregate = aggregatePortfolio([memberA, memberB]);
+
+    // Hand-derived, fixed: only A has a value ($10,000,000), so the cap rate
+    // reads back exactly A's own 6% and A's own zero debt -- neither ratio
+    // blends in B's income or B's debt, because neither is backed by
+    // recognised value in this aggregate. The bug read 900,000 / 10,000,000
+    // = 9.0% and 5,000,000 / 10,000,000 = 50% instead, both drawn from B
+    // despite B contributing nothing to the $10,000,000 they were divided
+    // by.
+    expect(Number(aggregate.weightedGoingInCapRate)).toBeCloseTo(0.06, 6);
+    expect(Number(aggregate.loanToValue)).toBeCloseTo(0, 6);
+
+    // The plain totals are unaffected by the fix -- B's real NOI and real
+    // debt still count toward the portfolio's actual totals, which is a
+    // separate, still-true fact from what the two ratios above should read.
+    expect(Number(aggregate.year1NetOperatingIncome)).toBeCloseTo(900_000, 2);
+    expect(Number(aggregate.totalDebt)).toBeCloseTo(5_000_000, 2);
+  });
+});
