@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1161 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1178 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          26 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -82,6 +82,7 @@ Tests       1161 passed (251 engine regression, 31 engine unit, 16 fund,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 5 organization export,
                          4 debt funded pre-forecast/draw/origination fee,
+                         12 loan sizing, 5 loan sizing via the API,
                          11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 2 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
@@ -150,6 +151,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Capitalised interest | Functional | Used in the development fixture |
 | Fees: origination, exit, unused | Functional | Origination tested |
 | Covenant testing (DSCR, LTV, LTC, debt yield) | Tested | |
+| Loan sizing (max amount by DSCR, LTV, LTC, debt yield) | Tested | Standalone calculator: the largest loan the smallest of the supplied constraints allows, and which one binds. Not folded into the period schedule, whose own DSCR test is circular by construction (computed from a facility's own already-modelled debt service). 12 hand-derived engine tests |
 | Cash-management triggers on breach | Tested | Surplus withheld from equity while breached, released on cure; NOI and unlevered cash flow unchanged. Cash sweep is not modelled |
 | Refinancing | Tested | Payoff and replacement funding |
 | DCF, end and mid period | Tested | Verified against closed-form annuities |
@@ -215,6 +217,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Assumption collections | Tested | Six collections through one generic handler; row-level optimistic locking covered on every one |
 | Calculate, cash flow, trace | Tested | |
 | Sensitivity (one- and two-way) | Functional | Full engine run per cell |
+| Loan sizing | Tested | `POST /models/:id/debt/size`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. 5 API tests |
 | Scenario batch | Functional | Queued to the worker |
 | Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |

@@ -606,8 +606,50 @@ or at the modelled sale when `repayOnSale` is set.
 
 Covenants are tested each period on trailing-twelve-month NOI against annualised
 debt service (DSCR), balance (debt yield), concluded value (LTV) and total cost
-(LTC). Breaches are reported; they do not alter the cash flow, because modelling
-a cash trap requires terms the facility record does not yet carry.
+(LTC). Breaches are reported, and — when the facility carries `cashTrap` — spring
+a cash-management trigger that withholds the surplus from equity until the
+covenant has been met for the required consecutive periods; see below.
+
+### Cash-management triggers on covenant breach
+
+Where `cashTrap.enabled` is set, a covenant breach is not just reported — the
+period's surplus cash (levered cash flow less any debt proceeds, which are
+funding, not performance) is withheld from equity rather than distributed, and
+held until the trigger's covenant has been met for `cureConsecutivePeriods`
+consecutive periods, at which point the full held balance releases in one period.
+The property's own NOI and unlevered cash flow are unaffected either way — this
+is a financing outcome, not an operating one. **Cash sweep (applying trapped
+cash to principal) is deliberately not modelled**: that would make the
+amortisation schedule depend on the cash flow it also produces, a fixed point
+the engine does not solve. See `waterfall.ts`'s `applyCashTrap`.
+
+### Loan sizing
+
+A standalone calculation, not part of the period-by-period schedule above:
+given a set of target covenants, what loan amount does each one alone allow, and
+which is the binding (smallest) constraint?
+
+```
+DSCR:        maxAnnualDebtService = sizingNoi ÷ targetDscr
+             amortizing → invert the level-payment formula for principal:
+                           P = pmt × (1 − (1 + r)^−n) ÷ r
+             interest-only (n = 0) → P = maxAnnualDebtService ÷ annualRate
+LTV:         P = propertyValue × targetLtv
+LTC:         P = totalCost × targetLtc
+Debt yield:  P = sizingNoi ÷ targetDebtYield
+
+sizedAmount = min of every constraint the caller supplied
+```
+
+Deliberately not folded into the period loop above: that loop's own DSCR test
+is circular by construction, computed from the debt service a facility's
+*already-modelled* amount produces. Sizing answers the question asked before a
+facility exists at all — the caller reads the result and types it into a new
+facility's `commitment`, the same way an appraised value is read and typed into
+`acquisitionPrice`. `sizingNoi` (which year's NOI to size against — Year 1, a
+stabilized year, trailing twelve months) is the caller's judgment call, the same
+way `directCapRate`'s NOI basis already is. See `debt-sizing.ts`'s `sizeLoan`,
+reachable at `POST /models/:id/debt/size`.
 
 ---
 

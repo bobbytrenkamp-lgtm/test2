@@ -18,6 +18,7 @@ import {
   calculate,
   compareVersions,
   rankDrivers,
+  sizeLoan,
 } from '@cre/calculation-engine';
 import type { ModelInput } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
@@ -138,6 +139,39 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
     }
     const input = await buildModelInput(request.db, context.organizationId, id);
     return { ...assessHealth(input, latest.result), calculatedAt: latest.result.calculatedAt };
+  });
+
+  /**
+   * Loan sizing: given target covenants (DSCR, LTV, LTC, debt yield), the
+   * largest loan that satisfies all of them at once.
+   *
+   * A calculator, not a calculation: no facility exists on the model yet, so
+   * there is no engine pass to run and no stored result to require, unlike
+   * `/health` and `/drivers`, which both read one. `model:read` rather than
+   * `model:calculate` for the same reason `/health` uses it — nothing here
+   * runs the engine.
+   */
+  app.post('/models/:id/debt/size', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const body = z
+      .object({
+        sizingNoi: z.string().min(1),
+        propertyValue: z.string().nullish(),
+        totalCost: z.string().nullish(),
+        annualRate: z.string().min(1),
+        amortizationMonths: z.number().int().min(0),
+        minimumDscr: z.string().nullish(),
+        maximumLtv: z.string().nullish(),
+        maximumLtc: z.string().nullish(),
+        minimumDebtYield: z.string().nullish(),
+      })
+      .parse(request.body);
+
+    return sizeLoan(body);
   });
 
   /**

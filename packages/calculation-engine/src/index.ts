@@ -10,6 +10,7 @@ export * from './recoveries.js';
 export * from './revenue.js';
 export * from './capital.js';
 export * from './debt.js';
+export * from './debt-sizing.js';
 export * from './valuation.js';
 export * from './metrics.js';
 export * from './waterfall.js';
