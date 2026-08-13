@@ -235,6 +235,43 @@ describe('row mapping', () => {
     expect(result.leases).toHaveLength(0);
   });
 
+  it('rejects a negative area', () => {
+    const result = mapRows(
+      [['402', 'Negative Area Co', '-5000', '2026-01-01', '2031-12-31', '100000', 'NNN']],
+      mapping,
+    );
+    const error = result.issues.find((issue) => issue.field === 'area');
+    expect(error?.severity).toBe('error');
+    expect(error?.message).toBe('Area is negative.');
+    expect(result.leases).toHaveLength(0);
+  });
+
+  it('rejects a negative base rent, including one written in accounting notation', () => {
+    /*
+     * Found by a fourteenth audit pass: `normalizeNumber` reads "(30.00)" as
+     * -30 by design (correct for a P&L figure), but nothing checked a rent's
+     * sign the way area's is checked above — a stray credit column or a
+     * plain minus-sign typo passed straight through and silently understated
+     * gross potential rent, with no diagnostic anywhere in the pipeline.
+     */
+    const parenthetical = mapRows(
+      [['403', 'Parenthetical Rent Co', '5000', '2026-01-01', '2031-12-31', '(30.00)', 'NNN']],
+      mapping,
+    );
+    const parentheticalError = parenthetical.issues.find((issue) => issue.field === 'baseRent');
+    expect(parentheticalError?.severity).toBe('error');
+    expect(parentheticalError?.message).toBe('Base rent is negative.');
+    expect(parenthetical.leases).toHaveLength(0);
+
+    const plainMinus = mapRows(
+      [['404', 'Negative Rent Co', '5000', '2026-01-01', '2031-12-31', '-100000', 'NNN']],
+      mapping,
+    );
+    const plainMinusError = plainMinus.issues.find((issue) => issue.field === 'baseRent');
+    expect(plainMinusError?.severity).toBe('error');
+    expect(plainMinus.leases).toHaveLength(0);
+  });
+
   it('reports a required field that was never mapped', () => {
     const { area: _area, ...withoutArea } = mapping;
     const result = mapRows(
