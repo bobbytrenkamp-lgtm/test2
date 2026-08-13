@@ -384,6 +384,11 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
 
     const reforecastModel = await getModel(request.db, context.organizationId, body.modelId);
     if (!reforecastModel) throw notFound('That model does not exist in this organization.');
+    if (reforecastModel.property_id !== actualsPeriod.property_id) {
+      throw badRequest(
+        'A reforecast must be built from a model of the same property as the actuals it reforecasts. Comparing two different assets produces a number with no meaning.',
+      );
+    }
 
     const latest = await getLatestCalculation(request.db, body.modelId);
     if (!latest) {

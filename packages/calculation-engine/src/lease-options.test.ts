@@ -167,3 +167,88 @@ describe('a termination option with a nonzero exercise cost', () => {
     expect(result.monthly.contractualBaseRent[7]).toBe('0.00');
   });
 });
+
+describe('a terminated lease with a nonzero exercise cost, rolled over rather than excluded', () => {
+  it('lets the space roll over onto the new-lease market terms instead of staying zero forever', () => {
+    // Same termination as above (July 1, 2026, $50,000 fee) but this time
+    // `excludeFromRollover` is left at its default `false`, and a market
+    // leasing profile is configured. Before the fix, the zero-area "fee"
+    // marker occurrence — pushed *after* `ended` whenever the cost is
+    // nonzero — became the rollover seed instead of `ended`, so every
+    // occurrence rollover generated from it inherited `area: 0` and stayed
+    // zero for the rest of the forecast, no matter what the market leasing
+    // profile said.
+    //
+    // Hand-derived: renewalProbability is 0, so the full weight goes to the
+    // "new lease" branch, starting `downtimeMonths` (3) after the day after
+    // termination (2026-07-02) -> 2026-10-02. August and September (indices
+    // 7 and 8) are wholly within the vacancy, so contractual rent is zero.
+    // November (index 10) is the first full calendar month entirely inside
+    // the new lease: 12,000 sqft x $32.00/sqft/yr / 12 = $32,000.00 exactly.
+    const model = buildModel({
+      modelId: 'fx-termination-fee-rollover',
+      modelName: 'Termination fee with rollover (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 24,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '12000' },
+      spaces: [{ id: 'S1', code: 'Whole building', area: '12000' }],
+      tenants: [{ id: 'T1', name: 'Sole tenant' }],
+      leases: [
+        {
+          id: 'L1',
+          tenantId: 'T1',
+          spaceIds: ['S1'],
+          status: 'occupied',
+          area: '12000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2030-12-31',
+          baseRent: '12.00',
+          baseRentBasis: 'per_area_per_year',
+          options: [
+            {
+              id: 'OPT-TERM',
+              type: 'termination',
+              exerciseDate: '2026-07-01',
+              probability: '1',
+              cost: '50000',
+            },
+          ],
+        },
+      ],
+      marketLeasingProfiles: [
+        {
+          id: 'MLA-1',
+          name: 'Fixture market',
+          marketRent: '32.00',
+          marketRentBasis: 'per_area_per_year',
+          renewalProbability: '0',
+          renewalTermMonths: 60,
+          newLeaseTermMonths: 60,
+          downtimeMonths: 3,
+          newFreeRentMonths: 0,
+          newTiPerArea: '0',
+          newLcPercent: '0',
+          recovery: { method: 'none' },
+        },
+      ],
+      defaultMarketLeasingProfileId: 'MLA-1',
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '1500000',
+        saleMonth: 24,
+      },
+    });
+    const result = calculate(model);
+
+    expect(result.monthly.contractualBaseRent[7]).toBe('0.00');
+    expect(result.monthly.contractualBaseRent[8]).toBe('0.00');
+    expect(result.monthly.contractualBaseRent[10]).toBe('32000.00');
+  });
+});

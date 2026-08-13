@@ -289,6 +289,54 @@ describe.skipIf(!hasDatabase)('reforecast', () => {
     expect(result.body).toContain('calculated');
   });
 
+  it('refuses to build a reforecast from a different property’s model', async () => {
+    /*
+     * Found by a twelfth audit pass: `/variance`'s comparisonModelId branch
+     * checks the model and the base budget share a property; this route's
+     * only structurally identical branch — a model's forecast is carried
+     * forward the same way — had no equivalent check. Without it, a
+     * reforecast for this property's actuals could be built entirely from
+     * an unrelated property's forecast, with no error and no way to tell
+     * from the resulting budget period that it happened.
+     */
+    const otherProperty = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/properties',
+      headers: authed(owner.cookie),
+      payload: { name: 'Reforecast Annexe', propertyType: 'office', rentableArea: '20000' },
+    });
+    const otherPropertyId = (otherProperty.json() as { property: { id: string } }).property.id;
+
+    const otherModel = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/models',
+      headers: authed(owner.cookie),
+      payload: {
+        propertyId: otherPropertyId,
+        name: 'Annexe base case',
+        classification: 'acquisition',
+        valuationDate: '2026-01-01',
+        forecastStartDate: '2026-01-01',
+        forecastMonths: 12,
+        saleMonth: 12,
+      },
+    });
+    const otherModelId = (otherModel.json() as { model: { id: string } }).model.id;
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${otherModelId}/calculate`,
+      headers: authed(owner.cookie),
+    });
+
+    const result = await reforecast({
+      modelId: otherModelId,
+      closedThrough: '2026-02-01',
+      label: 'FY2026 reforecast from the wrong property',
+    });
+    expect(result.statusCode).toBe(400);
+    expect(result.body).toContain('same property');
+  });
+
   it('can then be compared against the original budget', async () => {
     // The point of writing it as a real period: the variance screen treats it
     // like any other, so a reforecast can be reported against without a second

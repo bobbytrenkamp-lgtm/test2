@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **13.0.0** — `packages/calculation-engine`.
+Engine version **14.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -1007,6 +1007,33 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 14.0.0
+
+**An eleventh audit pass.** Major because its one confirmed engine-level
+finding silently zeroes rent, occupancy and value for the rest of the
+forecast on an ordinary lease configuration.
+
+- **A terminated lease with a nonzero exercise cost no longer stays at zero
+  area for the rest of the forecast once rollover picks it up.**
+  `branchOnOption`'s termination branch built the correct, full-area `ended`
+  occurrence, then — only when the cost was nonzero — appended a
+  zero-footprint "fee" occurrence after it to carry the exercise cost
+  without disturbing `ended`'s own cost. `buildOccurrences` always treats a
+  path's *last* occurrence as the rollover seed, so the fee marker became
+  that seed whenever the fee was nonzero, and every renewal or new lease
+  generated from it inherited `area: 0` — staying zero for the rest of the
+  forecast, since each generated occurrence became the next seed in turn.
+  Rent, occupancy and value were silently understated on any area-based
+  rent basis. A landlord-paid termination cost is ordinary, not contrived,
+  and rollover is on by default. The fee occurrence now lands *before*
+  `ended` in the occurrence list instead of after it, so `ended` — the
+  space's real, pre-termination area — is always what rollover sees.
+
+None of the ~300 regression fixtures at the time exercised a nonzero-cost
+termination option with rollover left enabled — the one existing
+termination-fee fixture sets `excludeFromRollover: true`, which is exactly
+what kept rollover from ever reading the fee marker as a seed.
 
 ### 13.0.0
 

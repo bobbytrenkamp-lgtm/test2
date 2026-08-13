@@ -250,7 +250,7 @@ function branchOnOption(
       exerciseCost: d(option.cost),
       result: d(option.cost),
     });
-    const occurrences = [...head, ended];
+    const occurrences = [...head];
     // The termination fee is its own cost, independent of whatever `ended`
     // already carries at its own (inherited, pre-termination) cost date —
     // overwriting `ended`'s tiCost would lose that pre-existing cost, and
@@ -260,6 +260,16 @@ function branchOnOption(
     // zero coverage for every period, exactly as `periodCoverage` treats any
     // empty interval, so it contributes no rent, area or occupancy of its
     // own — only the fee, landed on the exercise date.
+    //
+    // It goes into `occurrences` **before** `ended`, not after.
+    // `buildOccurrences` always treats a path's *last* occurrence as the seed
+    // rollover chains forward from, and `rolloverBranches` inherits that
+    // seed's `area` verbatim — a zero-area fee marker landing last would
+    // become the seed instead of `ended`, and every renewal or new lease
+    // generated from it would inherit `area: 0` and stay zero for the rest of
+    // the forecast, silently zeroing rent, occupancy and value for the whole
+    // space from the termination date onward. `ended` carries the space's
+    // real, pre-termination area and must be what rollover actually sees.
     if (!d(option.cost).isZero()) {
       occurrences.push({
         ...tail,
@@ -283,6 +293,7 @@ function branchOnOption(
         costDate: exerciseDate,
       });
     }
+    occurrences.push(ended);
     branches.push({ weight: exercisedWeight, occurrences });
     return branches;
   }

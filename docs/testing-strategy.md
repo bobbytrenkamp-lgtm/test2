@@ -51,7 +51,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio year-1 NOI, weighted exit cap rate and value-weighted ratios on boundary members | `packages/calculation-engine/src/portfolio.test.ts` | 3 | No |
 | A cash trap open through the sale date, and a multi-facility cure period | `packages/calculation-engine/src/cash-trap.test.ts` | 3 | No |
 | Zero and negative capitalization and discount rates | `packages/calculation-engine/src/valuation.test.ts` | 11 | No |
-| A renewal option at the forecast horizon, and a termination fee | `packages/calculation-engine/src/lease-options.test.ts` | 3 | No |
+| A renewal option at the forecast horizon, a termination fee, and rollover after a nonzero-cost termination | `packages/calculation-engine/src/lease-options.test.ts` | 4 | No |
 | A zero-baseline recovery cap, overlapping recovery pools, and a revenue-basis expense's recoverable split | `packages/calculation-engine/src/recoveries.test.ts` | 3 | No |
 | Duplicate entity ids, a dangling growth-curve reference, and a duplicate growth-curve year | `packages/calculation-engine/src/validation.test.ts` | 9 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 31 | No |
@@ -69,7 +69,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Sensitivity and scenario-batch input validation | `tests/scenario-sensitivity.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
-| Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
+| Reforecast carry-forward, and the same-property guard on its model | `tests/reforecast.test.ts` | 6 | Yes |
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
@@ -106,7 +106,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1238 tests in total.**
+**1240 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -146,7 +146,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1436 across the whole repository.
+**198 browser tests in total**, for 1438 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
