@@ -41,7 +41,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
-| A debt facility funded before the forecast, a draw outside it, and a delayed-draw origination fee | `packages/calculation-engine/src/debt.test.ts` | 4 | No |
+| A debt facility funded before the forecast, a draw outside it, a delayed-draw origination fee, and a floating-rate DSCR covenant across a rate step | `packages/calculation-engine/src/debt.test.ts` | 5 | No |
 | Loan sizing: the level-payment inverse, and each covenant constraint alone, combined and tied | `packages/calculation-engine/src/debt-sizing.test.ts` | 12 | No |
 | Equity distributions stop at the sale date, zero-sum contribution shares (capital calls and the residual fallback), and two partners sharing an id | `packages/calculation-engine/src/waterfall.test.ts` | 11 | No |
 | Metrics that annualise a forecast shorter than 12 months | `packages/calculation-engine/src/short-forecast.test.ts` | 4 | No |
@@ -73,7 +73,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
-| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 85 | No |
+| Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 86 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
@@ -98,7 +98,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1178 tests in total.**
+**1180 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -138,7 +138,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1376 across the whole repository.
+**198 browser tests in total**, for 1378 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from './engine.js';
-import { baseModel, extendModel } from './__fixtures__/builders.js';
+import { baseModel, buildModel, extendModel } from './__fixtures__/builders.js';
 
 /**
  * A facility funded before the forecast start.
@@ -198,5 +198,125 @@ describe('an origination fee on a facility whose first draw is dated after closi
     expect(rows[2]?.fees).toBe('0');
     const totalFees = rows.reduce((acc, row) => acc + Number(row.fees), 0);
     expect(totalFees).toBeCloseTo(50_000, 2);
+  });
+});
+
+/**
+ * A floating-rate facility's DSCR covenant, tested across a rate step.
+ *
+ * Found by a ninth audit pass: `annualDebtService` was one period's cash
+ * interest plus principal, multiplied by twelve — extrapolating a single
+ * month rather than summing the trailing twelve months actually paid, unlike
+ * `annualNoi` a line above it, which correctly sums `trailingAnnualNoi`. For
+ * a facility whose debt service is level month to month (every prior
+ * covenant fixture: fixed-rate, or interest-only, or steady-state
+ * amortizing) the two are identical and the bug is invisible. A floating
+ * rate is not level — `periodRate` re-reads the index curve once per
+ * forecast year, so the rate steps at every twelve-month anniversary — which
+ * is the ordinary shape of a floating facility, not a contrived one.
+ */
+describe("a floating-rate facility's DSCR covenant across a rate step", () => {
+  it('tests against the trailing twelve months of debt service actually paid, not one month annualised', () => {
+    // 24-month forecast. A single lease at a flat $500,000/year ('annual_amount'
+    // basis, no escalation, no vacancy, no expenses) gives an exact, known NOI
+    // of $41,666.6667/month with nothing else to hand-derive around.
+    //
+    // A $10,000,000 interest-only floating facility, index curve at 3% in
+    // forecast year 1 and 7% in forecast year 2 (an ordinary upward-sloping
+    // short curve, spread 0). Interest is flat $25,000.00/month through the
+    // first 12 months and flat $58,333.33/month from month 13 on.
+    //
+    // At period 13 (index 12, the first month of forecast year 2), the
+    // buggy formula reads *that month's* interest alone: 58,333.33 x 12 =
+    // $700,000.00, against $500,000 of trailing NOI -> DSCR 0.71x, breaching
+    // a 1.0x covenant that was never actually in trouble. The true trailing
+    // twelve months (11 x $25,000.00 + 1 x $58,333.33 = $333,333.33) gives
+    // DSCR 500,000 / 333,333.33 = 1.50x -- comfortably clear.
+    const model = buildModel({
+      modelId: 'fx-floating-dscr-trailing',
+      modelName: 'Floating DSCR trailing window (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 24,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '50000' },
+      spaces: [{ id: 'S1', code: 'Whole building', area: '50000' }],
+      tenants: [{ id: 'T1', name: 'Sole tenant' }],
+      leases: [
+        {
+          id: 'L1',
+          tenantId: 'T1',
+          spaceIds: ['S1'],
+          status: 'occupied',
+          area: '50000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2035-12-31',
+          baseRent: '500000',
+          baseRentBasis: 'annual_amount',
+          excludeFromRollover: true,
+        },
+      ],
+      growthCurves: [
+        {
+          id: 'SOFR',
+          name: 'SOFR forward',
+          defaultRate: '0.03',
+          byYear: [{ year: 2, rate: '0.07' }],
+        },
+      ],
+      debt: [
+        {
+          id: 'D1',
+          name: 'Floating facility',
+          type: 'bridge',
+          commitment: '10000000',
+          initialFunding: '10000000',
+          fundingDate: '2026-01-01',
+          rateType: 'floating',
+          indexCurveId: 'SOFR',
+          spread: '0',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 24,
+          minimumDscr: '1.0',
+          repayOnSale: false,
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '10000000',
+        saleMonth: 24,
+      },
+    });
+
+    const result = calculate(model);
+    const rows = result.debtSchedules[0]?.rows ?? [];
+    const breaches = result.debtSchedules[0]?.covenantBreaches ?? [];
+
+    // The rate step itself, confirmed independently before trusting the DSCR
+    // built from it: flat 25,000.00 through month 12, flat 58,333.33 from
+    // month 13.
+    expect(rows[11]?.cashInterest).toBe('25000');
+    expect(rows[12]?.cashInterest).toBe('58333.33333333333333333333333333333');
+
+    // The trailing DSCR at the rate step: 1.50x, not the 0.71x a single
+    // month's interest annualised would read.
+    expect(Number(rows[12]?.dscr)).toBeCloseTo(1.5, 2);
+
+    // No breach at period 13 — the month the bug fired one immediately.
+    expect(breaches.some((b) => b.periodIndex === 13)).toBe(false);
+
+    // A genuine breach still occurs once a full trailing year sits entirely
+    // at the higher rate: by period 24, trailing debt service is a full
+    // $700,000.00 (12 x 58,333.33), and 500,000 / 700,000 = 0.71x truly
+    // breaches. The covenant is not disabled by the fix, only measured
+    // honestly.
+    expect(Number(rows[23]?.dscr)).toBeCloseTo(0.7143, 3);
+    expect(breaches.some((b) => b.periodIndex === 24)).toBe(true);
   });
 });

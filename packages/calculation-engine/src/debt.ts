@@ -147,6 +147,13 @@ export function computeDebt(
     const breaches: DebtSchedule['covenantBreaches'] = [];
     let balance = ZERO;
     let remainingAmortMonths = facility.amortizationMonths;
+    // This facility's own cash interest + principal per period, built up as
+    // the loop below runs. Kept separate from `result.interest`/
+    // `result.principal`, which accumulate *across every facility* — the
+    // covenant test below needs this one facility's own trailing debt
+    // service, the same way `annualNoi` below needs the trailing window
+    // rather than one period's figure annualised.
+    const facilityDebtService: Decimal[] = [];
 
     for (let i = 0; i < n; i += 1) {
       const beginning = balance;
@@ -223,8 +230,9 @@ export function computeDebt(
 
       // Covenants are tested on a trailing annualised basis once a full year of
       // operating history exists inside the forecast.
+      facilityDebtService.push(cashInterest.plus(principal));
       const annualNoi = trailingAnnualNoi(ctx.noi, i);
-      const annualDebtService = cashInterest.plus(principal).times(TWELVE);
+      const annualDebtService = trailingAnnualDebtService(facilityDebtService, i);
       const dscr = annualDebtService.isZero() ? null : annualNoi.dividedBy(annualDebtService);
       const debtYield = balance.isZero() ? null : annualNoi.dividedBy(balance);
       const ltv = ctx.propertyValue.isZero() ? null : balance.dividedBy(ctx.propertyValue);
@@ -337,6 +345,28 @@ function trailingAnnualNoi(noi: Decimal[], index: number): Decimal {
   let months = 0;
   for (let i = from; i <= index && i < noi.length; i += 1) {
     total = total.plus(noi[i] as Decimal);
+    months += 1;
+  }
+  if (months === 0) return ZERO;
+  return total.times(TWELVE).dividedBy(months);
+}
+
+/**
+ * Trailing twelve months of one facility's own actual cash debt service
+ * (interest + principal), annualised when fewer months are available — the
+ * same convention `trailingAnnualNoi` uses for the numerator of the same
+ * ratio. A single period's debt service multiplied by twelve is only equal
+ * to this when debt service happens to be level throughout the trailing
+ * window; a floating rate that steps at a forecast-year boundary, or an
+ * interest-only-to-amortizing transition, is not level, and extrapolating
+ * from one period alone tests a debt service that was never actually paid.
+ */
+function trailingAnnualDebtService(debtService: Decimal[], index: number): Decimal {
+  const from = Math.max(0, index - 11);
+  let total = ZERO;
+  let months = 0;
+  for (let i = from; i <= index && i < debtService.length; i += 1) {
+    total = total.plus(debtService[i] as Decimal);
     months += 1;
   }
   if (months === 0) return ZERO;

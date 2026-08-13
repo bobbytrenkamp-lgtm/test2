@@ -52,6 +52,54 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 12.0.0
+ *
+ * A ninth audit pass. Major because its one confirmed engine-level finding
+ * changes covenant-breach reporting — and, wherever a `cashTrap` is wired to
+ * the covenant it fires on, the levered cash flow itself — for an existing
+ * floating-rate facility.
+ *
+ * **A facility's DSCR covenant is now tested against the trailing twelve
+ * months of debt service it actually paid, not one month's debt service
+ * multiplied by twelve.** `annualNoi` a line above it already did this
+ * correctly, via `trailingAnnualNoi`; `annualDebtService` did not, extrapolating
+ * a single period instead. For a facility whose debt service is level
+ * month to month — fixed-rate, or interest-only, or steady-state amortizing,
+ * which was every existing covenant fixture — the two are identical and the
+ * bug was invisible. A floating rate is not level: `periodRate` re-reads the
+ * index curve once per forecast year, so debt service steps at every
+ * twelve-month anniversary, which is the ordinary shape of a floating
+ * facility. At the step, the bug read a covenant breach that was not really
+ * there (or missed one that was), and — for a facility whose `cashTrap`
+ * trigger includes that covenant — withheld or released real distributions
+ * on the strength of it. `debt.ts`'s new `trailingAnnualDebtService` mirrors
+ * `trailingAnnualNoi` exactly, scoped to one facility's own debt service
+ * rather than the combined total `result.interest`/`result.principal`
+ * accumulate across every facility.
+ *
+ * **The Excel Live Model's "Going-in cap rate"** (`packages/reporting`, not
+ * governed by this version number but found and fixed in the same pass)
+ * **now annualises year 1 NOI on a forecast shorter than twelve months**,
+ * the same way the sibling "Terminal NOI" cell already annualises its own
+ * short trailing window, and the same way `engine.ts`'s own `goingInCapRate`
+ * has annualised since 4.0.0 — a fix that was never carried into this
+ * formula, understating the cap rate by up to 2x on a short hold.
+ *
+ * **A third lead — duplicate ids among `FundInvestor` records manufacturing
+ * double-counted contributions in `computeFund`, the same class of bug
+ * 11.0.0 fixed in the waterfall — was investigated and found not to be
+ * reachable.** Unlike a waterfall `partner.id` (free text in a JSON-editable
+ * `ModelInput.waterfall.partners` array), `FundInvestor.id` is always a
+ * database-generated UUID primary key on `fund_investors`, read directly
+ * from the table by every caller in this codebase; two rows cannot share one
+ * in Postgres. No fix was made, and no defensive check was added for a state
+ * the database already makes impossible.
+ *
+ * None of the ~300 regression fixtures at the time exercised a floating-rate
+ * facility's covenant across a rate step, or a Live Model export of a
+ * forecast under twelve months with a nonzero acquisition price — which is
+ * why both survived eight prior audit passes.
+ *
  * ## 11.0.0
  *
  * An eighth audit pass. Major because two of its findings change numbers an
@@ -577,7 +625,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '11.0.0';
+export const ENGINE_VERSION = '12.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;

@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 11.0.0 · Last verified 2026-08-12**
+**Engine version 12.0.0 · Last verified 2026-08-13**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1178 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1180 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          26 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -64,7 +64,7 @@ Tests       1178 passed (251 engine regression, 31 engine unit, 16 fund,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
-                         85 Excel Live Model reconciliation,
+                         86 Excel Live Model reconciliation,
                          5 Excel Live Model export, 40 grid behaviour,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs,
@@ -81,7 +81,7 @@ Tests       1178 passed (251 engine regression, 31 engine unit, 16 fund,
                          8 recommendation-to-proposal conversion,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 5 organization export,
-                         4 debt funded pre-forecast/draw/origination fee,
+                         5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 2 portfolio boundary cases,
