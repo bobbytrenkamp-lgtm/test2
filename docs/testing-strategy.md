@@ -45,6 +45,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Loan sizing: the level-payment inverse, and each covenant constraint alone, combined and tied | `packages/calculation-engine/src/debt-sizing.test.ts` | 12 | No |
 | Straight-line rent: an escalation spread evenly, a rounding residual, a free-rent period, and the always-zero ending balance | `packages/calculation-engine/src/straight-line-rent.test.ts` | 6 | No |
 | Sales comparison approach: per-comp adjustment and weighting, equal and unequal weighted-average and median reconciliation, and non-positive/empty input rejection | `packages/calculation-engine/src/sales-comparison.test.ts` | 8 | No |
+| Cost approach: per-improvement depreciation, entrepreneurial profit, depreciation clamped to [0, 1] both above and below, land with no improvements, and negative-value rejection | `packages/calculation-engine/src/cost-approach.test.ts` | 8 | No |
 | Equity distributions stop at the sale date, zero-sum contribution shares (capital calls and the residual fallback), and two partners sharing an id | `packages/calculation-engine/src/waterfall.test.ts` | 11 | No |
 | Metrics that annualise a forecast shorter than 12 months | `packages/calculation-engine/src/short-forecast.test.ts` | 4 | No |
 | Portfolio year-1 NOI, weighted exit cap rate and value-weighted ratios on boundary members | `packages/calculation-engine/src/portfolio.test.ts` | 3 | No |
@@ -90,6 +91,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Loan sizing through the API | `tests/debt-sizing.test.ts` | 5 | Yes |
 | Straight-line rent through the API | `tests/straight-line-rent.test.ts` | 4 | Yes |
 | Sales comparison approach through the API | `tests/sales-comparison.test.ts` | 5 | Yes |
+| Cost approach through the API | `tests/cost-approach.test.ts` | 6 | Yes |
 | Tenant exposure across a portfolio | `tests/tenant-exposure.test.ts` | 5 | Yes |
 | The writable-target registry, checked against the real schemas | `packages/domain-models/src/assumption-targets.test.ts` | 89 | No |
 | The `cre-assumption-import` v1 parser and schema | `packages/domain-models/src/cre-assumption-import.test.ts` | 20 | No |
@@ -104,7 +106,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1224 tests in total.**
+**1238 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -144,7 +146,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1422 across the whole repository.
+**198 browser tests in total**, for 1436 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

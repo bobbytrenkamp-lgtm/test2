@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1224 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1238 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 52 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -85,6 +85,7 @@ Tests       1224 passed (251 engine regression, 31 engine unit, 16 fund,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
                          8 sales comparison approach, 5 sales comparison via the API,
+                         8 cost approach, 6 cost approach via the API,
                          11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 3 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
@@ -163,6 +164,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Terminal value, forward and trailing | Tested | Falls back and warns when the forecast is short |
 | Direct capitalisation | Functional | Year 1, trailing, stabilised |
 | Sales comparison approach | Tested | Standalone calculator: each comparable's price per unit, adjusted for market conditions, location, physical characteristics and condition/quality, reconciled to one indicated value by weighted average or median. Independent of the income-approach valuations above, per appraisal practice — not blended into `calculate()`'s own output. 8 hand-derived engine tests |
+| Cost approach | Tested | Standalone calculator: land value plus each improvement's replacement cost new, less physical/functional/external depreciation (clamped to [0, 1]), plus entrepreneurial profit. The third leg of the appraisal triangle alongside the income and sales-comparison approaches above. 8 hand-derived engine tests |
 | IRR, XIRR, NPV, equity multiple | Tested | Bisection; null when no sign change |
 | Full return metric set | Functional | Null, never zero, when inputs are missing |
 | LP/GP waterfall | Tested | Preferred, ROC, catch-up, promote |
@@ -226,6 +228,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Loan sizing | Tested | `POST /models/:id/debt/size`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. 5 API tests |
 | Straight-line rent | Tested | `GET /models/:id/leases/:leaseId/straight-line-rent`; reads the model's own stored `leaseCashFlows`, restricted to the lease's own signed row and the periods it is actually in effect. 4 API tests |
 | Sales comparison approach | Tested | `POST /models/:id/sales-comparison`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. Every value validated as a decimal string before it reaches the calculator. 5 API tests |
+| Cost approach | Tested | `POST /models/:id/cost-approach`; no engine pass or stored calculation required. Every value validated as a decimal string before it reaches the calculator. 6 API tests |
 | Scenario batch | Functional | Queued to the worker |
 | Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
