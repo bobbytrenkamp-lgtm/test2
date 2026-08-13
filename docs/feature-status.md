@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 12.0.0 · Last verified 2026-08-13**
+**Engine version 14.0.0 · Last verified 2026-08-13**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,13 +53,13 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1238 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1240 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 52 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
-                         5 reforecast, 10 comments, 12 tasks, 31 TOTP,
+                         6 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice,
@@ -91,7 +91,7 @@ Tests       1238 passed (251 engine regression, 31 engine unit, 16 fund,
                          3 cash trap through the sale date and multi-facility cure,
                          9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
-                         3 lease-option branching,
+                         4 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
                          7 sensitivity and scenario-batch input validation)

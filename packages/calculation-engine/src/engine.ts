@@ -52,6 +52,41 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 14.0.0
+ *
+ * An eleventh audit pass. Major because its one confirmed engine-level
+ * finding silently zeroes rent, occupancy and value for the rest of the
+ * forecast on an ordinary lease configuration.
+ *
+ * **A terminated lease with a nonzero exercise cost no longer stays at zero
+ * area for the rest of the forecast once rollover picks it up.**
+ * `branchOnOption`'s termination branch built the correct, full-area `ended`
+ * occurrence and then — only when `option.cost` was nonzero — appended a
+ * second, zero-footprint "fee" occurrence after it, to carry the exercise
+ * cost on its own zero-coverage date range without disturbing `ended`'s own
+ * cost. `buildOccurrences` always treats a path's *last* occurrence as the
+ * seed rollover chains forward from, so the fee marker — not `ended` —
+ * became that seed whenever the fee was nonzero, and `rolloverBranches`
+ * inherits `area: parent.area` verbatim from whatever it is handed. Every
+ * renewal or new lease generated from that point on inherited `area: 0` and
+ * stayed zero, because each generated occurrence became the next seed in
+ * turn: for any area-based rent basis (`per_area_per_year` and
+ * `per_area_per_month`, the ordinary case), rent, occupancy and the space's
+ * contribution to value were silently understated for the entire remainder
+ * of the forecast. A landlord-paid termination or backfill cost is common,
+ * not a contrived input, and rollover is on by default
+ * (`excludeFromRollover` defaults to `false`) — this was broadly reachable
+ * through the ordinary lease-options path. The fee occurrence now lands
+ * *before* `ended` in the path's occurrence list instead of after it, so
+ * `ended` — carrying the space's real, pre-termination area — is always
+ * what rollover actually sees.
+ *
+ * None of the ~300 regression fixtures at the time exercised a nonzero-cost
+ * termination option with rollover left enabled — the one existing
+ * termination-fee fixture sets `excludeFromRollover: true`, which is exactly
+ * what kept rollover from ever reading the fee marker as a seed — which is
+ * why this survived ten prior audit passes.
+ *
  * ## 13.0.0
  *
  * A tenth audit pass. Major because its portfolio-aggregation finding changes
@@ -675,7 +710,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '13.0.0';
+export const ENGINE_VERSION = '14.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
