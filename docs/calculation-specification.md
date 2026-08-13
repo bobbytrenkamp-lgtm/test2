@@ -358,6 +358,35 @@ This keeps monthly cash flow smooth. A model needing year-end settlement should
 use a custom schedule; that is noted in `docs/feature-status.md` as a known
 limitation.
 
+### Straight-line rent
+
+A standalone calculator, not part of `calculate()`'s own output: given a net
+rent series (billed rent, already net of free-rent abatement), the constant
+monthly amount ASC 842 recognises across the term, and the deferred rent
+balance that results.
+
+```
+straightLineMonthlyRent = round(sum(actualRent) ÷ n)
+recognized[i]            = straightLineMonthlyRent, for every period but the last
+recognized[n-1]           = sum(actualRent) − sum(recognized[0..n-2])
+deferredBalance[i]        = deferredBalance[i-1] + recognized[i] − actualRent[i]
+```
+
+The last period absorbs whatever cent of rounding residual is left, so
+`recognized` sums back to exactly the same total as `actualRent` — which is
+also why `deferredBalance` always ends at exactly zero: everything recognised
+over the term equals everything actually billed, by construction, not as an
+assumption the caller has to verify.
+
+The caller supplies the series and decides its span — ordinarily one signed
+lease's own net billed rent (`baseRent` plus the already-negative `freeRent`)
+over the periods it is in effect inside the forecast. See `debt-sizing.ts`'s
+`sizeLoan` for the same design choice made for the same reason: which NOI, or
+which lease term, is the caller's judgment call, not this function's.
+Reachable at `GET /models/:id/leases/:leaseId/straight-line-rent`, restricted
+to a lease's own signed row — a rollover branch is a probability-weighted
+possibility, not a signed obligation, and has nothing to straight-line.
+
 ---
 
 ## 8. Operating expenses

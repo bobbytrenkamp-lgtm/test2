@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1180 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1190 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
                          26 authorization, 13 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -83,6 +83,7 @@ Tests       1180 passed (251 engine regression, 31 engine unit, 16 fund,
                          7 entitlements via the API, 5 organization export,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
+                         6 straight-line rent, 4 straight-line rent via the API,
                          11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 2 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
@@ -131,6 +132,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Escalation floors and caps | Functional | Implemented; no dedicated fixture |
 | Free rent, partial and fractional months | Tested | |
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
+| Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
 | Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 fixtures |
 | Lease options: expansion, purchase, ROFR, ROFO | Not started | Diagnosed as not modelled, with the reason |
@@ -218,6 +220,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Calculate, cash flow, trace | Tested | |
 | Sensitivity (one- and two-way) | Functional | Full engine run per cell |
 | Loan sizing | Tested | `POST /models/:id/debt/size`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. 5 API tests |
+| Straight-line rent | Tested | `GET /models/:id/leases/:leaseId/straight-line-rent`; reads the model's own stored `leaseCashFlows`, restricted to the lease's own signed row and the periods it is actually in effect. 4 API tests |
 | Scenario batch | Functional | Queued to the worker |
 | Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
