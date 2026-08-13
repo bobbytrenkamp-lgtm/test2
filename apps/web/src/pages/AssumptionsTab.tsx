@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { api } from '../api.js';
+import { api, type Model } from '../api.js';
 import { EditableGrid } from '../grid/EditableGrid.js';
 import {
   assumptionColumns,
@@ -157,7 +157,7 @@ function ValuationAssumptions({
   editable: boolean;
   onSaved: () => void;
 }): JSX.Element {
-  const { model } = useModelContext();
+  const { model, updateModel } = useModelContext();
   const [form, setForm] = useState({
     discountRate: model.discount_rate ?? '',
     discountingConvention: model.discounting_convention,
@@ -175,7 +175,7 @@ function ValuationAssumptions({
   useUnsavedChangesWarning(dirty);
 
   const save = useMutation(async () =>
-    api.patch(`/models/${model.id}`, {
+    api.patch<{ model: Model }>(`/models/${model.id}`, {
       // The version this tab opened. If someone else has changed an assumption
       // since, the server refuses rather than writing over a figure this screen
       // never showed.
@@ -208,8 +208,16 @@ function ValuationAssumptions({
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
-    if (await save.run()) {
+    const result = await save.run();
+    if (result) {
       setDirty(false);
+      // Folds the save's own response back in, in particular the version
+      // it just incremented — without this, a second save in the same visit
+      // sends the version this tab opened with, one behind what its own
+      // first save just produced, and is refused as a conflict with a
+      // phantom other editor. See `ModelContext.updateModel`'s own comment
+      // for why this isn't just `reloadModel()`.
+      updateModel(result.model);
       onSaved();
     }
   }

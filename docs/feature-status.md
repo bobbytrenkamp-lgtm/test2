@@ -95,13 +95,13 @@ Tests       1248 passed (251 engine regression, 31 engine unit, 16 fund,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
                          7 sensitivity and scenario-batch input validation)
-Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     199 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
-                         6 assumption provenance, 4 favourites,
+                         6 assumption provenance, 5 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -438,7 +438,7 @@ traced valuation.
 
 **Works, not yet proven.** Background jobs, reports and exports, sensitivity
 and cloning, portfolio aggregation, and the parts of the web application the
-browser suite does not reach — the assumptions editor, scenarios, versions,
+browser suite does not reach — scenarios, versions,
 reports and the portfolio builder. A regression in those would not be caught
 automatically.
 

@@ -19,6 +19,21 @@ export interface ModelContext {
   cashFlow: CashFlowResponse | null;
   cashFlowError: string | null;
   reloadCashFlow: () => void;
+  /**
+   * Folds a fresher `Model` — typically a save's own response — back into
+   * the workspace in place, no refetch. In particular this is how
+   * `model.version` (the optimistic-concurrency token `ValuationAssumptions`
+   * sends back as `expectedVersion`) stays current after a save: `PATCH
+   * /models/:id` increments `version` on every write, and without this, a
+   * second assumptions save in the same visit sends the version the tab
+   * opened with — one behind the version its own first save just produced —
+   * and the server refuses it as a conflict with a phantom other editor.
+   * Deliberately not `modelResource.reload()`: that re-enters `loading`,
+   * which this component treats as "unmount the Outlet," discarding
+   * whatever tab — assumptions form included — was open when the save that
+   * triggered it landed.
+   */
+  updateModel: (model: Model) => void;
   calculate: (withTrace: boolean) => Promise<void>;
   calculating: boolean;
 }
@@ -94,6 +109,12 @@ export function ModelWorkspace(): JSX.Element {
   // Recalculate without leaving the keyboard, the way an analyst works.
   useShortcut('enter', () => void calculate(true));
 
+  const updateModel = useCallback(
+    (next: Model) =>
+      modelResource.setData((current) => (current ? { ...current, model: next } : current)),
+    [modelResource.setData],
+  );
+
   if (modelResource.loading) return <Loading label="Loading model" />;
   if (modelResource.error) return <ErrorMessage error={modelResource.error} />;
   if (!modelResource.data)
@@ -110,6 +131,7 @@ export function ModelWorkspace(): JSX.Element {
         ? cashFlowResource.error.message
         : null,
     reloadCashFlow: cashFlowResource.reload,
+    updateModel,
     calculate,
     calculating: calculation.pending,
   };

@@ -137,7 +137,7 @@ built bundle:
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
-| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 4 |
+| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 5 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 49 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
@@ -146,7 +146,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1446 across the whole repository.
+**199 browser tests in total**, for 1447 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
