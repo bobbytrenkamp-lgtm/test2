@@ -64,6 +64,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Job reaper attempt cap | `tests/jobs.test.ts` | 3 | Yes |
+| Sensitivity and scenario-batch input validation | `tests/scenario-sensitivity.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
@@ -101,7 +102,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1204 tests in total.**
+**1211 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -141,7 +142,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1402 across the whole repository.
+**198 browser tests in total**, for 1409 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
