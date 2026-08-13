@@ -17,6 +17,7 @@ import {
   assessHealth,
   calculate,
   compareVersions,
+  computeStraightLineRent,
   rankDrivers,
   sizeLoan,
 } from '@cre/calculation-engine';
@@ -172,6 +173,61 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       .parse(request.body);
 
     return sizeLoan(body);
+  });
+
+  /**
+   * Straight-line (GAAP) rent for one signed lease.
+   *
+   * A calculator over the model's own stored `leaseCashFlows`, not a fresh
+   * engine pass — the same shape as `/health`. Restricted to the lease's own
+   * signed row: a rollover branch (`scenario` other than `'contract'`, or a
+   * `rolloverOf` naming the lease it was generated from) is a
+   * probability-weighted possibility, not a signed obligation, and has
+   * nothing to straight-line.
+   */
+  app.get('/models/:id/leases/:leaseId/straight-line-rent', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id, leaseId } = z
+      .object({ id: z.string().uuid(), leaseId: z.string().min(1) })
+      .parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) {
+      throw unprocessable(
+        'This model has not been calculated yet, so there is no rent schedule to straight-line.',
+      );
+    }
+
+    const row = latest.result.leaseCashFlows.find(
+      (entry) => entry.leaseId === leaseId && !entry.rolloverOf,
+    );
+    if (!row) {
+      throw notFound(
+        "No signed lease with that id was found on the model's latest calculation. A " +
+          'rollover branch is not a signed obligation and has nothing to straight-line.',
+      );
+    }
+
+    // Restricted to the periods the lease is actually in effect inside this
+    // forecast. A lease whose true term runs before or after the forecast
+    // window is only straight-lined over the portion the model covers.
+    const activeIndices = row.occupiedArea
+      .map((value, index) => (Number(value) > 0 ? index : -1))
+      .filter((index) => index >= 0);
+    // `freeRent` is already signed negative (an abatement credit), so the
+    // net contractual amount actually billed is the sum, not the difference
+    // — the same convention `engine.ts` uses for every deduction line.
+    const netRent = activeIndices.map((index) =>
+      (Number(row.baseRent[index] ?? '0') + Number(row.freeRent[index] ?? '0')).toFixed(2),
+    );
+
+    return {
+      leaseId,
+      periodIndices: activeIndices.map((index) => index + 1),
+      ...computeStraightLineRent(netRent),
+    };
   });
 
   /**
