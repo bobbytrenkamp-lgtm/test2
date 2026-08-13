@@ -260,6 +260,37 @@ describe('row mapping', () => {
     expect(result.issues.some((issue) => issue.message.includes('appears on rows'))).toBe(true);
   });
 
+  it('flags every row past the first when a lease reference appears three or more times', () => {
+    /*
+     * Found by an eleventh audit pass: only `rowIndexes[1]` was ever pushed
+     * as an error row, so a third (or later) occurrence of the same lease
+     * code silently passed through as importable. Both later rows are
+     * distinct tenants that would otherwise collide on write (`ON CONFLICT
+     * (model_id, code) DO UPDATE`), with only the last one surviving and no
+     * error naming the ones it overwrote.
+     */
+    const withLease = { ...mapping, leaseCode: 0 };
+    const result = mapRows(
+      [
+        ['L-1', 'First Co', '1000', '2026-01-01', '2031-12-31', '10000', ''],
+        ['L-1', 'Second Co', '2000', '2026-01-01', '2031-12-31', '20000', ''],
+        ['L-1', 'Third Co', '3000', '2026-01-01', '2031-12-31', '30000', ''],
+      ],
+      withLease,
+    );
+    expect(result.duplicates).toHaveLength(1);
+    expect(result.duplicates[0]?.rowIndexes).toEqual([0, 1, 2]);
+
+    // Every row after the first (rows 1 and 2, zero-indexed) is a distinct
+    // error, not just row 1 — the bug's own predicted failure was that row 2
+    // is missing here.
+    const flaggedRows = result.issues
+      .filter((issue) => issue.message.includes('appears on rows'))
+      .map((issue) => issue.rowIndex)
+      .sort();
+    expect(flaggedRows).toEqual([1, 2]);
+  });
+
   it('warns about an ambiguous date instead of importing it silently', () => {
     const result = mapRows(
       [['601', 'Ambiguous Co', '1000', '01/02/2026', '01/02/2031', '10000', '']],

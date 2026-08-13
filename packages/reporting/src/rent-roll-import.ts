@@ -660,11 +660,19 @@ export function mapRows(
     .filter(([, indexes]) => indexes.length > 1)
     .map(([leaseCode, rowIndexes]) => ({ leaseCode, rowIndexes }));
   for (const duplicate of duplicates) {
-    issues.push({
-      rowIndex: duplicate.rowIndexes[1] as number,
-      severity: 'error',
-      message: `Lease reference "${duplicate.leaseCode}" appears on rows ${duplicate.rowIndexes.map((i) => i + 1).join(', ')}.`,
-    });
+    // The first occurrence is kept as the row of record; every later one is
+    // an error row, not just the second — a lease code appearing on three or
+    // more rows previously had only its second occurrence flagged, so a
+    // third (or later) row silently passed through as importable and
+    // overwrote the first on write (`ON CONFLICT (model_id, code) DO
+    // UPDATE`), with no error naming the row it clobbered.
+    for (const rowIndex of duplicate.rowIndexes.slice(1)) {
+      issues.push({
+        rowIndex,
+        severity: 'error',
+        message: `Lease reference "${duplicate.leaseCode}" appears on rows ${duplicate.rowIndexes.map((i) => i + 1).join(', ')}.`,
+      });
+    }
   }
 
   return { leases, issues, duplicates };

@@ -121,11 +121,29 @@ export async function listJobs(sql: Sql, organizationId: string, limit = 50): Pr
   `) as unknown as JobRow[];
 }
 
-/** Releases jobs whose worker died mid-run so another worker can pick them up. */
+/**
+ * Releases jobs whose worker died mid-run so another worker can pick them up.
+ *
+ * Subject to the same `max_attempts` cap `failJob` enforces, for the same
+ * reason: `claimJob` increments `attempts` on every claim, stall included, so
+ * a job whose handler reliably crashes the worker process itself (an OOM, say
+ * — not a catchable error `failJob` would otherwise see) would be claimed,
+ * die, sit `running` until this reaper found it, and be unconditionally
+ * requeued — reachable again by `claimJob`, crashable again, forever. A job
+ * this has already happened to `max_attempts` times is left `failed` instead,
+ * the same terminal state a job that fails by throwing eventually reaches.
+ */
 export async function reapStalledJobs(sql: Sql, staleAfterSeconds = 900): Promise<number> {
   const rows = (await sql`
     UPDATE jobs
-    SET status = 'queued', locked_at = NULL, locked_by = NULL
+    SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
+        error_message = CASE
+          WHEN attempts >= max_attempts THEN 'Reaped after exceeding its attempt limit while stalled.'
+          ELSE error_message
+        END,
+        completed_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END,
+        locked_at = NULL,
+        locked_by = NULL
     WHERE status = 'running'
       AND locked_at < now() - (${staleAfterSeconds} || ' seconds')::interval
     RETURNING id
