@@ -296,7 +296,11 @@ function classifyGroup(
 
   const descriptor = resolved.descriptor;
   const collection = resolved.collection ?? null;
-  const code = collection ? (target.split('.')[1] ?? null) : null;
+  // `resolved.code` is the code `describeTarget` actually matched the field
+  // against — never re-derived here by naively splitting `target`, which
+  // would misread a code that itself contains a dot (a real, if unusual,
+  // possibility — every collection row's `id` is free-form text).
+  const code = collection ? (resolved.code ?? null) : null;
 
   if (distinct.length === 0) {
     // Every mention of this target was a remark with no figure attached —

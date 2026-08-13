@@ -117,7 +117,31 @@ describe('describeTarget', () => {
   it('resolves a real collection target', () => {
     const result = describeTarget('debt.SENIOR.termMonths');
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.collection).toBe('debt');
+    if (result.ok) {
+      expect(result.collection).toBe('debt');
+      expect(result.code).toBe('SENIOR');
+    }
+  });
+
+  it('resolves a collection target whose own code contains a dot', () => {
+    /*
+     * Found by a thirteenth audit pass: a collection row's `id` is free-form
+     * text with no restriction against a literal dot ("MLP.Office", copied
+     * verbatim from a source document by an import). Splitting the target
+     * forward from a fixed position — `parts.slice(2).join('.')` for the
+     * field — read that dot as part of the field name instead, so a target
+     * this dictionary genuinely supports was reported as unsupported. Field
+     * names are a small known set with no dots in any of them, so matching
+     * backward from the end against that set is what actually disambiguates
+     * a dotted code from a dotted field.
+     */
+    const result = describeTarget('marketLeasing.MLP.Office.marketRent');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.collection).toBe('marketLeasing');
+      expect(result.code).toBe('MLP.Office');
+      expect(result.descriptor.field).toBe('marketRent');
+    }
   });
 
   it('refuses a field this release does not write, with a reason', () => {

@@ -84,8 +84,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
-| Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 22 | No |
-| The assumption input contract, including enum-membership checking | `packages/domain-models/src/assumption-proposals.test.ts` | 31 | No |
+| Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 23 | No |
+| The assumption input contract, including enum-membership checking | `packages/domain-models/src/assumption-proposals.test.ts` | 33 | No |
 | Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 15 | Yes |
 | Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
 | Loan sizing through the API | `tests/debt-sizing.test.ts` | 5 | Yes |
@@ -93,9 +93,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Sales comparison approach through the API | `tests/sales-comparison.test.ts` | 5 | Yes |
 | Cost approach through the API | `tests/cost-approach.test.ts` | 6 | Yes |
 | Tenant exposure across a portfolio | `tests/tenant-exposure.test.ts` | 5 | Yes |
-| The writable-target registry, checked against the real schemas | `packages/domain-models/src/assumption-targets.test.ts` | 89 | No |
+| The writable-target registry, checked against the real schemas | `packages/domain-models/src/assumption-targets.test.ts` | 90 | No |
 | The `cre-assumption-import` v1 parser and schema | `packages/domain-models/src/cre-assumption-import.test.ts` | 20 | No |
-| The deterministic import analyzer | `packages/domain-models/src/assumption-import-analyze.test.ts` | 20 | No |
+| The deterministic import analyzer | `packages/domain-models/src/assumption-import-analyze.test.ts` | 21 | No |
 | The import write path, checked against the target registry | `apps/api/src/assumption-write.test.ts` | 4 | No |
 | PDF-assumption import: targets, analyze and apply through the API | `tests/assumption-import.test.ts` | 24 | Yes |
 | Property research: `cre-property-research` v1 schema and parser | `packages/domain-models/src/cre-property-research.test.ts` | 20 | No |
@@ -106,7 +106,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1240 tests in total.**
+**1245 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -146,7 +146,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1438 across the whole repository.
+**198 browser tests in total**, for 1443 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
