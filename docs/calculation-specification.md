@@ -762,6 +762,36 @@ size is rejected outright rather than divided by zero. See
 `sales-comparison.ts`'s `computeSalesComparison`, reachable at
 `POST /models/:id/sales-comparison`.
 
+### Cost approach
+
+The third leg of the appraisal triangle, alongside the income approach above
+and the sales comparison approach — most persuasive for new or
+special-purpose improvements where comparable sales are thin and the
+subject's own income is not yet stabilized.
+
+```
+for each improvement:
+  totalDepreciation = Σ (physicalDeterioration, functionalObsolescence,
+                          externalObsolescence), clamped to [0, 1]
+  depreciatedCost    = replacementCostNew × (1 − totalDepreciation)
+
+totalReplacementCostNew = Σ replacementCostNew
+totalDepreciatedCost    = Σ depreciatedCost
+entrepreneurialProfit   = totalReplacementCostNew × entrepreneurialProfitPercent
+                           (zero when omitted)
+
+indicatedValue = landValue + totalDepreciatedCost + entrepreneurialProfit
+```
+
+Depreciation is clamped, not left to run past 100% or below zero: accrued
+depreciation cannot sensibly exceed the cost it is subtracted from, or go
+negative and inflate it. Land with no improvements at all is a valid input —
+the indicated value is then just `landValue` — the same way a portfolio
+member with no valuation is still real elsewhere in this document, not an
+error. A negative `landValue` or `replacementCostNew` is rejected outright.
+See `cost-approach.ts`'s `computeCostApproach`, reachable at
+`POST /models/:id/cost-approach`.
+
 ---
 
 ## 15. Return metrics

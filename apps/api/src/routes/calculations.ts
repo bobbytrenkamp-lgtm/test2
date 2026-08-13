@@ -17,6 +17,7 @@ import {
   assessHealth,
   calculate,
   compareVersions,
+  computeCostApproach,
   computeSalesComparison,
   computeStraightLineRent,
   rankDrivers,
@@ -219,6 +220,45 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       return computeSalesComparison(body);
     } catch (error) {
       throw badRequest(error instanceof Error ? error.message : 'Invalid sales comparison input.');
+    }
+  });
+
+  /**
+   * The cost approach: land value plus the depreciated replacement cost of
+   * the improvements on it, independent of the income and sales-comparison
+   * valuations `calculate()` and `/sales-comparison` produce.
+   *
+   * A calculator, not a calculation, the same shape as `/debt/size` and
+   * `/sales-comparison` — no stored result is required and nothing here
+   * runs the engine.
+   */
+  app.post('/models/:id/cost-approach', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const body = z
+      .object({
+        landValue: decimalString,
+        entrepreneurialProfitPercent: decimalString.nullish(),
+        improvements: z.array(
+          z.object({
+            id: z.string().min(1),
+            description: z.string().max(200).nullish(),
+            replacementCostNew: decimalString,
+            physicalDeterioration: decimalString.nullish(),
+            functionalObsolescence: decimalString.nullish(),
+            externalObsolescence: decimalString.nullish(),
+          }),
+        ),
+      })
+      .parse(request.body);
+
+    try {
+      return computeCostApproach(body);
+    } catch (error) {
+      throw badRequest(error instanceof Error ? error.message : 'Invalid cost approach input.');
     }
   });
 
