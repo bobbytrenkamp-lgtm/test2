@@ -17,6 +17,7 @@ import {
   assessHealth,
   calculate,
   compareVersions,
+  computeSalesComparison,
   computeStraightLineRent,
   rankDrivers,
   sizeLoan,
@@ -173,6 +174,52 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       .parse(request.body);
 
     return sizeLoan(body);
+  });
+
+  /**
+   * The sales comparison approach: an indicated value reconciled from
+   * comparable transactions, independent of the income-approach valuations
+   * `calculate()` produces.
+   *
+   * A calculator, not a calculation, the same shape as `/debt/size` — no
+   * stored result is required and nothing here runs the engine.
+   */
+  app.post('/models/:id/sales-comparison', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+
+    const adjustmentsSchema = z.object({
+      marketConditions: decimalString.nullish(),
+      location: decimalString.nullish(),
+      physicalCharacteristics: decimalString.nullish(),
+      conditionQuality: decimalString.nullish(),
+      other: decimalString.nullish(),
+    });
+    const body = z
+      .object({
+        subjectUnitsOfComparison: decimalString,
+        comparables: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              salePrice: decimalString,
+              unitsOfComparison: decimalString,
+              adjustments: adjustmentsSchema,
+              weight: decimalString.nullish(),
+            }),
+          )
+          .min(1),
+        reconciliation: z.enum(['weighted_average', 'median']).optional(),
+      })
+      .parse(request.body);
+
+    try {
+      return computeSalesComparison(body);
+    } catch (error) {
+      throw badRequest(error instanceof Error ? error.message : 'Invalid sales comparison input.');
+    }
   });
 
   /**
