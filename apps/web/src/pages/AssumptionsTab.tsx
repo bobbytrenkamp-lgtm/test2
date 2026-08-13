@@ -15,6 +15,13 @@ import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js'
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 
+interface GrowthCurveTemplate {
+  code: string;
+  name: string;
+  default_rate: string;
+  by_year: Array<{ year: number; rate: string }>;
+}
+
 /**
  * Model assumptions: the valuation inputs, the vacancy allowances, and the
  * model-scoped collections (expenses, other revenue, capital, debt, growth
@@ -359,10 +366,23 @@ function Collection({
   onSaved: () => void;
 }): JSX.Element {
   const { model } = useModelContext();
+  const { session } = useSession();
   const resource = useResource<{ items: AssumptionRow[] }>(`/models/${model.id}/${segment}`);
   const gridColumns = useMemo(
     () => assumptionColumns(segment, { currency: model.currency, areaUnit: model.area_unit }),
     [segment, model.currency, model.area_unit],
+  );
+  /*
+   * The organization's growth curve library (see
+   * `apps/api/src/routes/growth-curve-templates.ts`). Fetched only for this
+   * one segment — every other collection has no library to offer, and
+   * fetching one anyway would be a request nothing on screen uses.
+   */
+  const isGrowthCurves = segment === 'growth-curves';
+  const templates = useResource<{ templates: GrowthCurveTemplate[] }>(
+    isGrowthCurves && editable && session?.organizationId
+      ? `/organizations/${session.organizationId}/growth-curve-templates`
+      : null,
   );
   const [focused, setFocused] = useState<AssumptionRow | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -413,6 +433,32 @@ function Collection({
     }
   }
 
+  /*
+   * Seeds a new growth curve from a library entry. Not a live reference: this
+   * only fills the draft the same "Add" would open blank, so the result is a
+   * normal new row the analyst still reviews and saves — editing the library
+   * entry afterward does not reach back into any model that started from it.
+   */
+  function beginFromTemplate(template: GrowthCurveTemplate): void {
+    setParseError(null);
+    setRawJson(false);
+    setEditing('');
+    setOpenedVersion(null);
+    setEditingRecord(null);
+    setDraft(
+      JSON.stringify(
+        {
+          code: template.code,
+          name: template.name,
+          defaultRate: template.default_rate,
+          byYear: template.by_year,
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     let body: Record<string, unknown>;
@@ -444,6 +490,30 @@ function Collection({
         <h2 style={{ margin: 0 }}>{title}</h2>
         <span className="badge">{resource.data?.items.length ?? 0}</span>
         <div className="spacer" />
+        {isGrowthCurves && editable && (templates.data?.templates.length ?? 0) > 0 && (
+          <>
+            <label htmlFor="growth-curve-template" className="visually-hidden">
+              Start a new growth curve from the organization's library
+            </label>
+            <select
+              id="growth-curve-template"
+              value=""
+              onChange={(event) => {
+                const template = templates.data?.templates.find(
+                  (entry) => entry.code === event.target.value,
+                );
+                if (template) beginFromTemplate(template);
+              }}
+            >
+              <option value="">Start from library…</option>
+              {templates.data?.templates.map((template) => (
+                <option key={template.code} value={template.code}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         {editable && (
           <button type="button" onClick={() => beginEdit(null)}>
             Add

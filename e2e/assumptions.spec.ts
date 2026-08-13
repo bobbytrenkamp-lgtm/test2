@@ -228,6 +228,46 @@ test.describe('as an analyst', () => {
     );
     expect(summary, summary.join('\n')).toEqual([]);
   });
+
+  test('a growth curve can start from the organization library instead of a blank row', async ({
+    page,
+  }) => {
+    // The library entry is created fresh in the organization admin screen
+    // first, so this proves the whole path — not just that a picker renders,
+    // but that what it seeds is what actually gets saved onto the model.
+    await page.goto('/organization');
+    await expect(page.getByRole('heading', { name: 'Growth curve library' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page
+      .getByLabel('New template')
+      .fill(
+        JSON.stringify(
+          { code: 'e2e-cpi', name: 'E2E test CPI curve', defaultRate: '0.031', byYear: [] },
+          null,
+          2,
+        ),
+      );
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
+
+    await openAssumptions(page);
+    const growthCurves = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Growth curves' }),
+    });
+    await growthCurves.getByLabel(/Start a new growth curve from the organization/).selectOption({
+      label: 'E2E test CPI curve',
+    });
+
+    // Seeded, not yet saved: the draft carries the template's own values, and
+    // nothing in the growth-curve table has changed until Save is pressed.
+    const draft = growthCurves.getByRole('textbox', { name: 'New growth curve' });
+    await expect(draft).toHaveValue(/e2e-cpi/);
+    await expect(draft).toHaveValue(/0\.031/);
+    await expect(growthCurves.getByRole('row', { name: /e2e-cpi/ })).toHaveCount(0);
+
+    await growthCurves.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(growthCurves.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
+  });
 });
 
 test.describe('as a reviewer', () => {

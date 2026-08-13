@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { Role } from '@cre/domain-models';
 import { api } from '../api.js';
-import { ErrorMessage, Field, Loading, Metric, StatusBadge } from '../components.js';
-import { formatDateTime, titleCase } from '../format.js';
+import { EmptyState, ErrorMessage, Field, Loading, Metric, StatusBadge } from '../components.js';
+import { formatDateTime, formatPercent, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
 
@@ -209,6 +209,8 @@ export function OrganizationPage(): JSX.Element {
         </div>
       )}
 
+      {orgId && can('model:write') && <GrowthCurveLibraryCard orgId={orgId} />}
+
       {canInvite && (
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Invite someone</h2>
@@ -278,5 +280,198 @@ export function OrganizationPage(): JSX.Element {
         </div>
       )}
     </>
+  );
+}
+
+interface GrowthCurveTemplate {
+  code: string;
+  name: string;
+  default_rate: string;
+  by_year: Array<{ year: number; rate: string }>;
+}
+
+/**
+ * The organization's growth curve library — Argus's "Global Value File"
+ * concept for a reusable rate assumption. A growth curve has always been
+ * model-scoped only (`packages/database/migrations/0003`); this is the
+ * first assumption reusable across models, so a portfolio's inflation and
+ * market-rent-growth paths can be kept in step instead of re-typed by hand
+ * in every model.
+ *
+ * Applying an entry is not a live reference: the model's own "Start from
+ * library" picker (`AssumptionsTab.tsx`) only seeds a new row's fields, and
+ * from that point the model owns its own copy, exactly like every other
+ * assumption here. Editing or deleting a library entry never changes a model
+ * that already started from it.
+ */
+function GrowthCurveLibraryCard({ orgId }: { orgId: string }): JSX.Element {
+  const templates = useResource<{ templates: GrowthCurveTemplate[] }>(
+    `/organizations/${orgId}/growth-curve-templates`,
+  );
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const save = useMutation(async (code: string, body: Record<string, unknown>) =>
+    api.put(`/organizations/${orgId}/growth-curve-templates/${encodeURIComponent(code)}`, body),
+  );
+  const remove = useMutation(async (code: string) =>
+    api.delete(`/organizations/${orgId}/growth-curve-templates/${encodeURIComponent(code)}`),
+  );
+
+  function beginEdit(template: GrowthCurveTemplate | null): void {
+    setParseError(null);
+    if (template) {
+      setEditing(template.code);
+      setDraft(
+        JSON.stringify(
+          { name: template.name, defaultRate: template.default_rate, byYear: template.by_year },
+          null,
+          2,
+        ),
+      );
+    } else {
+      setEditing('');
+      setDraft(JSON.stringify({ code: '', name: '', defaultRate: '0', byYear: [] }, null, 2));
+    }
+  }
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(draft) as Record<string, unknown>;
+    } catch {
+      setParseError('That is not valid JSON. Check for a missing comma or quote.');
+      return;
+    }
+    const code = editing || String(body.code ?? '');
+    if (!code) {
+      setParseError(
+        'A "code" is required. It is what a model’s "Start from library" picker shows.',
+      );
+      return;
+    }
+    if (await save.run(code, body)) {
+      setEditing(null);
+      templates.reload();
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="row" style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>Growth curve library</h2>
+        <span className="badge">{templates.data?.templates.length ?? 0}</span>
+        <div className="spacer" />
+        <button type="button" onClick={() => beginEdit(null)}>
+          Add
+        </button>
+      </div>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        Named rate paths any model in this organization can start a growth curve from. A model keeps
+        its own copy once applied — editing or removing an entry here never changes a model that
+        already used it.
+      </p>
+
+      <ErrorMessage error={templates.error} />
+      {templates.loading && <Loading label="Loading the growth curve library" />}
+
+      {templates.data && templates.data.templates.length === 0 ? (
+        <EmptyState
+          title="No templates yet"
+          action={
+            <button type="button" className="primary" onClick={() => beginEdit(null)}>
+              Add the first one
+            </button>
+          }
+        >
+          Every model still enters its own growth curves by hand until this library has something in
+          it.
+        </EmptyState>
+      ) : (
+        templates.data && (
+          <div className="table-scroll" tabIndex={0}>
+            <table>
+              <caption className="visually-hidden">Growth curve library</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Code</th>
+                  <th scope="col">Name</th>
+                  <th scope="col" className="numeric">
+                    Default rate
+                  </th>
+                  <th scope="col" className="numeric">
+                    Overrides
+                  </th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templates.data.templates.map((template) => (
+                  <tr key={template.code}>
+                    <th scope="row">{template.code}</th>
+                    <td>{template.name}</td>
+                    <td className="numeric">{formatPercent(template.default_rate)}</td>
+                    <td className="numeric">{template.by_year.length}</td>
+                    <td>
+                      <button type="button" className="subtle" onClick={() => beginEdit(template)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="subtle"
+                        onClick={async () => {
+                          if (
+                            window.confirm(`Remove "${template.name}" from the library?`) &&
+                            (await remove.run(template.code))
+                          ) {
+                            templates.reload();
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {editing !== null && (
+        <form onSubmit={submit} style={{ marginTop: 12 }}>
+          <ErrorMessage error={save.error} />
+          <ErrorMessage error={remove.error} />
+          <Field
+            label={editing ? `Edit ${editing}` : 'New template'}
+            error={parseError ?? undefined}
+            hint={
+              editing
+                ? 'Field names use camelCase. The code itself cannot be changed here — delete and re-add to rename it.'
+                : 'Field names use camelCase. "code" is the stable identifier a model’s library picker shows.'
+            }
+          >
+            <textarea
+              rows={10}
+              value={draft}
+              spellCheck={false}
+              onChange={(event) => setDraft(event.target.value)}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+            />
+          </Field>
+          <div className="row">
+            <button type="submit" className="primary" disabled={save.pending}>
+              {save.pending ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }

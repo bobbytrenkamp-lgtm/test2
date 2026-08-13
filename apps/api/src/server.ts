@@ -26,6 +26,7 @@ import { registerBudgetRoutes } from './routes/budgets.js';
 import { registerAssumptionProposalRoutes } from './routes/assumption-proposals.js';
 import { registerAssumptionImportRoutes } from './routes/assumption-import.js';
 import { registerFavouriteRoutes } from './routes/favourites.js';
+import { registerGrowthCurveTemplateRoutes } from './routes/growth-curve-templates.js';
 
 export interface ServerOptions {
   env: Env;
@@ -260,6 +261,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerAssumptionProposalRoutes(api);
       await registerAssumptionImportRoutes(api);
       await registerFavouriteRoutes(api);
+      await registerGrowthCurveTemplateRoutes(api);
     },
     { prefix: '/api/v1' },
   );
