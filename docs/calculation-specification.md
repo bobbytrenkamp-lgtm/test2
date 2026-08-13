@@ -727,6 +727,41 @@ The reversion is discounted on the same convention as the operating flows.
 stabilised year — the first full year whose NOI grows less than 2% into the
 next, else the last full year.
 
+### Sales comparison approach
+
+A standalone calculation, independent of the income-approach valuations above
+— appraisal practice, and Argus Enterprise's own Sales Comparison worksheet,
+treat it as a second, separately-sourced approach to be read alongside the
+income approach, not folded into it.
+
+```
+for each comparable:
+  rawPricePerUnit      = salePrice ÷ unitsOfComparison
+  totalAdjustment      = Σ (marketConditions, location, physicalCharacteristics,
+                             conditionQuality, other)
+  adjustedPricePerUnit = rawPricePerUnit × (1 + totalAdjustment)
+
+indicatedValuePerUnit = weighted average of adjustedPricePerUnit, weight
+                         defaulting to 1 per comparable
+                         — or —
+                         median of adjustedPricePerUnit (average of the two
+                         middle values when the count is even)
+
+indicatedValue = indicatedValuePerUnit × subjectUnitsOfComparison
+```
+
+Every adjustment is a decimal fraction applied additively to the raw price per
+unit, the standard appraisal-grid convention — `"0.03"` is a 3% upward
+adjustment for that one factor, and every supplied factor for a comparable sums
+before being applied once. `unitsOfComparison` is whatever basis the
+comparables are priced on — rentable square feet, units, beds, keys — and must
+match the subject's own basis; the caller chooses it, the same judgment call
+`sizingNoi` and `directCapRate`'s NOI basis already leave to the caller
+elsewhere in this document. A comparable or the subject with a non-positive
+size is rejected outright rather than divided by zero. See
+`sales-comparison.ts`'s `computeSalesComparison`, reachable at
+`POST /models/:id/sales-comparison`.
+
 ---
 
 ## 15. Return metrics
