@@ -586,6 +586,22 @@ export function mapRows(
         message: 'Base rent could not be read as a number.',
         rawValue: rentRaw,
       });
+    } else if (Number(rent) < 0) {
+      // `normalizeNumber` reads accounting notation — "(30.00)" — as a
+      // negative by design, which is correct for a P&L figure but never
+      // means anything for a contractual rent rate. A stray credit column,
+      // a misidentified subtotal row, or a plain minus-sign typo all land
+      // here the same way, and unlike area (checked below), nothing further
+      // down the pipeline ever re-checks a rent's sign: the engine multiplies
+      // it straight through, silently understating gross potential rent by
+      // however much this one row's negative rent implies.
+      issues.push({
+        rowIndex,
+        field: 'baseRent',
+        severity: 'error',
+        message: 'Base rent is negative.',
+        rawValue: rentRaw,
+      });
     }
     if (!commencement.value) {
       issues.push({

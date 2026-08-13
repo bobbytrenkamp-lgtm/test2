@@ -113,7 +113,7 @@ inference is surfaced for confirmation, never applied silently.
 
 | Severity | Blocks import | Examples |
 | --- | --- | --- |
-| Error | Yes | Required field unmapped; unreadable area or rent; unreadable date; expiration before commencement; duplicate lease reference; blank tenant on a non-vacant row |
+| Error | Yes | Required field unmapped; unreadable area or rent; negative area or rent; unreadable date; expiration before commencement; duplicate lease reference; blank tenant on a non-vacant row |
 | Warning | No | Ambiguous date resolved by preference |
 
 A row that raises **any** error is excluded from the importable set, even when
