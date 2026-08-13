@@ -175,6 +175,39 @@ test.describe('as an analyst', () => {
     await expect(page.getByRole('button', { name: 'Save assumptions' })).toBeEnabled();
   });
 
+  test('a second save in the same visit is not refused as a conflict with someone else', async ({
+    page,
+  }) => {
+    /*
+     * Found by a fifteenth audit pass. `PATCH /models/:id` increments
+     * `model.version` on every write and refuses a save whose
+     * `expectedVersion` doesn't match — the model resource the workspace
+     * loaded once at the start of the visit never picked up that new
+     * version, so a second save sent the version the form opened with,
+     * one behind what its own first save had just produced, and was
+     * refused with "This model has been changed by someone else since you
+     * opened it" — for a model only this one save had touched.
+     *
+     * `saveAssumptions` is the signal for both saves here: it waits for
+     * the button to read "No changes" again, which only happens once
+     * `dirty` clears on a *successful* save. Before the fix the second call
+     * would time out with the button still reading "Save assumptions" and
+     * the conflict message on screen.
+     */
+    await openAssumptions(page);
+    const original = (await page.getByLabel('Costs of sale').inputValue()).trim();
+
+    await editAssumption(page, 'Costs of sale', '0.019');
+    await saveAssumptions(page);
+
+    await editAssumption(page, 'Costs of sale', '0.021');
+    await saveAssumptions(page);
+    await expect(page.getByText(/changed by someone else/i)).toHaveCount(0);
+
+    await editAssumption(page, 'Costs of sale', original);
+    await saveAssumptions(page);
+  });
+
   test('is accessible, including its warning state', async ({ page }) => {
     await openAssumptions(page);
 

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { ApiError, api } from './api.js';
 
 /**
@@ -14,6 +21,16 @@ export interface Resource<T> {
   loading: boolean;
   error: ApiError | null;
   reload: () => void;
+  /**
+   * Replaces the held data in place, with no request and no loading state.
+   * For folding a mutation's own response back into a resource it didn't
+   * come from — `reload()` would work too, but re-enters `loading`, which
+   * unmounts anything conditioned on it (see `ModelWorkspace`, which shows a
+   * full-page placeholder in place of its `Outlet` while `loading` is true).
+   * A save that already has the fresh row has no reason to pay for a second
+   * fetch, let alone one that unmounts the form the save was just made from.
+   */
+  setData: Dispatch<SetStateAction<T | null>>;
 }
 
 export function useResource<T>(path: string | null, deps: unknown[] = []): Resource<T> {
@@ -57,7 +74,7 @@ export function useResource<T>(path: string | null, deps: unknown[] = []): Resou
   }, [path, nonce, ...deps]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
-  return { data, loading, error, reload };
+  return { data, loading, error, reload, setData };
 }
 
 /** Tracks an in-flight mutation with its own error state. */
