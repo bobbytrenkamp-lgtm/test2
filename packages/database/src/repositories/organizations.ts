@@ -179,3 +179,180 @@ export async function acceptInvitation(
     return { organizationId: invitation.organization_id, role: invitation.role };
   })) as { organizationId: string; role: Role } | null;
 }
+
+export interface OrganizationExportExtras {
+  budgetPeriods: unknown[];
+  budgetEntries: unknown[];
+  varianceCommentary: unknown[];
+  documents: unknown[];
+  modelVersions: unknown[];
+  modelApprovals: unknown[];
+  comments: unknown[];
+  tasks: unknown[];
+  portfolios: unknown[];
+  portfolioProperties: unknown[];
+  funds: unknown[];
+  fundInvestors: unknown[];
+  fundTransactions: unknown[];
+  dashboards: unknown[];
+  savedViews: unknown[];
+  assumptionProposals: unknown[];
+}
+
+/**
+ * Everything organization-owned the export document previously left out.
+ *
+ * Found by a thirteenth audit pass: `GET /organizations/:id/export` is
+ * documented as "everything the organization owns," but only ever assembled
+ * members, properties and models — budget history, uploaded documents, the
+ * version/approval audit trail, comments, tasks, portfolios, and every LP
+ * investor and transaction record a fund holds (among the most legally
+ * sensitive data in the schema) were all silently absent, with nothing in
+ * the response saying so. An organization relying on this for offboarding
+ * would lose all of it.
+ *
+ * Every query here is scoped to `organizationId` directly where the table
+ * carries that column, and by a subquery against this organization's own
+ * properties/models/portfolios/funds where it does not — the same shape
+ * `buildModelInput` and the rest of this file already use, never a second
+ * organization's data by construction.
+ */
+export async function getOrganizationExportExtras(
+  sql: Sql,
+  organizationId: string,
+): Promise<OrganizationExportExtras> {
+  const [
+    budgetPeriods,
+    varianceCommentary,
+    documents,
+    modelVersions,
+    modelApprovals,
+    comments,
+    tasks,
+    portfolios,
+    portfolioProperties,
+    funds,
+    fundInvestors,
+    dashboards,
+    savedViews,
+    assumptionProposals,
+  ] = await Promise.all([
+    sql`
+      SELECT id, property_id, model_id, kind, fiscal_year, label,
+             approved_by, approved_at, created_at
+      FROM budget_periods WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT c.id, c.property_id, c.fiscal_year, c.period_month, c.account_code,
+             c.commentary, c.approved_text, c.author_id, c.approved_by, c.approved_at,
+             c.created_at
+      FROM variance_commentary c
+      JOIN properties p ON p.id = c.property_id
+      WHERE p.organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, property_id, model_id, filename, content_type, byte_size,
+             checksum_sha256, storage_driver, scan_status, uploaded_by, created_at
+      FROM documents WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT v.id, v.model_id, v.version_number, v.status, v.engine_version, v.label,
+             v.notes, v.created_by, v.approved_by, v.approved_at, v.created_at
+      FROM model_versions v
+      JOIN models m ON m.id = v.model_id
+      WHERE m.organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT a.id, a.model_id, a.model_version_id, a.from_status, a.to_status,
+             a.decision, a.comment, a.actor_id, a.created_at
+      FROM model_approvals a
+      JOIN models m ON m.id = a.model_id
+      WHERE m.organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, entity_type, entity_id, body, mentions, author_id, resolved_at,
+             resolved_by, created_at
+      FROM comments WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, title, description, status, due_date, property_id, model_id,
+             assignee_id, created_by, created_at, completed_at
+      FROM tasks WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, name, description, strategy, is_dynamic, filter_definition,
+             created_at, updated_at
+      FROM portfolios WHERE organization_id = ${organizationId} AND deleted_at IS NULL
+    `,
+    sql`
+      SELECT pp.portfolio_id, pp.property_id, pp.ownership_percent, pp.added_at
+      FROM portfolio_properties pp
+      JOIN portfolios p ON p.id = pp.portfolio_id
+      WHERE p.organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, name, vintage_year, committed_capital, currency, created_at, updated_at
+      FROM funds WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, fund_id, code, name, investor_class, commitment, contact_email,
+             notes, created_at, updated_at
+      FROM fund_investors WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, organization_id, scope, scope_id, name, layout, owner_id, is_shared,
+             created_at, updated_at
+      FROM dashboards WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, user_id, surface, name, definition, is_shared, created_at
+      FROM saved_views WHERE organization_id = ${organizationId}
+    `,
+    sql`
+      SELECT id, model_id, target, value, source_kind, source_name, confidence,
+             observed_at, status, decided_by, decided_at, created_at
+      FROM assumption_proposals WHERE organization_id = ${organizationId}
+    `,
+  ]);
+
+  // budget_entries and fund_transactions have no organization_id of their
+  // own; scoping them requires the parent ids just fetched above.
+  const budgetPeriodIds = (budgetPeriods as unknown as Array<{ id: string }>).map((r) => r.id);
+  const fundInvestorIds = (fundInvestors as unknown as Array<{ id: string }>).map((r) => r.id);
+
+  const [budgetEntries, fundTransactions] = await Promise.all([
+    budgetPeriodIds.length === 0
+      ? []
+      : sql`
+          SELECT id, budget_period_id, account_code, account_name, period_month, amount,
+                 building_id, tenant_id, capital_item_id, department, commentary
+          FROM budget_entries WHERE budget_period_id = ANY(${sql.array(budgetPeriodIds)}::uuid[])
+        `,
+    fundInvestorIds.length === 0
+      ? []
+      : sql`
+          SELECT id, fund_id, investor_id, transaction_date, type, amount, reference,
+                 notes, created_by, created_at
+          FROM fund_transactions WHERE investor_id = ANY(${sql.array(fundInvestorIds)}::uuid[])
+        `,
+  ]);
+
+  return {
+    budgetPeriods: budgetPeriods as unknown[],
+    budgetEntries: budgetEntries as unknown[],
+    varianceCommentary: varianceCommentary as unknown[],
+    documents: documents as unknown[],
+    modelVersions: modelVersions as unknown[],
+    modelApprovals: modelApprovals as unknown[],
+    comments: comments as unknown[],
+    tasks: tasks as unknown[],
+    portfolios: portfolios as unknown[],
+    portfolioProperties: portfolioProperties as unknown[],
+    funds: funds as unknown[],
+    fundInvestors: fundInvestors as unknown[],
+    fundTransactions: fundTransactions as unknown[],
+    dashboards: dashboards as unknown[],
+    savedViews: savedViews as unknown[],
+    assumptionProposals: assumptionProposals as unknown[],
+  };
+}

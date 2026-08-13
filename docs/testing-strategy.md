@@ -104,9 +104,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
-| Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
+| Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 6 | Yes |
 
-**1245 tests in total.**
+**1246 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -146,7 +146,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1443 across the whole repository.
+**198 browser tests in total**, for 1444 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
