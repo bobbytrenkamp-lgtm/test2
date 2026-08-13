@@ -419,7 +419,12 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
         ['other-revenue', { name: 'Parking', method: 'fixed_annual', amount: '1000' }],
         [
           'capital',
-          { name: 'Roof', category: 'building', method: 'fixed_annual', amount: '250000' },
+          {
+            name: 'Roof',
+            category: 'building_improvement',
+            method: 'fixed_annual',
+            amount: '250000',
+          },
         ],
         ['growth-curves', { name: 'Inflation', defaultRate: '0.03' }],
         [
@@ -430,7 +435,7 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
           'debt',
           {
             name: 'Senior loan',
-            type: 'senior',
+            type: 'permanent',
             commitment: '1000000',
             fundingDate: '2026-01-01',
             termMonths: 60,
