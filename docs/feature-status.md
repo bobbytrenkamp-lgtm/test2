@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1245 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1246 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 52 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -80,7 +80,7 @@ Tests       1245 passed (251 engine regression, 31 engine unit, 16 fund,
                          20 property-research schema, 10 research interfaces,
                          8 recommendation-to-proposal conversion,
                          1 application version, 13 entitlements,
-                         7 entitlements via the API, 5 organization export,
+                         7 entitlements via the API, 6 organization export,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,

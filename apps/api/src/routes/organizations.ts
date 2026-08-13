@@ -8,6 +8,7 @@ import {
   getLatestCalculation,
   getMembershipRole,
   getOrganization,
+  getOrganizationExportExtras,
   listAllProperties,
   listMemberships,
   listModels,
@@ -205,10 +206,11 @@ export async function registerOrganizationRoutes(app: FastifyInstance, env: Env)
     const organization = await getOrganization(request.db, id);
     if (!organization) throw notFound('That organization does not exist.');
 
-    const [members, properties, models] = await Promise.all([
+    const [members, properties, models, extras] = await Promise.all([
       listOrganizationMembers(request.db, id),
       listAllProperties(request.db, id),
       listModels(request.db, id),
+      getOrganizationExportExtras(request.db, id),
     ]);
 
     const modelDocuments = await Promise.all(
@@ -237,7 +239,12 @@ export async function registerOrganizationRoutes(app: FastifyInstance, env: Env)
 
     const document = {
       format: 'cre-platform-organization',
-      formatVersion: 1,
+      // 2: adds budgets, documents, model version/approval history, comments,
+      // tasks, portfolios, funds and their investors/transactions, dashboards,
+      // saved views and assumption proposals — everything this document's own
+      // name always claimed to hold but never actually did. See
+      // `getOrganizationExportExtras`.
+      formatVersion: 2,
       exportedAt: new Date().toISOString(),
       engineVersion: ENGINE_VERSION,
       organization: {
@@ -251,6 +258,22 @@ export async function registerOrganizationRoutes(app: FastifyInstance, env: Env)
       members,
       properties,
       models: modelDocuments,
+      budgetPeriods: extras.budgetPeriods,
+      budgetEntries: extras.budgetEntries,
+      varianceCommentary: extras.varianceCommentary,
+      documents: extras.documents,
+      modelVersions: extras.modelVersions,
+      modelApprovals: extras.modelApprovals,
+      comments: extras.comments,
+      tasks: extras.tasks,
+      portfolios: extras.portfolios,
+      portfolioProperties: extras.portfolioProperties,
+      funds: extras.funds,
+      fundInvestors: extras.fundInvestors,
+      fundTransactions: extras.fundTransactions,
+      dashboards: extras.dashboards,
+      savedViews: extras.savedViews,
+      assumptionProposals: extras.assumptionProposals,
     };
 
     reply.header('content-type', 'application/json; charset=utf-8');

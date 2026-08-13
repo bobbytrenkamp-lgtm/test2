@@ -93,7 +93,7 @@ describe.skipIf(!hasDatabase)('organization export', () => {
     };
 
     expect(document.format).toBe('cre-platform-organization');
-    expect(document.formatVersion).toBe(1);
+    expect(document.formatVersion).toBe(2);
     expect(document.organization.id).toBe(orgId);
     expect(document.organization.name).toBe('Cascadia Export Partners');
 
@@ -112,6 +112,119 @@ describe.skipIf(!hasDatabase)('organization export', () => {
     // produces, just gathered into the wider file.
     expect(modelDocument?.format).toBe('cre-platform-model');
     expect(modelDocument?.result).toBeDefined();
+  });
+
+  it('includes budgets, comments, tasks, portfolios and fund/investor/transaction records, not just properties and models', async () => {
+    /*
+     * Found by a thirteenth audit pass: this route is documented as
+     * "everything the organization owns," but only ever assembled members,
+     * properties and models. Budget history, comments, tasks, portfolios and
+     * every LP investor/transaction record a fund holds — among the most
+     * legally sensitive data in the schema — were silently absent, with
+     * nothing in the response saying so.
+     */
+    const budget = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/budgets',
+      headers: authed(owner.cookie),
+      payload: { propertyId, kind: 'actual', fiscalYear: 2026, label: 'FY2026 actuals' },
+    });
+    const budgetId = (budget.json() as { period: { id: string } }).period.id;
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/budgets/${budgetId}/entries`,
+      headers: authed(owner.cookie),
+      payload: {
+        entries: [
+          {
+            accountCode: '4000',
+            accountName: 'Base rent',
+            accountCategory: 'revenue',
+            periodMonth: '2026-01-01',
+            amount: '100000',
+          },
+        ],
+      },
+    });
+
+    const comment = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/comments',
+      headers: authed(owner.cookie),
+      payload: { entityType: 'property', entityId: propertyId, body: 'Worth a second look.' },
+    });
+    expect(comment.statusCode).toBe(201);
+
+    const task = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/tasks',
+      headers: authed(owner.cookie),
+      payload: { title: 'Confirm rent roll', propertyId },
+    });
+    expect(task.statusCode).toBe(201);
+
+    const portfolio = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/portfolios',
+      headers: authed(owner.cookie),
+      payload: { name: 'Cascadia Core Portfolio', propertyIds: [propertyId] },
+    });
+    expect(portfolio.statusCode).toBe(201);
+
+    const fund = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/funds',
+      headers: authed(owner.cookie),
+      payload: { name: 'Cascadia Fund I', committedCapital: '50000000' },
+    });
+    const fundId = (fund.json() as { fund: { id: string } }).fund.id;
+    const investor = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/funds/${fundId}/investors/LP-1`,
+      headers: authed(owner.cookie),
+      payload: { name: 'Cascadia Pension Trust', commitment: '10000000' },
+    });
+    expect(investor.statusCode).toBe(200);
+    const transaction = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/funds/${fundId}/transactions`,
+      headers: authed(owner.cookie),
+      payload: {
+        investorCode: 'LP-1',
+        date: '2026-01-15',
+        type: 'contribution',
+        amount: '2500000',
+      },
+    });
+    expect(transaction.statusCode).toBe(201);
+
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/organizations/${orgId}/export`,
+      headers: authed(owner.cookie),
+    });
+    expect(response.statusCode).toBe(200);
+    const document = response.json() as {
+      budgetPeriods: Array<{ id: string; label: string }>;
+      budgetEntries: Array<{ budget_period_id: string; account_code: string }>;
+      comments: Array<{ entity_id: string; body: string }>;
+      tasks: Array<{ title: string }>;
+      portfolios: Array<{ name: string }>;
+      portfolioProperties: Array<{ property_id: string }>;
+      funds: Array<{ name: string }>;
+      fundInvestors: Array<{ code: string; commitment: string }>;
+      fundTransactions: Array<{ type: string; amount: string }>;
+    };
+
+    expect(document.budgetPeriods.some((p) => p.id === budgetId)).toBe(true);
+    expect(document.budgetEntries.some((e) => e.budget_period_id === budgetId)).toBe(true);
+    expect(document.comments.some((c) => c.entity_id === propertyId)).toBe(true);
+    expect(document.tasks.some((t) => t.title === 'Confirm rent roll')).toBe(true);
+    expect(document.portfolios.some((p) => p.name === 'Cascadia Core Portfolio')).toBe(true);
+    expect(document.portfolioProperties.some((pp) => pp.property_id === propertyId)).toBe(true);
+    expect(document.funds.some((f) => f.name === 'Cascadia Fund I')).toBe(true);
+    expect(document.fundInvestors.some((i) => i.code === 'LP-1')).toBe(true);
+    expect(document.fundTransactions.some((t) => t.type === 'contribution')).toBe(true);
   });
 
   it('omits calculation results when asked, without dropping the models themselves', async () => {
