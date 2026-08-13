@@ -21,7 +21,7 @@ import {
   rankDrivers,
   sizeLoan,
 } from '@cre/calculation-engine';
-import type { ModelInput } from '@cre/domain-models';
+import { decimalString, type ModelInput } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 
 /**
@@ -518,6 +518,24 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
       })
       .parse(request.body);
 
+    // Validated here, before the job is ever enqueued, so a bad value fails
+    // with a clear message naming the scenario instead of surfacing as a
+    // cryptic decimal.js error deep in the worker after the batch has
+    // already started — or worse, as `NaN` that silently defeats a range
+    // guard like `SALE_MONTH_OUT_OF_RANGE` instead of failing at all.
+    for (const scenario of body.scenarios) {
+      for (const override of scenario.overrides) {
+        try {
+          validateSensitivityValue(override.variable, override.value);
+        } catch {
+          throw badRequest(
+            `Scenario "${scenario.name}": "${override.variable}" must be ` +
+              `${override.variable === 'saleMonth' ? 'a positive whole number of months' : 'a decimal number'}, got "${override.value}".`,
+          );
+        }
+      }
+    }
+
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound();
 
@@ -545,6 +563,27 @@ const SENSITIVITY_VARIABLES = [
 type SensitivityVariable = (typeof SENSITIVITY_VARIABLES)[number];
 
 /**
+ * Rejects an override value before it reaches the engine as a `ModelInput`
+ * field. `saleMonth` is the one integer field among the sensitivity
+ * variables; the rest are decimal-string rates and amounts, so a non-numeric
+ * value (an empty string, a stray letter) would otherwise flow straight
+ * through to the engine and throw a decimal.js error with no reference to
+ * which scenario or variable was at fault.
+ */
+function validateSensitivityValue(variable: SensitivityVariable, value: string): void {
+  if (variable === 'saleMonth') {
+    const month = Number(value);
+    if (!Number.isInteger(month) || month < 1) {
+      throw badRequest('A sale month must be a positive whole number of months.');
+    }
+    return;
+  }
+  if (!decimalString.safeParse(value).success) {
+    throw badRequest(`"${variable}" must be a decimal number, got "${value}".`);
+  }
+}
+
+/**
  * Returns a copy of the model input with one assumption replaced. The base
  * input is never mutated, so a grid of runs cannot contaminate each other.
  */
@@ -553,6 +592,7 @@ function applySensitivity(
   variable: SensitivityVariable,
   value: string,
 ): ModelInput {
+  validateSensitivityValue(variable, value);
   const next: ModelInput = {
     ...input,
     valuation: { ...input.valuation },
@@ -568,14 +608,9 @@ function applySensitivity(
     case 'saleCostPercent':
       next.valuation.saleCostPercent = value;
       break;
-    case 'saleMonth': {
-      const month = Number(value);
-      if (!Number.isInteger(month) || month < 1) {
-        throw badRequest('A sale month must be a positive whole number of months.');
-      }
-      next.valuation.saleMonth = month;
+    case 'saleMonth':
+      next.valuation.saleMonth = Number(value);
       break;
-    }
     case 'acquisitionPrice':
       next.valuation.acquisitionPrice = value;
       break;

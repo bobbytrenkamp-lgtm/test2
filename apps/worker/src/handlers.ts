@@ -13,7 +13,7 @@ import {
   type PortfolioMember,
 } from '@cre/calculation-engine';
 import { REPORTS, reportToWorkbook } from '@cre/reporting';
-import type { ModelInput } from '@cre/domain-models';
+import { decimalString, type ModelInput } from '@cre/domain-models';
 
 /**
  * Job handlers.
@@ -164,6 +164,29 @@ const OVERRIDABLE = new Set([
   'directCapRate',
 ]);
 
+/**
+ * Rejects an override value the API layer should already have validated
+ * before enqueueing this job — defense in depth against a job inserted by
+ * some future caller that bypasses the route, the same reasoning behind this
+ * codebase's CHECK constraints under application-level zod validation. A
+ * `saleMonth` that isn't a positive whole number, or any other override that
+ * isn't a decimal string, would otherwise flow straight into the engine as
+ * `NaN` or an unparsable string and throw a decimal.js error with no
+ * reference to which scenario or variable was at fault.
+ */
+function validateOverrideValue(variable: string, value: string): void {
+  if (variable === 'saleMonth') {
+    const month = Number(value);
+    if (!Number.isInteger(month) || month < 1) {
+      throw new Error('A sale month must be a positive whole number of months.');
+    }
+    return;
+  }
+  if (!decimalString.safeParse(value).success) {
+    throw new Error(`"${variable}" must be a decimal number, got "${value}".`);
+  }
+}
+
 function applyOverrides(
   input: ModelInput,
   overrides: Array<{ variable: string; value: string }>,
@@ -177,6 +200,7 @@ function applyOverrides(
     if (!OVERRIDABLE.has(override.variable)) {
       throw new Error(`"${override.variable}" is not an overridable scenario variable.`);
     }
+    validateOverrideValue(override.variable, override.value);
     switch (override.variable) {
       case 'discountRate':
         next.valuation.discountRate = override.value;

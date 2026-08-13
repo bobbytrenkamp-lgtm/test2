@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1204 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1211 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 52 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -91,7 +91,8 @@ Tests       1204 passed (251 engine regression, 31 engine unit, 16 fund,
                          11 zero/negative capitalization/discount rates,
                          3 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
-                         3 job reaper attempt cap)
+                         3 job reaper attempt cap,
+                         7 sensitivity and scenario-batch input validation)
 Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
