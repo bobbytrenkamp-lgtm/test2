@@ -113,15 +113,33 @@ export function normalizeMonth(raw: string, defaultCentury = 2000): string | nul
   return null;
 }
 
+function isWordChar(char: string | undefined): boolean {
+  return char !== undefined && /[a-z0-9]/.test(char);
+}
+
 /**
- * Reads a category from the word a chart of accounts uses for it.
- *
- * Scored rather than first-match: "Capital expenditure" contains both
- * "capital" and "expenditure", and taking whichever synonym happened to be
- * checked first would file half a capital plan under operating costs. A
- * synonym the text starts with beats one merely contained in it, and a longer
- * synonym beats a shorter one.
+ * Scores how well `synonym` matches `text`. An exact match wins outright,
+ * otherwise the synonym must land on a word boundary: "current" contains
+ * "rent" and "portion" contains "ti", and scoring those as if the account
+ * said "rent" or "TI" files a debt-service line under revenue or capital.
+ * A synonym the text starts with beats one merely contained in it, and a
+ * longer synonym beats a shorter one.
  */
+function synonymScore(text: string, synonym: string): number {
+  if (text === synonym) return 100;
+  let index = text.indexOf(synonym);
+  while (index !== -1) {
+    const before = index === 0 ? undefined : text[index - 1];
+    const after = text[index + synonym.length];
+    if (!isWordChar(before) && !isWordChar(after)) {
+      return index === 0 ? 70 + synonym.length : 40 + synonym.length;
+    }
+    index = text.indexOf(synonym, index + 1);
+  }
+  return 0;
+}
+
+/** Reads a category from the word a chart of accounts uses for it. */
 export function suggestCategory(raw: string): AccountCategoryName | null {
   const text = raw.trim().toLowerCase();
   if (!text) return null;
@@ -129,10 +147,7 @@ export function suggestCategory(raw: string): AccountCategoryName | null {
   let best: { category: AccountCategoryName; score: number } | null = null;
   for (const [category, synonyms] of Object.entries(CATEGORY_SYNONYMS)) {
     for (const synonym of synonyms) {
-      let score = 0;
-      if (text === synonym) score = 100;
-      else if (text.startsWith(synonym)) score = 70 + synonym.length;
-      else if (text.includes(synonym)) score = 40 + synonym.length;
+      const score = synonymScore(text, synonym);
       if (score > 0 && (!best || score > best.score)) {
         best = { category: category as AccountCategoryName, score };
       }
@@ -147,10 +162,7 @@ function suggestField(header: string): ActualsField | null {
   let best: { field: ActualsField; score: number } | null = null;
   for (const [field, synonyms] of Object.entries(FIELD_SYNONYMS)) {
     for (const synonym of synonyms) {
-      let score = 0;
-      if (text === synonym) score = 100;
-      else if (text.startsWith(synonym)) score = 70 + synonym.length;
-      else if (text.includes(synonym)) score = 40 + synonym.length;
+      const score = synonymScore(text, synonym);
       if (score > 0 && (!best || score > best.score)) {
         best = { field: field as ActualsField, score };
       }

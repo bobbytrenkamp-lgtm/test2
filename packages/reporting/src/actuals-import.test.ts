@@ -39,6 +39,18 @@ describe('category detection', () => {
   it('returns nothing when it does not recognise the word', () => {
     expect(suggestCategory('Zorblatt')).toBeNull();
   });
+
+  it('does not let a synonym fire inside an unrelated word', () => {
+    // "current" contains "rent" (cur-RENT) and "portion" contains "ti"
+    // (por-TI-on). A plain substring match would score "revenue" (via
+    // "rent") ahead of the correct "debt_service" (via "debt", which also
+    // occurs, on its own word), silently filing a debt line as income.
+    expect(suggestCategory('Current portion of long-term debt')).toBe('debt_service');
+    expect(suggestCategory('Current maturities of long-term debt')).toBe('debt_service');
+    // "Utilities" contains "ti" (utili-TI-es) the same way; it must not be
+    // read as capital expenditure for it.
+    expect(suggestCategory('Utilities')).toBeNull();
+  });
 });
 
 describe('layout detection', () => {
@@ -154,6 +166,23 @@ describe('mapping a wide sheet', () => {
     // Left as written: applying the wrong sign would reverse the variance, not
     // merely misplace the row.
     expect(result.entries[0]?.amount).toBe('500');
+  });
+
+  it('negates a debt line whose stated category reads as revenue under a naive substring match', () => {
+    // The category column's own text is "Current portion of long-term debt",
+    // an entirely ordinary trial-balance category label that contains "rent"
+    // (cur-RENT) and its own cost is stated positive, as ledgers usually do.
+    // A category match on "rent" would leave it unnegated and land it in the
+    // revenue subtotal instead of debt service.
+    const debtLine = [
+      'Account,Description,Category,Jan-26',
+      '2100,Debt principal,Current portion of long-term debt,50000',
+    ].join('\n');
+    const analysis = analyzeActuals(debtLine);
+    const result = mapActuals(debtLine, analysis, { expenseSign: 'positive' });
+    expect(result.entries[0]?.accountCategory).toBe('debt_service');
+    expect(result.entries[0]?.amount).toBe('-50000');
+    expect(result.issues).toEqual([]);
   });
 
   it('classifies by account-code prefix when the file has no category column', () => {
