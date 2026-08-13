@@ -489,6 +489,18 @@ function areaReconciliation(input: ModelInput, result: ModelResult): HealthFindi
 
 function debtRetired(input: ModelInput, result: ModelResult): HealthFinding[] {
   if (input.debt.length === 0) return [];
+  if (result.debtSchedules.length < input.debt.length) {
+    // At least one facility was refused by `computeDebt` outright (a
+    // non-positive term, a funding date before the forecast start) and has
+    // no schedule at all — `engineDiagnostics` already surfaces why, as a
+    // critical error. Summing `debtSchedules` here would read the *absence*
+    // of a schedule as a zero balance and report "fully repaid" — a false
+    // all-clear on a facility whose real balance is unknown, not zero, and
+    // whose debt service never reached the levered return this same panel
+    // reports elsewhere. Say nothing rather than say something false; the
+    // engine-error finding already tells the analyst where to look.
+    return [];
+  }
   const last = result.debtSchedules
     .map((schedule) => d(schedule.rows[schedule.rows.length - 1]?.endingBalance ?? '0'))
     .reduce<Decimal>((a, b) => a.plus(b), ZERO);

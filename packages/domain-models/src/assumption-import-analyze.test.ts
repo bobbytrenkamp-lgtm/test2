@@ -336,6 +336,51 @@ describe('analyzeImport: record bundles', () => {
     expect(renewal?.evidence).toEqual([]);
   });
 
+  it('classifies a bundle for an existing record whose own code contains a dot', () => {
+    /*
+     * Found by a thirteenth audit pass: a code copied verbatim from a source
+     * document — "MLA.Office" — is exactly the kind of identifier real
+     * extraction produces, and this dictionary places no restriction
+     * against a dot in a collection row's id. The bundle's own target
+     * string is built as `${collection}.${code}.${field}`, and resolving it
+     * back apart used to assume the code itself held no dots, misreading
+     * the code/field split and reporting a field that genuinely exists as
+     * unsupported.
+     */
+    const analysis = analyzeImport(
+      doc({
+        records: [
+          {
+            collection: 'marketLeasing',
+            code: 'MLA.Office',
+            name: 'Office standard',
+            fields: { marketRent: '14.00' },
+            evidence: {},
+          },
+        ],
+      }),
+      model({
+        marketLeasingProfiles: [
+          {
+            id: 'MLA.Office',
+            name: 'Office standard',
+            marketRent: '11.00',
+            marketRentBasis: 'per_area_per_year',
+          },
+        ],
+      }),
+    );
+    const rent = analysis.items.find((i) => i.target === 'marketLeasing.MLA.Office.marketRent');
+    expect(rent).toMatchObject({
+      status: 'changed',
+      collection: 'marketLeasing',
+      code: 'MLA.Office',
+      currentValue: '11.00',
+      extractedValue: '14.00',
+    });
+    expect(analysis.missingCollectionRecords).toHaveLength(0);
+  });
+
   it('reports a bundle for a code that does not exist as a missing collection record, not a silent create', () => {
     const analysis = analyzeImport(
       doc({

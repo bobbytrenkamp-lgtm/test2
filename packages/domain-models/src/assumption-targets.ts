@@ -399,7 +399,8 @@ export const COLLECTIONS_BY_NAME: Readonly<Record<string, CollectionDescriptor>>
   Object.fromEntries(COLLECTIONS.map((entry) => [entry.collection, entry]));
 
 export type TargetVerdict =
-  { ok: true; descriptor: TargetDescriptor; collection?: string } | { ok: false; reason: string };
+  | { ok: true; descriptor: TargetDescriptor; collection?: string; code?: string }
+  | { ok: false; reason: string };
 
 /**
  * Resolves a dotted target to the descriptor that would let something write
@@ -436,13 +437,27 @@ export function describeTarget(target: string): TargetVerdict {
   }
 
   if (parts.length >= 3 && COLLECTIONS_BY_NAME[head]) {
-    const field = parts.slice(2).join('.');
-    const descriptor = COLLECTIONS_BY_NAME[head]?.fields.find((entry) => entry.field === field);
-    if (descriptor) return { ok: true, descriptor, collection: head };
+    const collectionDescriptor = COLLECTIONS_BY_NAME[head] as CollectionDescriptor;
+    // `parts.slice(2).join('.')` would assume the code itself never contains
+    // a dot — but a code is free-form text (`z.string().min(1)` on every
+    // collection row's `id`), and a real one sometimes does ("Bldg A.Suite
+    // 100", copied verbatim from a source document by an import). Field
+    // names, by contrast, are a small known set with no dots in any of
+    // them, so matching backward from the end against that set — rather
+    // than forward from a fixed position — finds the real field, and
+    // therefore the real code, regardless of what the code itself contains.
+    const rest = target.slice(head.length + 1);
+    const descriptor = collectionDescriptor.fields.find((entry) =>
+      rest.endsWith(`.${entry.field}`),
+    );
+    if (descriptor) {
+      const code = rest.slice(0, rest.length - descriptor.field.length - 1);
+      return { ok: true, descriptor, collection: head, code };
+    }
     return {
       ok: false,
       reason:
-        `${target} is not one of the fields this contract can write on ${COLLECTIONS_BY_NAME[head]?.noun}. ` +
+        `${target} is not one of the fields this contract can write on ${collectionDescriptor.noun}. ` +
         'The proposal is kept so you can act on it yourself.',
     };
   }

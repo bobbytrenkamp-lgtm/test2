@@ -62,6 +62,42 @@ describe('resolveAssumptionValue', () => {
     expect(resolveAssumptionValue(MODEL, 'marketLeasing.MLA-OFF.renewalProbability')).toBe('0.7');
   });
 
+  it('finds a row whose own code contains a dot', () => {
+    /*
+     * Found by a thirteenth audit pass: a collection row's `id` is free-form
+     * text with no restriction against a literal dot, and the naive split
+     * `[rest[0], rest.slice(1).join('.')]` took only the text up to the
+     * first dot as the code — silently reading the rest of the code as part
+     * of the field name and returning null for a row that genuinely exists.
+     */
+    const withDottedCode = {
+      ...MODEL,
+      marketLeasingProfiles: [
+        ...MODEL.marketLeasingProfiles,
+        { id: 'MLA.Office', marketRent: '41.00', renewalProbability: '0.65' },
+      ],
+    };
+    expect(resolveAssumptionValue(withDottedCode, 'marketLeasing.MLA.Office.marketRent')).toBe(
+      '41.00',
+    );
+  });
+
+  it('prefers the longest matching code when one code is a dotted prefix of another', () => {
+    // Two rows, "MLA" and "MLA.Office", where "MLA" alone is also a valid
+    // prefix of the target string. The more specific match wins, rather
+    // than the shorter row swallowing the longer row's own code as part of
+    // its field name.
+    const ambiguous = {
+      ...MODEL,
+      marketLeasingProfiles: [
+        { id: 'MLA', marketRent: '30.00', renewalProbability: '0.5' },
+        { id: 'MLA.Office', marketRent: '41.00', renewalProbability: '0.65' },
+      ],
+    };
+    expect(resolveAssumptionValue(ambiguous, 'marketLeasing.MLA.Office.marketRent')).toBe('41.00');
+    expect(resolveAssumptionValue(ambiguous, 'marketLeasing.MLA.marketRent')).toBe('30.00');
+  });
+
   it('returns null rather than guessing when it cannot find the target', () => {
     // Each of these is a real case: a section that does not exist, a field that
     // does not, a row code that does not, and a path with no field at all.

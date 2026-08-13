@@ -253,15 +253,31 @@ export function resolveAssumptionValue(
     return null;
   }
 
-  // Collection row: `<collection>.<code>.<field>`.
-  const [code, field] = [rest[0] as string, rest.slice(1).join('.')];
+  // Collection row: `<collection>.<code>.<field>`. `code` is free-form text
+  // (every collection row's `id` is just `z.string().min(1)`) and sometimes
+  // contains a dot of its own — so rather than assuming it is exactly
+  // `rest[0]`, find the row whose real `id` the remaining path actually
+  // starts with. When more than one row's id qualifies (one id happens to
+  // be a dotted prefix of another), the longest — most specific — match
+  // wins, so a row named "MLP.Office" is never misread as row "MLP" plus a
+  // field called "Office.marketRent".
+  const remainder = rest.join('.');
   const collection = input[COLLECTION_KEYS[head] ?? head];
   if (!Array.isArray(collection)) return null;
-  const row = collection.find(
-    (entry) => entry && typeof entry === 'object' && (entry as { id?: string }).id === code,
+  type Row = Record<string, unknown> & { id?: unknown };
+  const candidates = (collection as unknown[]).filter(
+    (entry): entry is Row =>
+      !!entry &&
+      typeof entry === 'object' &&
+      typeof (entry as Row).id === 'string' &&
+      remainder.startsWith(`${(entry as Row).id as string}.`),
   );
-  if (!row) return null;
-  const value = (row as Record<string, unknown>)[field];
+  if (candidates.length === 0) return null;
+  const row = candidates.reduce((longest, candidate) =>
+    (candidate.id as string).length > (longest.id as string).length ? candidate : longest,
+  );
+  const field = remainder.slice((row.id as string).length + 1);
+  const value = row[field];
   return value === null || value === undefined ? null : String(value);
 }
 

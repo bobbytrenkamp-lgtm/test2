@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_FIXTURES } from './__fixtures__/properties.js';
+import { baseModel, extendModel } from './__fixtures__/builders.js';
 import { calculate } from './engine.js';
 import { assessHealth } from './health.js';
 import { DRIVER_KEYS, rankDrivers } from './drivers.js';
@@ -156,6 +157,41 @@ describe('underwriting health', () => {
   it('confirms the debt is retired when it is', () => {
     const { input, result } = fixture('refinanceScenario');
     expect(find(assessHealth(input, result), 'debt.retired')?.severity).toBe('pass');
+  });
+
+  it('says nothing about a facility the engine refused to model, rather than reading its absence as fully repaid', () => {
+    /*
+     * Found by a thirteenth audit pass. `computeDebt` refuses a facility
+     * funded before the forecast start outright (`DEBT_FUNDED_BEFORE_FORECAST`)
+     * and never pushes a schedule for it — `debtRetired` summed
+     * `result.debtSchedules`, which is simply empty for a wholly-refused
+     * facility, and read that empty sum as a zero balance: "Debt is fully
+     * repaid," a false all-clear for a facility whose real balance is
+     * unknown, not zero, and whose debt service never touched the levered
+     * return this same health panel reports elsewhere.
+     */
+    const model = extendModel(baseModel(), {
+      debt: [
+        {
+          id: 'D-PRE',
+          name: 'Existing first mortgage',
+          type: 'permanent',
+          commitment: '5000000',
+          initialFunding: '5000000',
+          fundingDate: '2025-01-01', // baseModel's forecast starts 2026-01-01.
+          rateType: 'fixed',
+          fixedRate: '0.06',
+          interestOnlyMonths: 0,
+          amortizationMonths: 360,
+          termMonths: 120,
+        },
+      ],
+    });
+    const result = calculate(model);
+    expect(result.debtSchedules).toHaveLength(0);
+    expect(find(assessHealth(model, result), 'debt.retired')).toBeUndefined();
+    // The engine's own error finding is what actually surfaces the problem.
+    expect(find(assessHealth(model, result), 'engine.errors')?.severity).toBe('warning');
   });
 
   it('measures expiry on a rolling window, not by calendar year', () => {
