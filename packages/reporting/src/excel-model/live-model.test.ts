@@ -1083,6 +1083,71 @@ describe('the terminal NOI window follows the engine', () => {
   });
 });
 
+describe('the going-in cap rate follows the engine on a short forecast', () => {
+  it('annualises year 1 NOI on a forecast shorter than 12 months', () => {
+    /*
+     * Found by a ninth audit pass: the sibling "Terminal NOI" cell above
+     * already annualises a short trailing window (its own describe block,
+     * above), but "Going-in cap rate" never did — reading one, un-annualised
+     * year-1 window against the full acquisition basis, understating the
+     * cap rate by up to 2x on a forecast shorter than a year. This is the
+     * exact bug `engine.ts`'s 4.0.0 changelog entry already fixed in
+     * `goingInCapRate` itself; it was never carried into this formula.
+     *
+     * Flat $10,000/month other revenue, no leases, no expenses, no debt, so
+     * the annualised answer is unambiguous: $10,000 x 12 = $120,000/year.
+     * `acquisitionCosts: '0'` keeps this isolated to the annualiser alone —
+     * the cell's own denominator question is separate and not what this
+     * test checks.
+     */
+    const input = parseModelInput({
+      modelId: 'fx-going-in-cap-short-forecast',
+      modelName: 'Going-in cap rate, short forecast (fixture)',
+      currency: 'USD',
+      areaUnit: 'sqft',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 6,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: {
+        id: 'P1',
+        name: 'Fixture Property',
+        propertyType: 'office',
+        rentableArea: '100000',
+        unitCount: 0,
+        ownershipPercent: '1',
+      },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat other revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 6 }, () => '10000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '2400000',
+      },
+    });
+    const result = calculate(input);
+    // Confirms the engine side of the comparison independently before
+    // trusting the Excel formula against it: 120,000 / 2,400,000 = 5%.
+    expect(Number(result.returns.goingInCapRate)).toBeCloseTo(0.05, 6);
+
+    const { workbook } = buildLiveModel(input, result);
+    expect(formulaFor(workbook, 'returns.goingInCapRate')).toContain('*12/6');
+
+    const evaluator = new FormulaEvaluator(workbook);
+    expect(evaluator.value('returns.goingInCapRate')).toBeCloseTo(0.05, 6);
+  });
+});
+
 describe('the partnership waterfall', () => {
   const withWaterfall = Object.keys(ALL_FIXTURES).filter(
     (name) => fixture(name as keyof typeof ALL_FIXTURES).result.waterfall.length > 0,

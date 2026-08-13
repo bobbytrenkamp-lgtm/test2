@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **11.0.0** — `packages/calculation-engine`.
+Engine version **12.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -913,6 +913,39 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 12.0.0
+
+**A ninth audit pass.** Major because its one confirmed engine-level finding
+changes covenant-breach reporting — and, wherever a `cashTrap` is wired to the
+covenant it fires on, the levered cash flow itself — for an existing
+floating-rate facility.
+
+- **A facility's DSCR covenant is now tested against the trailing twelve
+  months of debt service it actually paid**, not one month's debt service
+  multiplied by twelve. The NOI side of the same ratio already summed a
+  trailing window; the debt-service side extrapolated a single period. Level
+  debt service (fixed-rate, interest-only, steady-state amortizing) made the
+  two identical, which is why every prior covenant fixture passed regardless.
+  A floating rate steps at every twelve-month anniversary, which is the
+  ordinary shape of a floating facility — at the step, the bug read a breach
+  that was not really there, or missed one that was.
+- **The Excel Live Model's "Going-in cap rate"** (`packages/reporting`, not
+  governed by this version number) **now annualises year 1 NOI on a forecast
+  shorter than twelve months**, matching the sibling "Terminal NOI" cell and
+  the engine's own `goingInCapRate`, which has annualised since 4.0.0 — a fix
+  never carried into this formula.
+- **A third lead was investigated and found not reachable**: duplicate ids
+  among `FundInvestor` records would double-count contributions in
+  `computeFund`, the same class of bug 11.0.0 fixed in the waterfall — but
+  unlike a waterfall partner id (free text in a JSON-editable model field),
+  `FundInvestor.id` is always a database-generated primary key, which
+  Postgres itself refuses to duplicate. No fix was made.
+
+None of the ~300 regression fixtures at the time exercised a floating-rate
+facility's covenant across a rate step, or a Live Model export of a short
+forecast with a nonzero acquisition price — which is why both survived eight
+prior audit passes.
 
 ### 11.0.0
 

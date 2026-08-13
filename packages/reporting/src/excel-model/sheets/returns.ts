@@ -148,16 +148,33 @@ export function buildReturns(
     'returns.totalCost',
   );
 
+  /*
+   * Year 1 NOI, annualised on a forecast shorter than twelve months — the
+   * same rule the engine's own `year1Noi` applies (see `engine.ts`'s 4.0.0
+   * changelog entry) and the same rule "Terminal NOI" above already applies
+   * to its own short trailing window. Found missing here by a ninth audit
+   * pass: this cell had no `annualiser`, understating the going-in cap rate
+   * by up to 2x on a forecast under twelve months, exactly the bug 4.0.0
+   * fixed in the engine and never carried into this formula.
+   */
+  const year1Months = Math.min(12, last + 1);
+  const year1Annualiser = year1Months > 0 && year1Months < 12 ? 12 / year1Months : 1;
+
   scalar(
     sheet,
     'Going-in cap rate',
     {
       kind: 'formula',
-      formula: (refs) =>
-        `IF(${refs.ref('returns.totalCost')}=0,0,` +
-        `SUM(${refs.range('cashFlow.netOperatingIncome', 0, Math.min(11, last))})/` +
-        `${refs.ref('returns.totalCost')})`,
+      formula: (refs) => {
+        const year1 = `SUM(${refs.range('cashFlow.netOperatingIncome', 0, Math.min(11, last))})`;
+        const annualised = year1Annualiser === 1 ? year1 : `${year1}*12/${year1Months}`;
+        return `IF(${refs.ref('returns.totalCost')}=0,0,${annualised}/${refs.ref('returns.totalCost')})`;
+      },
       format: 'percent2',
+      note:
+        year1Annualiser === 1
+          ? undefined
+          : `Year 1 NOI annualised from ${year1Months} months, matching the engine's own goingInCapRate.`,
     },
     'returns.goingInCapRate',
   );
