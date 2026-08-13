@@ -57,14 +57,14 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 26 | Yes |
 | Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
-| Budgets, actuals and variance | `tests/budgets.test.ts` | 13 | Yes |
+| Budgets, actuals and variance | `tests/budgets.test.ts` | 14 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
-| Error monitoring and its redaction | `tests/error-monitoring.test.ts` | 17 | Yes |
+| Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
 | Reforecast carry-forward | `tests/reforecast.test.ts` | 5 | Yes |
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
@@ -81,8 +81,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 22 | No |
-| The assumption input contract | `packages/domain-models/src/assumption-proposals.test.ts` | 27 | No |
-| Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 14 | Yes |
+| The assumption input contract, including enum-membership checking | `packages/domain-models/src/assumption-proposals.test.ts` | 31 | No |
+| Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 15 | Yes |
 | Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
 | Loan sizing through the API | `tests/debt-sizing.test.ts` | 5 | Yes |
 | Straight-line rent through the API | `tests/straight-line-rent.test.ts` | 4 | Yes |
@@ -100,7 +100,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 5 | Yes |
 
-**1190 tests in total.**
+**1199 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -140,7 +140,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**198 browser tests in total**, for 1388 across the whole repository.
+**198 browser tests in total**, for 1397 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

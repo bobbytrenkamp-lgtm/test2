@@ -15,6 +15,7 @@ import {
   assumptionProposalBatchSchema,
   describeTarget,
   resolveAssumptionValue,
+  validateTypedValue,
 } from '@cre/domain-models';
 import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
 import { assertEditable } from './models.js';
@@ -185,6 +186,24 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
       }
       const target = describeTarget(proposal.target);
       if (!target.ok) throw unprocessable(target.reason);
+      // Re-checked against the target's own real shape, not the value type
+      // the proposal merely declared when it arrived: `assumptionProposalInputSchema`
+      // deliberately cannot check this at creation time (`target` is free
+      // text there — see its own module doc), so an `'enum'` value in
+      // particular was, until this check existed, only confirmed to be
+      // non-empty text, never confirmed to be one of the target's actual
+      // allowed values. Accepting a proposal is the one point this contract
+      // ever writes anything, so it is the one point that has to catch a
+      // mistyped or stale value before the write, rather than leaving the
+      // model uncalculable until someone finds and repairs the row by hand.
+      const shapeProblem = validateTypedValue(
+        proposal.value,
+        target.descriptor.valueType,
+        target.descriptor.enumValues,
+      );
+      if (shapeProblem) {
+        throw unprocessable(`${proposal.target}: ${shapeProblem}`);
+      }
     }
 
     const decided = await request.db.begin(async (tx) => {

@@ -310,7 +310,7 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
     }
 
     function expense(amount: string): Record<string, unknown> {
-      return { name: 'Insurance', category: 'insurance', method: 'fixed', amount };
+      return { name: 'Insurance', category: 'insurance', method: 'fixed_annual', amount };
     }
 
     it('starts a row at version 1 and increments on each write', async () => {
@@ -416,8 +416,11 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
       // The guard lives in the shared registration, so a collection added later
       // gets it for free — but only if every existing one is actually covered.
       const cases: Array<[string, Record<string, unknown>]> = [
-        ['other-revenue', { name: 'Parking', method: 'fixed', amount: '1000' }],
-        ['capital', { name: 'Roof', category: 'building', method: 'fixed', amount: '250000' }],
+        ['other-revenue', { name: 'Parking', method: 'fixed_annual', amount: '1000' }],
+        [
+          'capital',
+          { name: 'Roof', category: 'building', method: 'fixed_annual', amount: '250000' },
+        ],
         ['growth-curves', { name: 'Inflation', defaultRate: '0.03' }],
         [
           'market-leasing',

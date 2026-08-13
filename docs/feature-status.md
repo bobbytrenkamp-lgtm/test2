@@ -53,12 +53,12 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1190 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1199 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 51 import,
-                         26 authorization, 13 budgets, 7 portfolios,
+                         26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
-                         7 version comparison via the API, 17 error monitoring,
+                         7 version comparison via the API, 20 error monitoring,
                          5 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
@@ -69,8 +69,8 @@ Tests       1190 passed (251 engine regression, 31 engine unit, 16 fund,
                          8 batch lease writes, 9 batched assumptions,
                          29 record-editor specs,
                          22 health and drivers,
-                         27 the assumption input contract,
-                         14 assumption proposals via the API,
+                         31 the assumption input contract,
+                         15 assumption proposals via the API,
                          7 favourites, 5 tenant exposure,
                          89 the writable-target registry,
                          20 the cre-assumption-import parser,
@@ -107,7 +107,7 @@ Browser     198 passed  (3 sign-in, 5 underwriting and the virtualised grid,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
-Migrations  15 applied against PostgreSQL 16
+Migrations  17 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -357,7 +357,7 @@ current state.)
 | Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
-| Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days. No external provider is wired, and none is needed |
+| Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days, scoped to the caller's own organization on every read. No external provider is wired, and none is needed |
 | Support-facing error reference | Tested | Every unexpected (500) response carries a short reference (`ERR-482910`) built from the same row `recordError` already writes — no second identifier, no stack trace or SQL ever reaches the client. `GET /operations/errors/reference/:reference` resolves one back for a support conversation, gated on `audit:read`. 7 new tests in `tests/error-monitoring.test.ts` (17 total) |
 | Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is documented but not scripted |
 

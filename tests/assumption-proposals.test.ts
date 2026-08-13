@@ -402,6 +402,46 @@ describe.skipIf(!hasDatabase)('assumption proposals', () => {
     expect((await decide(proposal?.id as string, 'rejected', 'Noted.')).statusCode).toBe(200);
   });
 
+  it('refuses to accept an enum proposal whose value is not one of the target’s real members', async () => {
+    /*
+     * Found by a tenth audit pass: accepting a proposal only checked
+     * `describeTarget(...).ok` — that the target exists — never that the
+     * proposed value was actually one of the target's allowed members.
+     * `valuation.terminalNoiBasis` only has two real values
+     * (`forward_12`/`trailing_12`); a plausible-looking near-miss like
+     * `trailing_120` used to be accepted as "text" and written straight into
+     * the `models` table, where nothing failed until the next calculation —
+     * `parseModelInput`'s strict schema enum would throw, and the model
+     * would stay uncalculable until someone found and repaired the row by
+     * hand. Confirms both that accepting is refused, and that the value
+     * already written before this bug was ever found is not silently
+     * repeated: nothing here should touch the column at all.
+     */
+    const before = await model();
+
+    await post([
+      {
+        target: 'valuation.terminalNoiBasis',
+        value: 'trailing_120',
+        valueType: 'enum',
+        sourceKind: 'imported',
+        sourceName: 'enum-membership-check',
+        evidence: {},
+      },
+    ]);
+    const proposal = (await list('pending')).find(
+      (entry) => entry.target === 'valuation.terminalNoiBasis',
+    );
+    expect(proposal).toBeDefined();
+
+    const result = await decide(proposal?.id as string, 'accepted');
+    expect(result.statusCode).toBe(422);
+    expect(result.body).toContain('trailing_120');
+
+    const after = await model();
+    expect(after.terminal_noi_basis).toBe(before.terminal_noi_basis);
+  });
+
   it('refuses to apply a proposal that carries no figure', async () => {
     await post([
       {

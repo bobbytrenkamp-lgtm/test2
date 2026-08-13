@@ -636,7 +636,6 @@ export function JobsPage(): JSX.Element {
       message: string;
       occurrences: number;
       last_seen: string;
-      organizations_affected: number;
     }>;
     sinceHours: number;
   }>(can('audit:read') ? '/operations/errors?sinceHours=168' : null);
@@ -720,9 +719,9 @@ export function JobsPage(): JSX.Element {
           <h2>Recorded faults</h2>
           <p className="field-hint" style={{ marginTop: 0 }}>
             Unhandled server failures from the last seven days, grouped so one route failing
-            repeatedly reads as one problem. The store holds no request bodies, query values or
-            model figures — reproducing a fault needs the model, which is still behind the
-            permissions it always had.
+            repeatedly reads as one problem. Scoped to this organization only. The store holds no
+            request bodies, query values or session tokens — reproducing a fault needs the model,
+            which is still behind the permissions it always had.
           </p>
           <ErrorMessage error={errors.error} />
           {errors.loading && <Loading label="Loading recorded faults" />}
@@ -742,9 +741,6 @@ export function JobsPage(): JSX.Element {
                       <th scope="col" className="numeric">
                         Occurrences
                       </th>
-                      <th scope="col" className="numeric">
-                        Organizations
-                      </th>
                       <th scope="col">Last seen</th>
                     </tr>
                   </thead>
@@ -759,9 +755,6 @@ export function JobsPage(): JSX.Element {
                           <div className="field-hint">{group.message}</div>
                         </td>
                         <td className="numeric">{group.occurrences}</td>
-                        {/* One tenant repeatedly is a support conversation; every
-                            tenant at once is an outage. */}
-                        <td className="numeric">{group.organizations_affected}</td>
                         <td>{formatDateTime(group.last_seen)}</td>
                       </tr>
                     ))}
