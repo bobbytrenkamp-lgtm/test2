@@ -315,6 +315,11 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       const modelId = query.comparisonModelId as string;
       const comparisonModel = await getModel(request.db, context.organizationId, modelId);
       if (!comparisonModel) throw notFound('That model does not exist in this organization.');
+      if (comparisonModel.property_id !== base.property_id) {
+        throw badRequest(
+          'Both sides of a variance must belong to the same property. Comparing two different assets produces a number with no meaning.',
+        );
+      }
       const latest = await getLatestCalculation(request.db, modelId);
       if (!latest) {
         throw badRequest(

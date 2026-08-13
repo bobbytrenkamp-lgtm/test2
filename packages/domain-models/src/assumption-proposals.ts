@@ -156,8 +156,24 @@ export type AssumptionProposalInput = z.infer<typeof assumptionProposalInputSche
  * rate target is refused rather than guessed at, because guessing whether
  * someone meant `6.25%` or `625%` is exactly the kind of silent error this
  * whole contract exists to prevent.
+ *
+ * `enumValues`, when given, is checked for `'enum'` the same way every other
+ * `valueType` is checked against its own real shape. Without it, `'enum'`
+ * can only confirm the value is non-empty text — which is deliberately as
+ * far as this schema's own `superRefine` can go on its own (see this file's
+ * module doc: a proposal's `target` is not resolved against the model here,
+ * so there is nothing to check membership against yet). A caller that has
+ * already resolved the target to its real `TargetDescriptor` — the proposal
+ * decision route, the import analyzer — should pass `descriptor.enumValues`
+ * through, so a mistyped or stale enum member is refused before it reaches
+ * a write rather than being accepted as "text" and rejected only much later,
+ * by `parseModelInput`, the next time the model is calculated.
  */
-export function validateTypedValue(raw: string, valueType: AssumptionValueType): string | null {
+export function validateTypedValue(
+  raw: string,
+  valueType: AssumptionValueType,
+  enumValues?: readonly string[],
+): string | null {
   switch (valueType) {
     case 'decimal':
       return /^-?(\d+(\.\d+)?|\.\d+)$/.test(raw)
@@ -172,8 +188,13 @@ export function validateTypedValue(raw: string, valueType: AssumptionValueType):
     case 'boolean':
       return raw === 'true' || raw === 'false' ? null : `Expected "true" or "false", not "${raw}".`;
     case 'string':
-    case 'enum':
       return raw.length > 0 && raw.length <= 200 ? null : 'Expected non-empty text.';
+    case 'enum':
+      if (raw.length === 0 || raw.length > 200) return 'Expected non-empty text.';
+      if (enumValues && !enumValues.includes(raw)) {
+        return `Expected one of ${enumValues.map((value) => `"${value}"`).join(', ')}, not "${raw}".`;
+      }
+      return null;
   }
 }
 

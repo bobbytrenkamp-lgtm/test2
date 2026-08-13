@@ -367,7 +367,11 @@ function classifyGroup(
     );
   }
 
-  const shapeProblem = validateTypedValue(merged.value, descriptor.valueType);
+  const shapeProblem = validateTypedValue(
+    merged.value,
+    descriptor.valueType,
+    descriptor.enumValues,
+  );
   if (shapeProblem) {
     return invalidItem(target, descriptor, collection, code, group, shapeProblem);
   }

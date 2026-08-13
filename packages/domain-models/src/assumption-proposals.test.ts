@@ -3,6 +3,7 @@ import {
   assumptionProposalBatchSchema,
   assumptionProposalInputSchema,
   resolveAssumptionValue,
+  validateTypedValue,
 } from './assumption-proposals.js';
 
 /**
@@ -218,5 +219,58 @@ describe('the proposal schema', () => {
     expect(() =>
       assumptionProposalInputSchema.parse({ ...base, value: '6.25', valueType: 'decimal' }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * `validateTypedValue`'s `enumValues` parameter.
+ *
+ * Found by a tenth audit pass: without a target's real allowed values to
+ * check against, `'enum'` could only confirm a proposed value was non-empty
+ * text — accepting a value like `"percent_of_revenue"` for an expense's
+ * `method` (the real member is `percent_of_effective_gross_revenue`), which
+ * an accepted proposal would then write straight into the database. Nothing
+ * would fail until the model's next calculation, when `parseModelInput`'s
+ * strict schema enum throws on the row — by which point there is no
+ * self-service path back, only a corrupted model and a database row somebody
+ * has to find and repair by hand.
+ */
+describe('validateTypedValue, enum membership', () => {
+  const methodValues = [
+    'fixed_annual',
+    'per_area_per_year',
+    'per_unit_per_year',
+    'percent_of_effective_gross_revenue',
+    'percent_of_base_rent',
+    'custom_monthly_schedule',
+  ] as const;
+
+  it('accepts a value that is one of the target’s own allowed members', () => {
+    expect(
+      validateTypedValue('percent_of_effective_gross_revenue', 'enum', methodValues),
+    ).toBeNull();
+  });
+
+  it('refuses a plausible-looking value that is not actually a member', () => {
+    // The exact mistake the audit found reachable: a source (or a person)
+    // writing the shorter, more natural-sounding name instead of the real
+    // enum member.
+    const problem = validateTypedValue('percent_of_revenue', 'enum', methodValues);
+    expect(problem).not.toBeNull();
+    expect(problem).toContain('percent_of_revenue');
+    expect(problem).toContain('percent_of_effective_gross_revenue');
+  });
+
+  it('refuses an empty value even when enumValues is supplied', () => {
+    expect(validateTypedValue('', 'enum', methodValues)).not.toBeNull();
+  });
+
+  it('falls back to the loose non-empty-text check when no enumValues is given', () => {
+    // The proposal schema's own `superRefine` calls this with no enumValues,
+    // deliberately — see this file's module doc: a proposal's target is not
+    // resolved against the model at creation time, so there is nothing to
+    // check membership against yet. That case must keep working exactly as
+    // it did before enumValues existed.
+    expect(validateTypedValue('anything-at-all', 'enum')).toBeNull();
   });
 });

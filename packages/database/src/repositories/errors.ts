@@ -43,7 +43,6 @@ export interface ErrorGroup {
   occurrences: number;
   first_seen: Date;
   last_seen: Date;
-  organizations_affected: number;
 }
 
 /**
@@ -120,30 +119,44 @@ export function referenceFor(id: string | number): string {
  * Finds the event a support reference names, for a support conversation to
  * resolve. Accepts the reference exactly as shown to a customer
  * (`ERR-482910`) or the bare id, so a person pasting either still finds it.
+ *
+ * Scoped to the caller's own organization, the same as every other read in
+ * this file: a fault's `message`/`stack` is exactly the "SQL, file paths or
+ * model data" this module's own docstring says a client response never gets
+ * — recorded so a *support conversation on the fault's own tenant* can use
+ * it, not so it becomes readable by any other tenant that happens to hold
+ * `audit:read` too.
  */
 export async function findErrorEventByReference(
   sql: Sql,
   reference: string,
+  organizationId: string,
 ): Promise<Record<string, unknown> | null> {
   const id = reference.replace(/^ERR-/i, '').trim();
   if (!/^\d+$/.test(id)) return null;
   const rows = (await sql`
     SELECT id, occurred_at, method, route, status_code, error_name, message, stack, fingerprint
     FROM error_events
-    WHERE id = ${id}
+    WHERE id = ${id} AND organization_id = ${organizationId}
   `) as unknown as Array<Record<string, unknown>>;
   return rows[0] ?? null;
 }
 
 /**
- * Faults grouped by fingerprint, most recently seen first.
- *
- * `organizations_affected` is the figure that decides urgency: one tenant
- * hitting a fault repeatedly is a support conversation, and the same fault
- * across every tenant is an outage.
+ * Faults grouped by fingerprint, most recently seen first, scoped to one
+ * organization — the same scoping `/audit` and `/audit/export` already apply
+ * for the same `audit:read` capability. An unscoped version of this query
+ * used to also report `count(DISTINCT organization_id)` as
+ * `organizations_affected`, on the theory that a fault reaching every tenant
+ * at once is an outage; that reporting requires reading every tenant's own
+ * fault messages to compute, which is a platform-operator view this
+ * capability was never meant to grant to an ordinary organization's own
+ * `audit:read` holders. Removed rather than left in place returning a number
+ * that would always read 1 once scoped.
  */
 export async function listErrorGroups(
   sql: Sql,
+  organizationId: string,
   options: { since?: string; limit?: number } = {},
 ): Promise<ErrorGroup[]> {
   const limit = Math.min(options.limit ?? 50, 200);
@@ -155,10 +168,10 @@ export async function listErrorGroups(
            max(message) AS message,
            count(*)::int AS occurrences,
            min(occurred_at) AS first_seen,
-           max(occurred_at) AS last_seen,
-           count(DISTINCT organization_id)::int AS organizations_affected
+           max(occurred_at) AS last_seen
     FROM error_events
-    WHERE (${options.since ?? null}::timestamptz IS NULL
+    WHERE organization_id = ${organizationId}
+      AND (${options.since ?? null}::timestamptz IS NULL
            OR occurred_at >= ${options.since ?? null}::timestamptz)
     GROUP BY fingerprint
     ORDER BY max(occurred_at) DESC
@@ -166,16 +179,17 @@ export async function listErrorGroups(
   `) as unknown as ErrorGroup[];
 }
 
-/** The individual events behind one group, newest first. */
+/** The individual events behind one group, newest first, within one organization. */
 export async function listErrorEvents(
   sql: Sql,
   fingerprint: string,
+  organizationId: string,
   limit = 20,
 ): Promise<Array<Record<string, unknown>>> {
   return (await sql`
     SELECT id, occurred_at, method, route, status_code, error_name, message, stack
     FROM error_events
-    WHERE fingerprint = ${fingerprint}
+    WHERE fingerprint = ${fingerprint} AND organization_id = ${organizationId}
     ORDER BY occurred_at DESC, id DESC
     LIMIT ${Math.min(limit, 100)}
   `) as unknown as Array<Record<string, unknown>>;

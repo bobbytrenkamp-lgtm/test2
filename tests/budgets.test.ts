@@ -215,6 +215,46 @@ describe.skipIf(!hasDatabase)('budgets, actuals and variance', () => {
     expect(response.body).toContain('same property');
   });
 
+  it("refuses to compare a budget against a different property's forecast", async () => {
+    /*
+     * Found by a tenth audit pass: the sibling comparisonId branch above
+     * checks the two sides share a property; the comparisonModelId branch —
+     * comparing a budget against a model's own forecast instead of another
+     * budget — had no equivalent check, `getModel` being organization-scoped
+     * only. A model belonging to the *other* property, compared against this
+     * property's budget, would silently produce "a number with no meaning",
+     * exactly what the sibling check exists to refuse.
+     */
+    const model = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/models',
+      headers: authed(owner.cookie),
+      payload: {
+        propertyId: otherPropertyId,
+        name: 'Annexe base case',
+        classification: 'acquisition',
+        valuationDate: '2026-01-01',
+        forecastStartDate: '2026-01-01',
+        forecastMonths: 12,
+        saleMonth: 12,
+      },
+    });
+    const modelId = (model.json() as { model: { id: string } }).model.id;
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${modelId}/calculate`,
+      headers: authed(owner.cookie),
+    });
+
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/variance?baseId=${budgetId}&comparisonModelId=${modelId}`,
+      headers: authed(owner.cookie),
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain('same property');
+  });
+
   it('requires a comparison side to be named', async () => {
     const response = await ctx.app.inject({
       method: 'GET',
