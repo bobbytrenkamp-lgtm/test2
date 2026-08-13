@@ -105,8 +105,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 6 | Yes |
+| The organization's growth curve library | `tests/growth-curve-templates.test.ts` | 7 | Yes |
 
-**1250 tests in total.**
+**1257 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -137,7 +138,7 @@ built bundle:
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
-| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 5 |
+| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 6 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 49 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
@@ -146,7 +147,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**199 browser tests in total**, for 1449 across the whole repository.
+**200 browser tests in total**, for 1457 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
