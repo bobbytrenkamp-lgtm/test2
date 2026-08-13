@@ -373,12 +373,25 @@ export async function upsertGrowthCurve(
     name: string;
     defaultRate: string;
     byYear?: Array<{ year: number; rate: string }>;
+    /**
+     * Set only when this row was seeded from the organization's growth
+     * curve library (`growth_curve_templates`) rather than typed by hand.
+     * A snapshot, not a live reference — see migration 0021. Deliberately
+     * absent from the `ON CONFLICT` clause below: once a row exists, a
+     * plain edit (which never carries these) must not erase where it
+     * originally came from, and a second "start from library" always
+     * targets a fresh code, never an existing row.
+     */
+    sourceTemplateCode?: string | null;
+    sourceTemplateName?: string | null;
   },
 ): Promise<CollectionRow> {
   const rows = (await sql`
-    INSERT INTO growth_curves (model_id, code, name, default_rate, by_year)
+    INSERT INTO growth_curves
+      (model_id, code, name, default_rate, by_year, source_template_code, source_template_name)
     VALUES (${input.modelId}, ${input.code}, ${input.name}, ${input.defaultRate},
-            ${sql.json((input.byYear ?? []) as never)})
+            ${sql.json((input.byYear ?? []) as never)},
+            ${input.sourceTemplateCode ?? null}, ${input.sourceTemplateName ?? null})
     ON CONFLICT (model_id, code) DO UPDATE SET
       name = EXCLUDED.name, default_rate = EXCLUDED.default_rate, by_year = EXCLUDED.by_year,
       version = growth_curves.version + 1

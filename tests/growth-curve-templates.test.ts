@@ -186,3 +186,157 @@ describe.skipIf(!hasDatabase)('growth curve templates', () => {
     expect(write.statusCode).toBe(401);
   });
 });
+
+/**
+ * Applying a template to a model.
+ *
+ * The library itself is tested above; this is the other half — a curve
+ * created by starting from a template must say so afterward
+ * (`source_template_code`/`source_template_name`), a curve entered by hand
+ * must not claim one, and a later hand edit of an already-templated curve
+ * must not erase where it came from. All three are real database state, not
+ * UI behaviour, so they are checked at the API `growth_curves` row directly
+ * rather than trusted from `AssumptionsTab.tsx`'s own JSON round-trip.
+ */
+describe.skipIf(!hasDatabase)('growth curve provenance', () => {
+  let ctx: TestContext;
+  let owner: Actor;
+  let organizationId: string;
+  let modelId: string;
+
+  beforeAll(async () => {
+    ctx = await createTestContext();
+    owner = await registerActor(ctx.app, 'gcp-owner@example.invalid', 'Provenance Owner');
+    const org = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations',
+      headers: authed(owner.cookie),
+      payload: { name: 'Cortland Ridge Advisors' },
+    });
+    organizationId = (org.json() as { organization: { id: string } }).organization.id;
+
+    const property = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/properties',
+      headers: authed(owner.cookie),
+      payload: { name: 'Cortland Ridge', propertyType: 'office', rentableArea: '120000' },
+    });
+    const propertyId = (property.json() as { property: { id: string } }).property.id;
+
+    const model = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/models',
+      headers: authed(owner.cookie),
+      payload: {
+        propertyId,
+        name: 'Base case',
+        classification: 'acquisition',
+        valuationDate: '2026-01-01',
+        forecastStartDate: '2026-01-01',
+        forecastMonths: 60,
+        saleMonth: 60,
+      },
+    });
+    modelId = (model.json() as { model: { id: string } }).model.id;
+  }, 60_000);
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  async function readCurve(code: string): Promise<{
+    code: string;
+    source_template_code: string | null;
+    source_template_name: string | null;
+  }> {
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/models/${modelId}/growth-curves`,
+      headers: authed(owner.cookie),
+    });
+    const items = (
+      response.json() as {
+        items: Array<{
+          code: string;
+          source_template_code: string | null;
+          source_template_name: string | null;
+        }>;
+      }
+    ).items;
+    const row = items.find((entry) => entry.code === code);
+    if (!row) throw new Error(`No growth curve "${code}" was found.`);
+    return row;
+  }
+
+  it('records where a curve started when it is seeded from the library', async () => {
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/organizations/${organizationId}/growth-curve-templates/cpi`,
+      headers: authed(owner.cookie),
+      payload: { name: 'CPI, 3%', defaultRate: '0.03', byYear: [] },
+    });
+
+    const applied = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/models/${modelId}/growth-curves/cpi`,
+      headers: authed(owner.cookie),
+      // What AssumptionsTab.tsx's beginFromTemplate seeds the draft with.
+      payload: {
+        name: 'CPI, 3%',
+        defaultRate: '0.03',
+        byYear: [],
+        sourceTemplateCode: 'cpi',
+        sourceTemplateName: 'CPI, 3%',
+      },
+    });
+    expect(applied.statusCode).toBe(200);
+
+    const row = await readCurve('cpi');
+    expect(row.source_template_code).toBe('cpi');
+    expect(row.source_template_name).toBe('CPI, 3%');
+  });
+
+  it('leaves a hand-entered curve with no library provenance', async () => {
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/models/${modelId}/growth-curves/hand-typed`,
+      headers: authed(owner.cookie),
+      payload: { name: 'Typed by hand', defaultRate: '0.02', byYear: [] },
+    });
+
+    const row = await readCurve('hand-typed');
+    expect(row.source_template_code).toBeNull();
+    expect(row.source_template_name).toBeNull();
+  });
+
+  it('keeps the provenance after a later edit that does not resend it', async () => {
+    // A normal "Edit" round-trip through AssumptionsTab.tsx sends whatever
+    // the draft held, which still carries these two fields (see
+    // `beginEdit`'s `toCamel(rest)`) — but the guarantee that matters is the
+    // one this test proves: even a caller that omits them, editing only the
+    // rate, must not blank out how the curve started.
+    const edited = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/models/${modelId}/growth-curves/cpi`,
+      headers: authed(owner.cookie),
+      payload: { name: 'CPI, revised to 3.25%', defaultRate: '0.0325', byYear: [] },
+    });
+    expect(edited.statusCode).toBe(200);
+
+    const row = await readCurve('cpi');
+    expect(row.source_template_code).toBe('cpi');
+    expect(row.source_template_name).toBe('CPI, 3%');
+  });
+
+  it('deleting the library template does not change the model’s own copy', async () => {
+    await ctx.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/organizations/${organizationId}/growth-curve-templates/cpi`,
+      headers: authed(owner.cookie),
+    });
+
+    const row = await readCurve('cpi');
+    expect(row.source_template_code).toBe('cpi');
+    expect(row.source_template_name).toBe('CPI, 3%');
+  });
+});

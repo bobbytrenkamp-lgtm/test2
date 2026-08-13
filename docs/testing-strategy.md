@@ -105,9 +105,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 6 | Yes |
-| The organization's growth curve library | `tests/growth-curve-templates.test.ts` | 7 | Yes |
+| The organization's growth curve library, and traceability when a curve is applied from it | `tests/growth-curve-templates.test.ts` | 11 | Yes |
 
-**1257 tests in total.**
+**1261 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -147,7 +147,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**200 browser tests in total**, for 1457 across the whole repository.
+**200 browser tests in total**, for 1461 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

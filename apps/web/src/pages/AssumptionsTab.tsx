@@ -150,6 +150,11 @@ export function AssumptionsTab(): JSX.Element {
           { key: 'code', label: 'Code' },
           { key: 'name', label: 'Name' },
           { key: 'default_rate', label: 'Default rate', numeric: true, percent: true },
+          {
+            key: 'source_template_name',
+            label: 'Source',
+            transform: (value) => `Library: ${value}`,
+          },
         ]}
         description="Named annual rates used for inflation, market rent growth, tenant sales and floating-rate index paths. Year one carries a factor of 1.0; growth compounds from year two."
       />
@@ -438,6 +443,12 @@ function Collection({
    * only fills the draft the same "Add" would open blank, so the result is a
    * normal new row the analyst still reviews and saves — editing the library
    * entry afterward does not reach back into any model that started from it.
+   *
+   * sourceTemplateCode/sourceTemplateName travel with the draft and land on
+   * the saved row (see `upsertGrowthCurve`), so the model keeps a record of
+   * where the curve started even though it now owns its own copy — a
+   * snapshot of "what this was called when applied," not a pointer to the
+   * template, which can be renamed or deleted afterward without effect.
    */
   function beginFromTemplate(template: GrowthCurveTemplate): void {
     setParseError(null);
@@ -452,6 +463,8 @@ function Collection({
           name: template.name,
           defaultRate: template.default_rate,
           byYear: template.by_year,
+          sourceTemplateCode: template.code,
+          sourceTemplateName: template.name,
         },
         null,
         2,
