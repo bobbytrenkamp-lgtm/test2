@@ -243,7 +243,7 @@ test.describe('as an analyst', () => {
       has: page.getByRole('heading', { name: 'Growth curve library' }),
     });
     await expect(growthCurveLibrary).toBeVisible();
-    await growthCurveLibrary.getByRole('button', { name: 'Add', exact: true }).click();
+    await growthCurveLibrary.getByRole('button', { name: 'Add to Growth curve library' }).click();
     await growthCurveLibrary
       .getByLabel('New template')
       .fill(
@@ -253,7 +253,7 @@ test.describe('as an analyst', () => {
           2,
         ),
       );
-    await growthCurveLibrary.getByRole('button', { name: 'Save', exact: true }).click();
+    await growthCurveLibrary.getByRole('button', { name: 'Save Growth curve library' }).click();
     await expect(growthCurveLibrary.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
 
     await openAssumptions(page);
@@ -290,7 +290,9 @@ test.describe('as an analyst', () => {
       has: page.getByRole('heading', { name: 'Market leasing profile library' }),
     });
     await expect(leasingLibrary).toBeVisible();
-    await leasingLibrary.getByRole('button', { name: 'Add', exact: true }).click();
+    await leasingLibrary
+      .getByRole('button', { name: 'Add to Market leasing profile library' })
+      .click();
     await leasingLibrary.getByLabel('New template').fill(
       JSON.stringify(
         {
@@ -303,7 +305,9 @@ test.describe('as an analyst', () => {
         2,
       ),
     );
-    await leasingLibrary.getByRole('button', { name: 'Save', exact: true }).click();
+    await leasingLibrary
+      .getByRole('button', { name: 'Save Market leasing profile library' })
+      .click();
     await expect(leasingLibrary.getByRole('row', { name: /e2e-office-standard/ })).toBeVisible();
 
     await openAssumptions(page);

@@ -453,7 +453,7 @@ function TemplateLibraryCard({
         <h2 style={{ margin: 0 }}>{title}</h2>
         <span className="badge">{templates.data?.templates.length ?? 0}</span>
         <div className="spacer" />
-        <button type="button" onClick={() => beginEdit(null)}>
+        <button type="button" aria-label={`Add to ${title}`} onClick={() => beginEdit(null)}>
           Add
         </button>
       </div>
@@ -468,7 +468,12 @@ function TemplateLibraryCard({
         <EmptyState
           title="No templates yet"
           action={
-            <button type="button" className="primary" onClick={() => beginEdit(null)}>
+            <button
+              type="button"
+              className="primary"
+              aria-label={`Add the first entry to ${title}`}
+              onClick={() => beginEdit(null)}
+            >
               Add the first one
             </button>
           }
@@ -561,10 +566,19 @@ function TemplateLibraryCard({
             />
           </Field>
           <div className="row">
-            <button type="submit" className="primary" disabled={save.pending}>
+            <button
+              type="submit"
+              className="primary"
+              disabled={save.pending}
+              aria-label={`${save.pending ? 'Saving' : 'Save'} ${title}`}
+            >
               {save.pending ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={() => setEditing(null)}>
+            <button
+              type="button"
+              aria-label={`Cancel editing ${title}`}
+              onClick={() => setEditing(null)}
+            >
               Cancel
             </button>
           </div>
