@@ -229,7 +229,7 @@ test.describe('as an analyst', () => {
     expect(summary, summary.join('\n')).toEqual([]);
   });
 
-  test('a growth curve can start from the organization library instead of a blank row', async ({
+  test('a growth curve can start from the organization library instead of a blank row, and keeps a record of it', async ({
     page,
   }) => {
     // The library entry is created fresh in the organization admin screen
@@ -263,10 +263,17 @@ test.describe('as an analyst', () => {
     const draft = growthCurves.getByRole('textbox', { name: 'New growth curve' });
     await expect(draft).toHaveValue(/e2e-cpi/);
     await expect(draft).toHaveValue(/0\.031/);
+    await expect(draft).toHaveValue(/sourceTemplateName/);
     await expect(growthCurves.getByRole('row', { name: /e2e-cpi/ })).toHaveCount(0);
 
     await growthCurves.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(growthCurves.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
+    const savedRow = growthCurves.getByRole('row', { name: /e2e-cpi/ });
+    await expect(savedRow).toBeVisible();
+    // Not just saved — traceable: the row says which library entry it came
+    // from, a record that survives independently of the template itself
+    // (deleting or renaming the library entry afterward would not change
+    // this cell, since it was copied in, not linked).
+    await expect(savedRow).toContainText('Library: E2E test CPI curve');
   });
 });
 

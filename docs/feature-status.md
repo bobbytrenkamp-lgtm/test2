@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1257 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1261 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -81,7 +81,7 @@ Tests       1257 passed (251 engine regression, 31 engine unit, 16 fund,
                          8 recommendation-to-proposal conversion,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 6 organization export,
-                         7 the growth curve library,
+                         11 the growth curve library and its provenance,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
@@ -112,7 +112,7 @@ Browser     200 passed  (3 sign-in, 5 underwriting and the virtualised grid,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
-Migrations  20 applied against PostgreSQL 16
+Migrations  21 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
