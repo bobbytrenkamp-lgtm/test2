@@ -406,6 +406,15 @@ export function assumptionColumns(
           parse: parseDecimal({ label: 'Precedence' }),
           help: 'Resolves overlaps when more than one profile could apply. The winner is recorded in the trace.',
         },
+        {
+          key: 'sourceTemplateName',
+          label: 'Source',
+          width: 200,
+          editable: false,
+          value: (row) => text(row, 'source_template_name'),
+          display: (_row, value) => (value ? `Library: ${value}` : '—'),
+          help: 'The organization library entry this profile was seeded from, if any. A snapshot taken when it was applied — later changes to the library entry do not reach this row.',
+        },
       ];
 
     // Growth curves carry a per-year rate list, which is not a cell.

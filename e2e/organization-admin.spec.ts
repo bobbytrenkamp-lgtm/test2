@@ -50,9 +50,13 @@ test.describe('an organization owner', () => {
     await expect(page.getByRole('link', { name: 'Export everything' })).toBeVisible();
 
     // The full add/apply flow — creating an entry here and starting a growth
-    // curve from it on a model — is covered in e2e/assumptions.spec.ts. This
-    // just confirms an owner's model:write reaches the library at all.
+    // curve or a market leasing profile from it on a model — is covered in
+    // e2e/assumptions.spec.ts. This just confirms an owner's model:write
+    // reaches every organization library at all.
     await expect(page.getByRole('heading', { name: 'Growth curve library' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Market leasing profile library' }),
+    ).toBeVisible();
   });
 });
 
@@ -75,9 +79,13 @@ test.describe('a reviewer', () => {
     // management above — a reviewer cannot bulk-export the organization's
     // data any more than they can invite someone to it.
     await expect(page.getByRole('heading', { name: 'Data export' })).toBeHidden();
-    // model:write is what gates the growth curve library, the same
-    // capability that gates a model's own assumptions — a reviewer can read
-    // a model's growth curves but not maintain the organization's library.
+    // model:write is what gates every organization assumption library, the
+    // same capability that gates a model's own assumptions — a reviewer can
+    // read a model's growth curves and market leasing profiles but not
+    // maintain the organization's libraries for them.
     await expect(page.getByRole('heading', { name: 'Growth curve library' })).toBeHidden();
+    await expect(
+      page.getByRole('heading', { name: 'Market leasing profile library' }),
+    ).toBeHidden();
   });
 });

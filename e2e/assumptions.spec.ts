@@ -235,10 +235,16 @@ test.describe('as an analyst', () => {
     // The library entry is created fresh in the organization admin screen
     // first, so this proves the whole path — not just that a picker renders,
     // but that what it seeds is what actually gets saved onto the model.
+    // Scoped to this one card: the organization admin screen carries a
+    // library card per reusable assumption family, and "Add"/"Save" are not
+    // unique page-wide once more than one exists.
     await page.goto('/organization');
-    await expect(page.getByRole('heading', { name: 'Growth curve library' })).toBeVisible();
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
-    await page
+    const growthCurveLibrary = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Growth curve library' }),
+    });
+    await expect(growthCurveLibrary).toBeVisible();
+    await growthCurveLibrary.getByRole('button', { name: 'Add', exact: true }).click();
+    await growthCurveLibrary
       .getByLabel('New template')
       .fill(
         JSON.stringify(
@@ -247,8 +253,8 @@ test.describe('as an analyst', () => {
           2,
         ),
       );
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
+    await growthCurveLibrary.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(growthCurveLibrary.getByRole('row', { name: /e2e-cpi/ })).toBeVisible();
 
     await openAssumptions(page);
     const growthCurves = page.locator('.card', {
@@ -274,6 +280,53 @@ test.describe('as an analyst', () => {
     // (deleting or renaming the library entry afterward would not change
     // this cell, since it was copied in, not linked).
     await expect(savedRow).toContainText('Library: E2E test CPI curve');
+  });
+
+  test('a market leasing profile can start from the organization library and keeps a record of it', async ({
+    page,
+  }) => {
+    await page.goto('/organization');
+    const leasingLibrary = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Market leasing profile library' }),
+    });
+    await expect(leasingLibrary).toBeVisible();
+    await leasingLibrary.getByRole('button', { name: 'Add', exact: true }).click();
+    await leasingLibrary.getByLabel('New template').fill(
+      JSON.stringify(
+        {
+          code: 'e2e-office-standard',
+          name: 'E2E office standard',
+          marketRent: '41',
+          renewalProbability: '0.6',
+        },
+        null,
+        2,
+      ),
+    );
+    await leasingLibrary.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(leasingLibrary.getByRole('row', { name: /e2e-office-standard/ })).toBeVisible();
+
+    await openAssumptions(page);
+    const leasing = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Market leasing assumptions' }),
+    });
+    await leasing
+      .getByLabel(/Start a new market leasing assumption from the organization/)
+      .selectOption({ label: 'E2E office standard' });
+
+    // Forced into the raw JSON view even though this collection normally
+    // opens a structured form — see `beginFromTemplate`'s own comment: the
+    // structured editor reads `editingRecord`, and only the raw view proves
+    // what actually landed in the draft that gets saved.
+    const draft = leasing.getByRole('textbox', { name: 'New market leasing assumption' });
+    await expect(draft).toHaveValue(/e2e-office-standard/);
+    await expect(draft).toHaveValue(/"marketRent": "41\.000000"/);
+    await expect(draft).toHaveValue(/sourceTemplateName/);
+
+    await leasing.getByRole('button', { name: 'Save', exact: true }).click();
+    const savedRow = leasing.getByRole('row', { name: /e2e-office-standard/ });
+    await expect(savedRow).toBeVisible();
+    await expect(savedRow).toContainText('Library: E2E office standard');
   });
 });
 
