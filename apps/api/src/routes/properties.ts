@@ -4,7 +4,9 @@ import {
   createProperty,
   createTenant,
   deleteSpace,
+  getLatestCalculation,
   getProperty,
+  listModels,
   listProperties,
   listSpaces,
   listTenants,
@@ -15,6 +17,7 @@ import {
 } from '@cre/database';
 import { decimalString, propertyTypeEnum } from '@cre/domain-models';
 import { notFound, requireCapability } from '../context.js';
+import { extractMetric } from './calculations.js';
 
 /**
  * Exported for `underwriting.ts`'s atomic "create a property and a model
@@ -153,6 +156,60 @@ export async function registerPropertyRoutes(app: FastifyInstance): Promise<void
     const property = await getProperty(request.db, context.organizationId, id);
     if (!property) throw notFound();
     return { spaces: await listSpaces(request.db, id) };
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* Scenario comparison                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Every model on this property, side by side by what it calculated to —
+   * the decision-oriented table a Base/Upside/Downside set of scenarios
+   * never had. `ScenariosTab`'s clone button and sensitivity grid already
+   * make it cheap to build the siblings; nothing before this route could
+   * actually compare what they came out to without opening each one in
+   * turn.
+   *
+   * Read-only, and nothing here is recomputed: each model's own latest
+   * *succeeded* `calculation_runs` row is read exactly as stored
+   * (`getLatestCalculation`), through the same `extractMetric` switch the
+   * sensitivity grid already uses, so this table can never disagree with
+   * what that model's own Cash flow and Returns tabs show. A model with no
+   * succeeded run yet is still listed — silently omitting it would read as
+   * "this scenario doesn't exist" rather than "this scenario hasn't been
+   * run" — with every metric null and `calculated: false` so the client can
+   * say so rather than guess from a blank cell.
+   */
+  app.get('/properties/:id/scenario-comparison', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const property = await getProperty(request.db, context.organizationId, id);
+    if (!property) throw notFound();
+
+    const models = await listModels(request.db, context.organizationId, id);
+
+    const scenarios = await Promise.all(
+      models.map(async (model) => {
+        const latest = await getLatestCalculation(request.db, model.id);
+        return {
+          modelId: model.id,
+          modelName: model.name,
+          classification: model.classification,
+          status: model.status,
+          currency: model.currency,
+          calculated: latest !== null,
+          engineVersion: latest?.run.engine_version ?? null,
+          calculatedAt: latest?.run.completed_at ?? null,
+          dcfValue: latest ? extractMetric(latest.result, 'dcfValue') : null,
+          unleveredIrr: latest ? extractMetric(latest.result, 'unleveredIrr') : null,
+          leveredIrr: latest ? extractMetric(latest.result, 'leveredIrr') : null,
+          equityMultiple: latest ? extractMetric(latest.result, 'equityMultiple') : null,
+          year1Noi: latest ? extractMetric(latest.result, 'year1Noi') : null,
+        };
+      }),
+    );
+
+    return { property, scenarios };
   });
 
   app.put('/properties/:id/spaces', async (request) => {

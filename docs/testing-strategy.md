@@ -113,8 +113,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | New Underwriting: atomic property + model creation, linkage, audit, rollback on invalid input, organization isolation and capability enforcement | `tests/underwriting.test.ts` | 6 | Yes |
 | Workflow/progress surface: each of the ten steps flips only once its own real rows exist, never on a "visited this tab" flag; a failed calculation run does not count as progress | `tests/underwriting-workflow.test.ts` | 12 | Yes |
 | Pending assumption decisions, organization-wide: lists across every model, carries property/model and each proposal's own current value, drops out once decided, organization isolation | `tests/pending-assumption-proposals.test.ts` | 7 | Yes |
+| Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 
-**1351 tests in total.**
+**1356 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -157,8 +158,9 @@ built bundle:
 | Workflow/progress surface: all ten steps render on a real model, reflect real state, and are accessible | `e2e/workflow-progress.spec.ts` | 2 |
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 | Pending decisions on the dashboard: shows and links to a pending proposal, gives two proposals on the same model names a rotor can tell apart, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 4 |
+| Scenario comparison on the property page: shows scenarios side by side once a property has more than one model, hides below two, accessibility | `e2e/scenario-comparison.spec.ts` | 3 |
 
-**215 browser tests in total**, for 1566 across the whole repository.
+**218 browser tests in total**, for 1574 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

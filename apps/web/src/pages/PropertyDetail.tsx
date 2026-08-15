@@ -10,7 +10,14 @@ import {
   Loading,
   StatusBadge,
 } from '../components.js';
-import { formatDate, formatNumber, titleCase } from '../format.js';
+import {
+  formatCurrency,
+  formatDate,
+  formatMultiple,
+  formatNumber,
+  formatPercent,
+  titleCase,
+} from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { recordRecent } from '../recents.js';
 import { useSession } from '../session.js';
@@ -25,6 +32,9 @@ export function PropertyDetailPage(): JSX.Element {
   );
   const models = useResource<{ models: Model[] }>(
     propertyId ? `/models?propertyId=${propertyId}` : null,
+  );
+  const comparison = useResource<{ scenarios: Scenario[] }>(
+    propertyId ? `/properties/${propertyId}/scenario-comparison` : null,
   );
 
   const record = property.data?.property;
@@ -180,6 +190,11 @@ export function PropertyDetailPage(): JSX.Element {
         )}
       </div>
 
+      <ScenarioComparison
+        scenarios={comparison.data?.scenarios ?? []}
+        loading={comparison.loading}
+      />
+
       <div className="card">
         <h2>Physical structure</h2>
         {spaces.length === 0 ? (
@@ -222,6 +237,128 @@ export function PropertyDetailPage(): JSX.Element {
         )}
       </div>
     </>
+  );
+}
+
+interface Scenario {
+  modelId: string;
+  modelName: string;
+  classification: string;
+  status: string;
+  currency: string;
+  calculated: boolean;
+  engineVersion: string | null;
+  calculatedAt: string | null;
+  dcfValue: string | null;
+  unleveredIrr: string | null;
+  leveredIrr: string | null;
+  equityMultiple: string | null;
+  year1Noi: string | null;
+}
+
+/**
+ * What each scenario on this property actually calculated to, side by side.
+ * `ScenariosTab`'s clone button makes a Base/Upside/Downside set of models
+ * cheap to build; this is the table that was missing to actually decide
+ * between them once built, rather than opening each model in turn to read
+ * its own Returns tab. Every figure here is read from that model's own
+ * latest stored calculation, never recomputed, so this table can never
+ * disagree with what a reader would find by opening the scenario directly.
+ *
+ * Self-hiding below two scenarios: a property with only its one model has
+ * nothing to compare, and the table would just repeat the row already
+ * shown above in "Models."
+ *
+ * Deliberately not a second link to each model: the "Models" table above
+ * already gives every model's name as a link, and a second link with the
+ * identical accessible name would be indistinguishable, by role and name,
+ * from the first to anything that finds a model that way — which is how
+ * most of this suite's own browser tests reach a model, including this
+ * feature's own test file. Same lesson as `ModelWorkspace.tsx`'s
+ * `WorkflowProgress`: plain text here, navigation stays in one place.
+ */
+function ScenarioComparison({
+  scenarios,
+  loading,
+}: {
+  scenarios: Scenario[];
+  loading: boolean;
+}): JSX.Element | null {
+  if (loading || scenarios.length < 2) return null;
+
+  return (
+    <div className="card">
+      <h2>Scenario comparison</h2>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        What each scenario calculated to, last time it ran — the same figures each model&rsquo;s own
+        Returns tab shows, read here side by side rather than one at a time.
+      </p>
+      <div className="table-scroll" tabIndex={0}>
+        <table>
+          <caption className="visually-hidden">Scenario comparison for this property</caption>
+          <thead>
+            <tr>
+              <th scope="col">Scenario</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="numeric">
+                DCF value
+              </th>
+              <th scope="col" className="numeric">
+                Unlevered IRR
+              </th>
+              <th scope="col" className="numeric">
+                Levered IRR
+              </th>
+              <th scope="col" className="numeric">
+                Equity multiple
+              </th>
+              <th scope="col" className="numeric">
+                Year 1 NOI
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((scenario) => (
+              <tr key={scenario.modelId}>
+                <th scope="row" style={{ fontWeight: 600 }}>
+                  {scenario.modelName}
+                </th>
+                <td>
+                  <StatusBadge status={scenario.status} />
+                </td>
+                {scenario.calculated ? (
+                  <>
+                    <td className="numeric">
+                      {formatCurrency(scenario.dcfValue ?? '0', scenario.currency, {
+                        compact: true,
+                      })}
+                    </td>
+                    <td className="numeric">
+                      {scenario.unleveredIrr ? formatPercent(scenario.unleveredIrr) : '—'}
+                    </td>
+                    <td className="numeric">
+                      {scenario.leveredIrr ? formatPercent(scenario.leveredIrr) : '—'}
+                    </td>
+                    <td className="numeric">
+                      {scenario.equityMultiple ? formatMultiple(scenario.equityMultiple) : '—'}
+                    </td>
+                    <td className="numeric">
+                      {formatCurrency(scenario.year1Noi ?? '0', scenario.currency, {
+                        compact: true,
+                      })}
+                    </td>
+                  </>
+                ) : (
+                  <td className="numeric" colSpan={5}>
+                    Not calculated yet
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
