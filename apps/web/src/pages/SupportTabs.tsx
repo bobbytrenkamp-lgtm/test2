@@ -4,7 +4,6 @@ import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from
 import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
-import { CommentThread } from '../components/CommentThread.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /** Model health: every diagnostic the engine raised on the last calculation. */
@@ -379,66 +378,9 @@ export function VersionsTab(): JSX.Element {
   const snapshot = useMutation(async () =>
     api.post(`/models/${model.id}/versions`, { label: label || null }),
   );
-  const transition = useMutation(async (to: string) =>
-    api.post(`/models/${model.id}/transition`, { to }),
-  );
-
-  const NEXT: Record<string, Array<{ to: string; label: string }>> = {
-    draft: [{ to: 'analyst_review', label: 'Submit for analyst review' }],
-    analyst_review: [
-      { to: 'manager_review', label: 'Send to manager review' },
-      { to: 'draft', label: 'Return to draft' },
-    ],
-    manager_review: [
-      { to: 'approved', label: 'Approve' },
-      { to: 'draft', label: 'Reject and return to draft' },
-    ],
-    approved: [
-      { to: 'published', label: 'Publish' },
-      { to: 'draft', label: 'Withdraw approval' },
-    ],
-    published: [
-      { to: 'superseded', label: 'Mark superseded' },
-      { to: 'archived', label: 'Archive' },
-    ],
-    superseded: [{ to: 'archived', label: 'Archive' }],
-  };
 
   return (
     <>
-      <div className="card">
-        <h2>Approval workflow</h2>
-        <p className="field-hint" style={{ marginTop: 0 }}>
-          Approving a model snapshots its exact engine input, so the approved numbers can be
-          reproduced later even after the live model moves on. Approved and published models are
-          read-only.
-        </p>
-        <ErrorMessage error={transition.error} />
-        <div className="row">
-          {(NEXT[model.status] ?? []).map((option) => (
-            <button
-              key={option.to}
-              type="button"
-              className={option.to === 'approved' || option.to === 'published' ? 'primary' : ''}
-              disabled={transition.pending || !can('model:read')}
-              onClick={async () => {
-                if (await transition.run(option.to)) {
-                  versions.reload();
-                  window.location.reload();
-                }
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-          {(NEXT[model.status] ?? []).length === 0 && (
-            <span style={{ color: 'var(--text-muted)' }}>
-              This model is {titleCase(model.status).toLowerCase()}; there is no further transition.
-            </span>
-          )}
-        </div>
-      </div>
-
       <div className="card">
         <div className="row" style={{ marginBottom: 12 }}>
           <h2 style={{ margin: 0 }}>Versions</h2>
@@ -604,7 +546,7 @@ function formatChange(field: FieldChange): string {
  * with no account of why is the artefact this replaces, and a diff nobody can
  * prioritise is the other one.
  */
-function VersionComparison({
+export function VersionComparison({
   modelId,
   beforeId,
   afterId,
@@ -1110,28 +1052,5 @@ export function ImportsTab(): JSX.Element {
         </>
       )}
     </div>
-  );
-}
-
-/**
- * The review conversation about this model.
- *
- * On its own tab rather than tucked under Versions: an objection nobody can
- * find is an objection nobody answers, and the approval workflow is where it
- * matters most.
- */
-export function ReviewTab(): JSX.Element {
-  const { model } = useModelContext();
-  return (
-    <>
-      <div className="card">
-        <h2>Review</h2>
-        <p className="field-hint" style={{ marginTop: 0 }}>
-          Comments sit with the model they are about. Sending a model back to draft records that it
-          happened; a comment records why, which is the part somebody has to act on.
-        </p>
-      </div>
-      <CommentThread entityType="model" entityId={model.id} title="Comments on this model" />
-    </>
   );
 }
