@@ -154,8 +154,9 @@ built bundle:
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 | New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility | `e2e/new-underwriting.spec.ts` | 3 |
 | Workflow/progress surface: all ten steps render on a real model, reflect real state, and are accessible | `e2e/workflow-progress.spec.ts` | 2 |
+| Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 
-**208 browser tests in total**, for 1552 across the whole repository.
+**211 browser tests in total**, for 1555 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

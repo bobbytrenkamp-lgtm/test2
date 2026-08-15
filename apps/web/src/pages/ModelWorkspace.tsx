@@ -46,6 +46,7 @@ export function useModelContext(): ModelContext {
 
 const TABS = [
   { to: '.', label: 'Cash flow', end: true },
+  { to: 'inputs', label: 'Inputs' },
   { to: 'rent-roll', label: 'Rent roll' },
   { to: 'assumptions', label: 'Assumptions' },
   { to: 'assumption-import', label: 'Assumption import' },

@@ -15,6 +15,7 @@ import { NewUnderwritingPage } from './pages/NewUnderwriting.js';
 import { PropertyDetailPage } from './pages/PropertyDetail.js';
 import { ModelWorkspace } from './pages/ModelWorkspace.js';
 import { CashFlowTab } from './pages/CashFlowTab.js';
+import { InputsTab } from './pages/InputsTab.js';
 import { RentRollTab } from './pages/RentRollTab.js';
 import { AssumptionsTab } from './pages/AssumptionsTab.js';
 import { ReturnsTab } from './pages/ReturnsTab.js';
@@ -55,6 +56,7 @@ createRoot(container).render(
             <Route path="audit" element={<AuditPage />} />
             <Route path="models/:modelId" element={<ModelWorkspace />}>
               <Route index element={<CashFlowTab />} />
+              <Route path="inputs" element={<InputsTab />} />
               <Route path="rent-roll" element={<RentRollTab />} />
               <Route path="assumptions" element={<AssumptionsTab />} />
               <Route path="returns" element={<ReturnsTab />} />
