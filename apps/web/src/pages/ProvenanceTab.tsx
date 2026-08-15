@@ -260,7 +260,7 @@ function ProposalRow({
  * this is what a person reads, and getting it wrong costs a clumsy label rather
  * than a wrong number.
  */
-function describeTarget(target: string): string {
+export function describeTarget(target: string): string {
   const parts = target.split('.');
   const field = parts[parts.length - 1] ?? target;
   const words = field.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();

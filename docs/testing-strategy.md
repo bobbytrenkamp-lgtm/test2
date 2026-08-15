@@ -112,8 +112,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | The organization's debt facility library, its provenance, boundary validation, and template/hand-entered equivalence on a billion-dollar facility | `tests/debt-facility-templates.test.ts` | 13 | Yes |
 | New Underwriting: atomic property + model creation, linkage, audit, rollback on invalid input, organization isolation and capability enforcement | `tests/underwriting.test.ts` | 6 | Yes |
 | Workflow/progress surface: each of the ten steps flips only once its own real rows exist, never on a "visited this tab" flag; a failed calculation run does not count as progress | `tests/underwriting-workflow.test.ts` | 12 | Yes |
+| Pending assumption decisions, organization-wide: lists across every model, carries property/model and each proposal's own current value, drops out once decided, organization isolation | `tests/pending-assumption-proposals.test.ts` | 7 | Yes |
 
-**1344 tests in total.**
+**1351 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -155,8 +156,9 @@ built bundle:
 | New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility | `e2e/new-underwriting.spec.ts` | 3 |
 | Workflow/progress surface: all ten steps render on a real model, reflect real state, and are accessible | `e2e/workflow-progress.spec.ts` | 2 |
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
+| Pending decisions on the dashboard: shows and links to a pending proposal, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 3 |
 
-**211 browser tests in total**, for 1555 across the whole repository.
+**214 browser tests in total**, for 1565 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

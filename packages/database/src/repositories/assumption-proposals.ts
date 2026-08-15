@@ -54,6 +54,52 @@ export async function listAssumptionProposals(
   `) as unknown as AssumptionProposalRow[];
 }
 
+/** A pending proposal, with enough of its model and property to route to it. */
+export interface PendingAssumptionProposalRow extends AssumptionProposalRow {
+  model_name: string;
+  property_id: string;
+  property_name: string;
+}
+
+/**
+ * Every pending proposal across the whole organization, oldest first.
+ *
+ * Deciding today lives per model (`listAssumptionProposals` above, on
+ * `ProvenanceTab`) — a reviewer who wants to know what is waiting for them has
+ * to already know which model to open. This is the other direction: the
+ * queue itself, so a reviewer's day can start from "here is what needs
+ * deciding" instead of stumbling onto a proposal while looking at a model for
+ * an unrelated reason. Oldest first, deliberately: a proposal is worth
+ * deciding closer to when it arrived, and FIFO is the ordering that keeps
+ * something from aging out of sight at the bottom of a `created_at DESC` list
+ * forever.
+ */
+export async function listPendingAssumptionProposalsForOrganization(
+  sql: Sql,
+  organizationId: string,
+): Promise<PendingAssumptionProposalRow[]> {
+  return (await sql`
+    SELECT
+      ap.id, ap.model_id, ap.target, ap.value, ap.value_type, ap.source_kind, ap.source_name,
+      ap.confidence::text AS confidence,
+      to_char(ap.observed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS observed_at,
+      ap.evidence, ap.notes, ap.status,
+      to_char(ap.decided_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS decided_at,
+      ap.decision_note,
+      to_char(ap.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+      ap.import_session_id,
+      m.name AS model_name,
+      p.id AS property_id,
+      p.name AS property_name
+    FROM assumption_proposals ap
+    JOIN models m ON m.id = ap.model_id AND m.deleted_at IS NULL
+    JOIN properties p ON p.id = m.property_id AND p.deleted_at IS NULL
+    WHERE ap.organization_id = ${organizationId}
+      AND ap.status = 'pending'
+    ORDER BY ap.created_at ASC
+  `) as unknown as PendingAssumptionProposalRow[];
+}
+
 export async function getAssumptionProposal(
   sql: Sql,
   organizationId: string,

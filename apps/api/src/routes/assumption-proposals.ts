@@ -7,6 +7,7 @@ import {
   getAssumptionProposal,
   getModel,
   listAssumptionProposals,
+  listPendingAssumptionProposalsForOrganization,
   recordAssumptionProposals,
   writeAudit,
 } from '@cre/database';
@@ -17,7 +18,7 @@ import {
   resolveAssumptionValue,
   validateTypedValue,
 } from '@cre/domain-models';
-import { badRequest, notFound, requireCapability, unprocessable } from '../context.js';
+import { badRequest, forbidden, notFound, requireCapability, unprocessable } from '../context.js';
 import { assertEditable } from './models.js';
 import { applyAssumption, AssumptionApplyError } from '../assumption-write.js';
 
@@ -134,6 +135,57 @@ export async function registerAssumptionProposalRoutes(app: FastifyInstance): Pr
            * information — but the accept button has to tell the truth about
            * what it can do.
            */
+          applicable: applicable.ok,
+          applicableReason: applicable.ok ? null : applicable.reason,
+        };
+      }),
+    };
+  });
+
+  /**
+   * Every pending proposal across the whole organization, oldest first — the
+   * queue behind the per-model list above. A reviewer who wants to know what
+   * needs deciding today should not have to already know which model to
+   * check; this is that answer, meant for the dashboard.
+   *
+   * Read-only: deciding still only ever happens through the per-model
+   * decision route, gated on `model:write` there. This route is gated on the
+   * weaker `model:read`, the same as the per-model list, since it shows
+   * nothing a `model:read` holder could not already see by opening each
+   * model's own Provenance tab in turn.
+   */
+  app.get('/organizations/:id/assumption-proposals/pending', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    if (id !== context.organizationId) {
+      throw forbidden('You can only see decisions for the organization you are signed in to.');
+    }
+
+    const rows = await listPendingAssumptionProposalsForOrganization(request.db, id);
+
+    // One buildModelInput call per distinct model behind the queue, not one
+    // per proposal: several pending proposals commonly land on the same
+    // model (a source reporting several assumptions at once), and the input
+    // it is compared against does not change between them.
+    const modelIds = [...new Set(rows.map((row) => row.model_id))];
+    const inputs = new Map(
+      await Promise.all(
+        modelIds.map(
+          async (modelId) => [modelId, await buildModelInput(request.db, id, modelId)] as const,
+        ),
+      ),
+    );
+
+    return {
+      proposals: rows.map((row) => {
+        const input = inputs.get(row.model_id);
+        const current = input
+          ? resolveAssumptionValue(input as unknown as Record<string, unknown>, row.target)
+          : null;
+        const applicable = describeTarget(row.target);
+        return {
+          ...row,
+          current,
           applicable: applicable.ok,
           applicableReason: applicable.ok ? null : applicable.reason,
         };
