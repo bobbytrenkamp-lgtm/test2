@@ -159,8 +159,9 @@ built bundle:
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 | Pending decisions on the dashboard: shows and links to a pending proposal, gives two proposals on the same model names a rotor can tell apart, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 4 |
 | Scenario comparison on the property page: shows scenarios side by side once a property has more than one model, hides below two, accessibility | `e2e/scenario-comparison.spec.ts` | 3 |
+| Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 
-**218 browser tests in total**, for 1574 across the whole repository.
+**222 browser tests in total**, for 1578 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -25,13 +25,8 @@ import { ProvenanceTab } from './pages/ProvenanceTab.js';
 import { AssumptionImportTab } from './pages/AssumptionImportTab.js';
 import { ScenariosTab } from './pages/ScenariosTab.js';
 import { BudgetsTab } from './pages/BudgetsTab.js';
-import {
-  ImportsTab,
-  ReportsTab,
-  ReviewTab,
-  ValidationTab,
-  VersionsTab,
-} from './pages/SupportTabs.js';
+import { ImportsTab, ReportsTab, ValidationTab, VersionsTab } from './pages/SupportTabs.js';
+import { ReviewTab } from './pages/ReviewTab.js';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('The application root element is missing from index.html.');

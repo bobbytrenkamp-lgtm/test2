@@ -19,7 +19,7 @@ import { useModelContext } from './ModelWorkspace.js';
  * the threshold rather than with the tool — and where to go to change it.
  */
 
-interface Finding {
+export interface Finding {
   id: string;
   severity: 'warning' | 'note' | 'pass';
   title: string;
@@ -27,7 +27,7 @@ interface Finding {
   link?: { tab: string; query?: Record<string, string> };
 }
 
-interface HealthResponse {
+export interface HealthResponse {
   findings: Finding[];
   warnings: number;
   notes: number;
@@ -267,7 +267,13 @@ export function HealthTab(): JSX.Element {
   );
 }
 
-function FindingRow({ finding, modelId }: { finding: Finding; modelId: string }): JSX.Element {
+export function FindingRow({
+  finding,
+  modelId,
+}: {
+  finding: Finding;
+  modelId: string;
+}): JSX.Element {
   const tone =
     finding.severity === 'warning'
       ? 'negative'
