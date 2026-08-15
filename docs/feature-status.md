@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1356 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1361 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -103,8 +103,8 @@ Tests       1356 passed (251 engine regression, 31 engine unit, 16 fund,
                          3 job reaper attempt cap,
                          7 sensitivity and scenario-batch input validation,
                          7 pending assumption decisions organization-wide,
-                         5 scenario comparison)
-Browser     222 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         5 scenario comparison, 5 underwriting package export)
+Browser     225 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -119,7 +119,7 @@ Browser     222 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 PDF-assumption import, 2 organization admin,
                          3 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
-                         4 consolidated review screen)
+                         4 consolidated review screen, 3 underwriting package)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
@@ -283,7 +283,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
 | Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
 | Key value drivers | Tested | Ranks assumptions by measured effect, re-running the **real engine** twice per driver rather than approximating — the relationships are not linear. Reports both directions, the range tested, and how many engine runs it took. A driver the model has nothing to move is left out rather than listed at zero |
-| Investment committee summary | Tested | One printable page built from the same stored calculation the Returns and Health tabs read — nothing is recomputed, so the summary cannot disagree with the detail behind it. Leads with the Health tab's own warnings rather than a score, each carrying the threshold it crossed. Screen and print only; no PDF export or emailed digest yet. 5 browser tests, in the axe sweep |
+| Investment committee summary | Tested | One printable page built from the same stored calculation the Returns and Health tabs read — nothing is recomputed, so the summary cannot disagree with the detail behind it. Leads with the Health tab's own warnings rather than a score, each carrying the threshold it crossed. "Download underwriting package" produces a one-click Excel workbook (`GET /models/:id/export/underwriting-package`) leading with the same summary as its first sheet, followed by every property report `/export/workbook` already bundles — no PDF export or emailed digest yet. 5 browser tests plus 3 for the package download, in the axe sweep |
 | Assumption provenance and the external input contract | Tested | An outside system (`test1` / `test3`) posts what it believes about an assumption; nothing it says reaches the engine. Each proposal is shown beside the underwritten number with the difference, and applied only on an explicit acceptance that writes through the same validated path a typed edit uses. Rejection is recorded rather than deleted, because "we saw the market number and stayed at 3.00%" is the answer to the question a reviewer asks. A target this release cannot model is kept and shown with the Apply button disabled and the reason beside it. Lease terms are deliberately not applicable. 27 contract tests, 14 API tests, 6 browser tests, in the axe sweep. See `docs/assumption-contract.md` |
 | PDF-assumption import (paste, review, apply) | Tested | A separate Claude Skill reads a document and outputs a `cre-assumption-import` document; this platform never parses a PDF, calls an AI provider, or does document interpretation of any kind. Paste → Analyze produces a deterministic, zero-write preview per assumption: new, changed, same, needs review, conflict, no matching record, unsupported or invalid, with duplicate evidence merged and a conflict never auto-resolved. Applying re-analyzes server-side, writes the selected targets atomically as already-decided proposals through the existing write path, groups them under one `import_sessions` row for provenance, and recalculates. Lease terms are recognized but never bulk-applied through this pipeline — a dedicated safety class, same as the assumption-proposal contract's. 89 target-registry tests, 20 parser tests, 20 analyzer tests, 4 write-path tests, 24 API tests, 6 browser tests, in the axe sweep. See `docs/claude-assumption-import.md` |
 | Favourites and recently viewed | Tested | A star pins a property or model server-side, per person and organization, so it follows a reviewer to wherever they sign in; recently viewed is deliberately kept in the browser's own storage instead, since it is a trace of one device's activity rather than a decision, and is cleared on sign-out so a shared machine cannot leak it to the next person. Both surface on the dashboard and, unprompted, at the top of the command palette. A deleted property or model disappears from the pinned list on its own. 7 API tests, 4 browser tests, in the axe sweep |
