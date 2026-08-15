@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildModelInput, getLatestCalculation, getModel, getProperty } from '@cre/database';
-import { ENGINE_VERSION } from '@cre/calculation-engine';
+import { ENGINE_VERSION, assessHealth } from '@cre/calculation-engine';
 import {
   REPORTS,
+  buildIcSummaryReport,
   exportLiveModel,
   findReport,
   liveModelFilename,
@@ -121,6 +122,58 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
     reply.header(
       'content-disposition',
       `attachment; filename="${slug(reportContext.propertyName)}-model.xlsx"`,
+    );
+    return reply.send(buffer);
+  });
+
+  /**
+   * The underwriting package: one workbook, one click, everything a
+   * committee needs to decide.
+   *
+   * The same property reports `/export/workbook` already produces, plus a
+   * new first sheet — the investment committee summary, built by
+   * `buildIcSummaryReport` from the exact figures `ICSummaryTab.tsx` reads
+   * on screen (`result.returns`, `result.valuations`, `result.debtSchedules`
+   * and `assessHealth`'s own findings). Nothing is recomputed a second way:
+   * this is the same stored calculation every other export and every other
+   * tab reads, just assembled into the one file a reviewer used to have to
+   * build by hand from five separate tabs and downloads.
+   */
+  app.get('/models/:id/export/underwriting-package', async (request, reply) => {
+    const context = requireCapability(request, 'export:run');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound();
+    const property = await getProperty(request.db, context.organizationId, model.property_id);
+    const latest = await getLatestCalculation(request.db, id);
+    if (!latest) throw unprocessable('This model has not been calculated yet.');
+    const input = await buildModelInput(request.db, context.organizationId, id);
+    const health = assessHealth(input, latest.result);
+
+    const reportContext = {
+      propertyName: property?.name ?? 'Property',
+      modelName: model.name,
+      currency: latest.result.currency,
+      areaUnit: latest.result.areaUnit,
+    };
+    const icSummary = buildIcSummaryReport(latest.result, health, {
+      ...reportContext,
+      acquisitionPrice: model.acquisition_price,
+      rentableArea: property?.rentable_area ?? null,
+      modelStatus: model.status.replace(/_/g, ' '),
+    });
+    const propertyTables = REPORTS.filter((report) => report.category === 'property').map(
+      (report) => report.build(latest.result, reportContext),
+    );
+
+    const buffer = await reportToWorkbook([icSummary, ...propertyTables]);
+    reply.header(
+      'content-type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    reply.header(
+      'content-disposition',
+      `attachment; filename="${slug(reportContext.propertyName)}-underwriting-package.xlsx"`,
     );
     return reply.send(buffer);
   });

@@ -9,6 +9,7 @@ import {
   titleCase,
 } from '../format.js';
 import { useResource } from '../hooks.js';
+import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 
 /**
@@ -28,6 +29,7 @@ import { useModelContext } from './ModelWorkspace.js';
  */
 export function ICSummaryTab(): JSX.Element {
   const { model, property, cashFlow, cashFlowError, calculate, calculating } = useModelContext();
+  const { can } = useSession();
   const health = useResource<HealthResponse>(cashFlow ? `/models/${model.id}/health` : null);
 
   if (cashFlowError) {
@@ -77,9 +79,20 @@ export function ICSummaryTab(): JSX.Element {
             recomputed for this page.
           </p>
         </div>
-        <button type="button" onClick={() => window.print()}>
-          Print
-        </button>
+        <div className="row">
+          {can('export:run') && (
+            <a
+              className="button primary"
+              href={`/api/v1/models/${model.id}/export/underwriting-package`}
+              download
+            >
+              Download underwriting package
+            </a>
+          )}
+          <button type="button" onClick={() => window.print()}>
+            Print
+          </button>
+        </div>
       </div>
 
       <div className="card ic-summary-header">

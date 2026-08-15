@@ -1,3 +1,4 @@
+import type { HealthReport } from '@cre/calculation-engine';
 import type { ModelResult } from '@cre/domain-models';
 
 /**
@@ -530,6 +531,114 @@ export const REPORTS: ReportDefinition[] = [
   occupancyReport,
   modelValidationReport,
 ];
+
+export interface IcSummaryContext extends ReportContext {
+  acquisitionPrice: string | null;
+  rentableArea: string | null;
+  modelStatus: string;
+}
+
+/**
+ * The investment committee summary, as a report table rather than a screen.
+ *
+ * Not a `ReportDefinition` in `REPORTS`: every other report's `build` takes
+ * only a `ModelResult`, but the risk section here reads `HealthReport`,
+ * which needs the model's `ModelInput` too (`assessHealth(input, result)`,
+ * in `@cre/calculation-engine`) — a route composes this by hand rather than
+ * widening the shared interface every other report relies on.
+ *
+ * Every figure is the same one `ICSummaryTab.tsx` reads from `useModelContext`
+ * and `GET /models/:id/health` — `result.returns`, `result.valuations`,
+ * `result.debtSchedules`, and the health findings themselves — so the
+ * downloaded package can never disagree with the screen a reviewer would
+ * otherwise have to visit five tabs to reconstruct by hand.
+ */
+export function buildIcSummaryReport(
+  result: ModelResult,
+  health: HealthReport,
+  context: IcSummaryContext,
+): ReportTable {
+  const dcf = result.valuations.find((valuation) => valuation.method === 'dcf');
+  const directCap = result.valuations.find(
+    (valuation) => valuation.method === 'direct_capitalization',
+  );
+  const totalDebt = result.debtSchedules.reduce(
+    (sum, schedule) => sum + Number(schedule.rows[0]?.beginningBalance ?? '0'),
+    0,
+  );
+  const breaches = result.debtSchedules.flatMap((schedule) => schedule.covenantBreaches);
+  const warnings = health.findings.filter((finding) => finding.severity === 'warning');
+  const notes = health.findings.filter((finding) => finding.severity === 'note');
+
+  const rows: Array<Record<string, string | null>> = [
+    { section: 'Deal snapshot', metric: 'Status', value: context.modelStatus },
+    { section: '', metric: 'Acquisition price', value: context.acquisitionPrice },
+    {
+      section: '',
+      metric: 'Rentable area',
+      value: context.rentableArea ? `${context.rentableArea} ${context.areaUnit}` : null,
+    },
+    { section: '', metric: 'Going-in cap rate', value: result.returns.goingInCapRate },
+    { section: '', metric: 'Exit cap rate', value: result.returns.exitCapRate },
+    { section: '', metric: 'Concluded value (DCF)', value: dcf?.value ?? null },
+    {
+      section: '',
+      metric: 'Concluded value (direct capitalization)',
+      value: directCap?.value ?? null,
+    },
+    { section: 'Returns', metric: 'Unlevered IRR', value: result.returns.unleveredIrr },
+    { section: '', metric: 'Levered IRR', value: result.returns.leveredIrr },
+    { section: '', metric: 'Equity multiple', value: result.returns.equityMultiple },
+    { section: '', metric: 'Net present value', value: result.returns.netPresentValue },
+    { section: '', metric: 'Average DSCR', value: result.returns.averageDscr },
+    { section: '', metric: 'Minimum DSCR', value: result.returns.minimumDscr },
+  ];
+
+  if (result.debtSchedules.length > 0) {
+    rows.push(
+      {
+        section: 'Debt',
+        metric: 'Facilities',
+        value: result.debtSchedules.map((schedule) => schedule.facilityName).join(', '),
+      },
+      { section: '', metric: 'Opening balance', value: String(totalDebt) },
+      { section: '', metric: 'Debt yield, year 1', value: result.returns.debtYieldYear1 },
+      { section: '', metric: 'Covenant breaches', value: String(breaches.length) },
+    );
+  }
+
+  if (warnings.length === 0 && notes.length === 0) {
+    rows.push({
+      section: 'Risk',
+      metric: 'Health',
+      value: 'Nothing crossed a threshold on the last calculation.',
+    });
+  } else {
+    [...warnings, ...notes].forEach((finding, index) => {
+      rows.push({
+        section: index === 0 ? 'Risk' : '',
+        metric: `${finding.severity === 'warning' ? 'Warning' : 'Note'}: ${finding.title}`,
+        value: finding.detail,
+      });
+    });
+  }
+
+  return {
+    id: 'ic-summary',
+    title: `${context.propertyName} - investment committee summary`,
+    description: `${context.modelName}. Amounts in ${context.currency}.`,
+    columns: [
+      { key: 'section', label: 'Section', align: 'left', format: 'text' },
+      { key: 'metric', label: 'Metric', align: 'left', format: 'text' },
+      { key: 'value', label: 'Value', align: 'right', format: 'text' },
+    ],
+    rows,
+    footnotes: [
+      `Calculated by engine version ${result.engineVersion} on ${result.calculatedAt}.`,
+      'Read from the same stored calculation the Returns and Health tabs show — nothing here is recomputed.',
+    ],
+  };
+}
 
 export function findReport(id: string): ReportDefinition | null {
   return REPORTS.find((report) => report.id === id) ?? null;
