@@ -94,6 +94,37 @@ test('shows a pending decision on the dashboard, and its link opens the right mo
   await decide(page, modelId, 'dashboard-queue-check');
 });
 
+test('gives two pending proposals on the same model names a rotor can tell apart', async ({
+  page,
+}) => {
+  /*
+   * Found by the full suite, not by this file in isolation: this suite's own
+   * provenance tests deliberately leave several proposals pending forever on
+   * the shared seeded office model, and every row's link used to be named
+   * only "<property> · <model>" -- identical for every proposal on the same
+   * model. `e2e/screen-reader.spec.ts`'s rotor-distinguishability check on
+   * the Dashboard failed with "4 controls all named 'Harborview Tower ·
+   * Valuation - 31 December 2026'" the first time the full pnpm test:e2e ran
+   * against this feature. Fixed by giving each link an aria-label that also
+   * names the specific target and source behind that row.
+   */
+  const modelId = await officeModelId(page);
+  await propose(page, modelId, 'valuation.terminalCapRate', '0.0555', 'dashboard-rotor-check-a');
+  await propose(page, modelId, 'valuation.discountRate', '0.092', 'dashboard-rotor-check-b');
+
+  await page.goto('/');
+  const card = decisionsCard(page);
+  const rowA = card.locator('li', { hasText: 'dashboard-rotor-check-a' });
+  const rowB = card.locator('li', { hasText: 'dashboard-rotor-check-b' });
+  const nameA = await rowA.getByRole('link').getAttribute('aria-label');
+  const nameB = await rowB.getByRole('link').getAttribute('aria-label');
+  expect(nameA).not.toBeNull();
+  expect(nameA).not.toEqual(nameB);
+
+  await decide(page, modelId, 'dashboard-rotor-check-a');
+  await decide(page, modelId, 'dashboard-rotor-check-b');
+});
+
 test('drops off the dashboard once decided', async ({ page }) => {
   const modelId = await officeModelId(page);
   await propose(page, modelId, 'valuation.discountRate', '0.091', 'dashboard-drop-check');

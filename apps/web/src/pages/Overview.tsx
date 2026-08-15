@@ -189,7 +189,18 @@ function PendingDecisions(): JSX.Element | null {
       <ul className="pinned-list">
         {shown.map((proposal) => (
           <li key={proposal.id}>
-            <Link to={`/models/${proposal.model_id}/provenance`}>
+            {/* A rotor lists every control on the page by its accessible
+                name, and several pending proposals commonly land on the same
+                model at once (a source reporting more than one assumption),
+                which would otherwise leave two links both named "Harborview
+                Tower · Valuation - 31 December 2026" with nothing to tell
+                them apart. The visible text stays the short property/model
+                pair; aria-label carries the one thing that actually
+                distinguishes this row from a sibling on the same model. */}
+            <Link
+              to={`/models/${proposal.model_id}/provenance`}
+              aria-label={`${proposal.property_name} · ${proposal.model_name}: ${describeTarget(proposal.target)} from ${proposal.source_name}`}
+            >
               {proposal.property_name} · {proposal.model_name}
             </Link>
             <span className="field-hint">
