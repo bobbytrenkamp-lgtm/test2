@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { parseClipboard, planFillDown, planPaste, serialiseRange } from './clipboard.js';
 import { DENSITY_ROW_HEIGHT, type ColumnDef, type Density } from './columns.js';
 import {
@@ -122,8 +122,10 @@ export function DataGrid<Row>({
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [dragging, setDragging] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [bulkDraft, setBulkDraft] = useState<string | null>(null);
   const gridRef = useRef<HTMLTableElement>(null);
   const editorRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
+  const bulkInputId = useId();
 
   const bounds = useMemo(
     () => ({ rows: rows.length, cols: columns.length }),
@@ -237,6 +239,36 @@ export function DataGrid<Row>({
     const result = commitRaw(entries, `fill down ${plan.length} cells`);
     setStatus(`Filled ${result?.written ?? 0} cell${result?.written === 1 ? '' : 's'} down.`);
   }, [selection, readCell, commitRaw]);
+
+  /**
+   * Writes one typed value to every selected cell in a single column.
+   *
+   * Distinct from fill-down, which copies whatever the top cell already
+   * holds: this is for a value that is not on the grid yet — "set
+   * recoverable share to 95% on these twelve rows" — without retyping it
+   * once per row or contriving a top cell to fill from. Restricted to one
+   * column at a time so the value being typed has one unambiguous meaning;
+   * a multi-column selection would ask what "50" means to a rate column
+   * and an area column at once.
+   */
+  const applyToSelection = useCallback(
+    (raw: string): void => {
+      const area = rect(selection);
+      if (area.left !== area.right) {
+        setStatus('Select cells in a single column to apply one value to all of them.');
+        return;
+      }
+      const entries: Array<{ ref: CellRef; raw: string }> = [];
+      for (let row = area.top; row <= area.bottom; row += 1) {
+        entries.push({ ref: { row, col: area.left }, raw });
+      }
+      const result = commitRaw(entries, `apply value to ${entries.length} cells`);
+      setStatus(`Applied to ${result?.written ?? 0} cell${result?.written === 1 ? '' : 's'}.`);
+      setBulkDraft(null);
+      gridRef.current?.focus();
+    },
+    [selection, commitRaw],
+  );
 
   const clearSelection = useCallback((): void => {
     const area = rect(selection);
@@ -437,6 +469,16 @@ export function DataGrid<Row>({
             <button
               type="button"
               className="subtle"
+              onClick={() => setBulkDraft((current) => (current === null ? '' : null))}
+              disabled={selectionSize.cols !== 1 || selectionSize.rows < 2}
+              title="Type one value and write it to every selected cell in this column"
+              aria-expanded={bulkDraft !== null}
+            >
+              Apply to selection…
+            </button>
+            <button
+              type="button"
+              className="subtle"
               onClick={() => void copy()}
               title="Copy the selection (Ctrl/Cmd + C)"
             >
@@ -452,6 +494,48 @@ export function DataGrid<Row>({
         <div className="spacer" />
         {toolbar}
       </div>
+
+      {bulkDraft !== null && (
+        <form
+          className="row grid-bulk-apply"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyToSelection(bulkDraft);
+          }}
+        >
+          <label className="visually-hidden" htmlFor={bulkInputId}>
+            Value to apply to every selected cell in{' '}
+            {columnAt(rect(selection).left)?.label ?? 'the selected column'}
+          </label>
+          <input
+            id={bulkInputId}
+            autoFocus
+            value={bulkDraft}
+            onChange={(event) => setBulkDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setBulkDraft(null);
+                gridRef.current?.focus();
+              }
+            }}
+            placeholder={`New value for ${selectionSize.rows} cells`}
+            style={{ maxWidth: 220 }}
+          />
+          <button type="submit" className="primary">
+            Apply to {selectionSize.rows} cells
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBulkDraft(null);
+              gridRef.current?.focus();
+            }}
+          >
+            Cancel
+          </button>
+        </form>
+      )}
 
       {/* Announced politely so a screen reader hears the outcome of a paste or
           a fill without being interrupted mid-navigation. */}

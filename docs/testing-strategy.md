@@ -129,7 +129,7 @@ built bundle:
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
 | Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
-| Spreadsheet editing on the rent roll | `e2e/rent-roll-grid.spec.ts` | 11 |
+| Spreadsheet editing on the rent roll, including applying one typed value to every selected cell in a column at once | `e2e/rent-roll-grid.spec.ts` | 14 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
 | Explaining a calculated number | `e2e/explainability.spec.ts` | 8 |
@@ -163,7 +163,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**225 browser tests in total**, for 1586 across the whole repository.
+**228 browser tests in total**, for 1589 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

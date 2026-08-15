@@ -104,9 +104,9 @@ Tests       1361 passed (251 engine regression, 31 engine unit, 16 fund,
                          7 sensitivity and scenario-batch input validation,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export)
-Browser     225 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     228 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
-                         11 rent-roll spreadsheet editing,
+                         14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
@@ -272,7 +272,7 @@ Licences    340 packages, none requiring payment or a commercial licence
 | Model workspace with tabs | Functional | Fifteen tabs |
 | Cash-flow statement, monthly and annual | Tested | Frozen first column, tabular figures; browser test covers both granularities |
 | Calculation inspector | Tested | Reads the stored trace; recomputes nothing. Opens from the cash flow and from the traced return metrics. Leads with what made the number up — the contributing tenants, read from the stored calculation — then the formula and its inputs, then links to the lease or record to change. Copies as text. 8 browser tests, including one that follows a link to a rent roll already filtered to the named lease |
-| Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. 12 browser tests, one of which changes a rent in a cell and requires NOI to move |
+| Rent roll: spreadsheet-grade grid | Tested | Multi-cell selection, keyboard navigation, type-to-edit, copy/paste against Excel, fill-down, apply-to-selection (one typed value written to every selected cell in a single column, for a value that is not on the grid yet — distinct from fill-down, which only copies what the top cell already holds), undo/redo, column show-hide-reorder, frozen identifier columns, density. Edits are held in a pending layer and written through a batched, transactional endpoint. Shared by every collection grid (rent roll and five of the six assumption collections), so the one implementation in `apps/web/src/grid/DataGrid.tsx` covers all of them. 14 browser tests, one of which changes a rent in a cell and requires NOI to move |
 | Rent roll: lease editor | Tested | Still the only way to reach escalations, recoveries, rent steps and options — each is a record, not a value. Inline date-order validation asserted in the browser |
 | Rent roll: search and sort | Tested | Searchable by lease, tenant or suite; sortable on six columns with `aria-sort` on the grid header. Area and rent sort numerically, pinned by a lease whose text order differs from its numeric order |
 | Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
@@ -315,11 +315,10 @@ product less capable than the thing it replaced.
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder
 columns and drag-fill handles (reordering is button-driven and keyboard-first),
-bulk edit as an explicit "apply to N selected" dialog (fill-down and
-paste-one-value cover the same ground today), configurable dashboard widgets,
-notifications, geographic maps. (Comments, tasks and side-by-side version
-comparison were on this list and have since shipped; the rows above are the
-current state.)
+configurable dashboard widgets, notifications, geographic maps. (Comments,
+tasks, side-by-side version comparison, and bulk edit as an explicit "apply to
+N selected" action were on this list and have since shipped; the rows above
+are the current state.)
 
 ## 5. Reporting and imports
 

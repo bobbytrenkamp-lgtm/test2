@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { SEED, sessionFile } from './roles.js';
 
@@ -129,6 +130,55 @@ test('fills one value down a selection with a single keystroke', async ({ page }
   // And it undoes as one action, because it was one action.
   await page.keyboard.press('Control+z');
   await expect(page.getByLabel('Unsaved changes')).toContainText('1 unsaved change');
+});
+
+test('applies one typed value to every selected cell in a column at once', async ({ page }) => {
+  /*
+   * Distinct from fill-down, which copies whatever the top row already
+   * holds: no cell in the selection needs the value beforehand. Select
+   * three leases' Base rent cells and set all three to a number that has
+   * never appeared on the grid, in one action.
+   */
+  await focusCell(page, 'Base rent');
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Shift+ArrowDown');
+
+  await page.getByRole('button', { name: 'Apply to selection…' }).click();
+  await page.getByPlaceholder(/New value for/).fill('42.50');
+  await page.getByRole('button', { name: /^Apply to \d+ cells$/ }).click();
+
+  await expect(page.getByLabel('Unsaved changes')).toContainText('3 unsaved changes');
+
+  // One action on the undo stack, the same as fill-down.
+  await page.keyboard.press('Control+z');
+  await expect(page.getByLabel('Unsaved changes')).toBeHidden();
+});
+
+test('refuses to apply across more than one column at once', async ({ page }) => {
+  // A single typed value has one meaning; a selection spanning a rate
+  // column and an area column at once would ask what that value means to
+  // both, so the action stays unavailable rather than guessing.
+  await focusCell(page, 'Base rent');
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(page.getByRole('button', { name: 'Apply to selection…' })).toBeDisabled();
+});
+
+test('the apply-to-selection form is accessible while open', async ({ page }) => {
+  await focusCell(page, 'Base rent');
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.getByRole('button', { name: 'Apply to selection…' }).click();
+  await expect(page.getByPlaceholder(/New value for/)).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const summary = violations.map(
+    (violation) =>
+      `${violation.id} (${violation.impact ?? 'unknown'}): ${violation.help}\n` +
+      violation.nodes.map((node) => `      ${node.target.join(' ')}`).join('\n'),
+  );
+  expect(summary, summary.join('\n')).toEqual([]);
 });
 
 test('refuses a value it cannot read instead of writing a zero', async ({ page }) => {
