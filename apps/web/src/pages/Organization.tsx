@@ -312,6 +312,41 @@ export function OrganizationPage(): JSX.Element {
               },
             ]}
           />
+          <TemplateLibraryCard
+            orgId={orgId}
+            segment="debt-facility-templates"
+            title="Debt facility library"
+            description="A lender's standard rate type, fees, covenants and amortization shape, reusable across every model in this organization. Commitment, funding date and term are deal-specific and always need to be set per model — applying a template still seeds them with placeholder values the analyst is expected to change, exactly like every other field a model owns its own copy of from that point."
+            emptyBody="Every model still enters its own debt facilities by hand until this library has something in it."
+            newItemSkeleton={{
+              name: '',
+              type: 'permanent',
+              commitment: '0',
+              rateType: 'fixed',
+              fixedRate: '0',
+              termMonths: 120,
+            }}
+            columns={[
+              { key: 'type', label: 'Type', format: (value) => titleCase(value as string) },
+              {
+                key: 'rate_type',
+                label: 'Rate type',
+                format: (value) => titleCase(value as string),
+              },
+              {
+                key: 'fixed_rate',
+                label: 'Fixed rate',
+                numeric: true,
+                format: (value) => formatPercent(value as string),
+              },
+              {
+                key: 'term_months',
+                label: 'Term',
+                numeric: true,
+                format: (value) => formatNumber(value as string),
+              },
+            ]}
+          />
         </>
       )}
 

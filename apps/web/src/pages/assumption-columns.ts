@@ -352,6 +352,15 @@ export function assumptionColumns(
           'Interest joins the balance instead of being paid in cash. Usual on construction facilities.',
         ),
         boolColumn('repayOnSale', 'Repays on sale'),
+        {
+          key: 'sourceTemplateName',
+          label: 'Source',
+          width: 200,
+          editable: false,
+          value: (row) => text(row, 'source_template_name'),
+          display: (_row, value) => (value ? `Library: ${value}` : '—'),
+          help: 'The organization library entry this facility was seeded from, if any. A snapshot taken when it was applied — later changes to the library entry do not reach this row.',
+        },
       ];
 
     case 'market-leasing':

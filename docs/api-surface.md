@@ -5,7 +5,7 @@ router's own route table, printed. Every route not marked public refuses an
 unauthenticated request, which `tests/route-inventory.test.ts` enforces for
 every route rather than for a chosen few.
 
-152 routes, of which 7 are reachable without a session.
+155 routes, of which 7 are reachable without a session.
 
 ## *
 
@@ -188,6 +188,9 @@ every route rather than for a chosen few.
 | --- | --- | --- |
 | GET | `/api/v1/organizations` | Yes |
 | POST | `/api/v1/organizations` | Yes |
+| GET | `/api/v1/organizations/:id/debt-facility-templates` | Yes |
+| PUT | `/api/v1/organizations/:id/debt-facility-templates/:code` | Yes |
+| DELETE | `/api/v1/organizations/:id/debt-facility-templates/:code` | Yes |
 | GET | `/api/v1/organizations/:id/export` | Yes |
 | GET | `/api/v1/organizations/:id/growth-curve-templates` | Yes |
 | PUT | `/api/v1/organizations/:id/growth-curve-templates/:code` | Yes |
