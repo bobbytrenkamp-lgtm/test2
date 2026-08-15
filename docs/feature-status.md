@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1332 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1344 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -87,6 +87,7 @@ Tests       1332 passed (251 engine regression, 31 engine unit, 16 fund,
                          23 operating expense numerical integrity at institutional scale,
                          13 the debt facility library and its provenance,
                          6 new underwriting atomic property + model creation,
+                         12 workflow/progress surface,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
@@ -101,7 +102,7 @@ Tests       1332 passed (251 engine regression, 31 engine unit, 16 fund,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
                          7 sensitivity and scenario-batch input validation)
-Browser     206 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     208 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -114,7 +115,7 @@ Browser     206 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
-                         3 new underwriting)
+                         3 new underwriting, 2 workflow progress)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)

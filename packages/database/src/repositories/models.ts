@@ -77,6 +77,65 @@ export async function getModel(
   return rows[0] ?? null;
 }
 
+export interface ModelWorkflowCounts {
+  spaceCount: number;
+  leaseCount: number;
+  operatingExpenseCount: number;
+  capitalItemCount: number;
+  debtFacilityCount: number;
+  appliedImportCount: number;
+  siblingModelCount: number;
+  hasSucceededCalculation: boolean;
+}
+
+/**
+ * The raw counts behind the workflow/progress surface
+ * (`GET /models/:id/workflow`, `apps/web/src/pages/ModelWorkspace.tsx`).
+ *
+ * Every count here reads real rows the analyst actually created — never a
+ * "has this tab been visited" flag, which a page reload or a shared link
+ * would silently reset. `hasSucceededCalculation` in particular reads the
+ * same `calculation_runs` table `getLatestCalculation` does, filtered to
+ * `status = 'succeeded'`, so a model whose last run failed is correctly
+ * reported as not yet calculated rather than counting a crashed attempt as
+ * progress.
+ */
+export async function getModelWorkflowCounts(
+  sql: Sql,
+  organizationId: string,
+  modelId: string,
+  propertyId: string,
+): Promise<ModelWorkflowCounts> {
+  const [spaces, leases, expenses, capital, debt, imports, siblings, calculations] =
+    await Promise.all([
+      sql`SELECT count(*)::int AS n FROM spaces WHERE property_id = ${propertyId}`,
+      sql`SELECT count(*)::int AS n FROM leases WHERE model_id = ${modelId}`,
+      sql`SELECT count(*)::int AS n FROM operating_expenses WHERE model_id = ${modelId}`,
+      sql`SELECT count(*)::int AS n FROM capital_items WHERE model_id = ${modelId}`,
+      sql`SELECT count(*)::int AS n FROM debt_facilities WHERE model_id = ${modelId}`,
+      sql`SELECT count(*)::int AS n FROM import_sessions WHERE model_id = ${modelId} AND applied_count > 0`,
+      sql`
+      SELECT count(*)::int AS n FROM models
+      WHERE property_id = ${propertyId} AND organization_id = ${organizationId}
+        AND id != ${modelId} AND deleted_at IS NULL
+    `,
+      sql`SELECT count(*)::int AS n FROM calculation_runs WHERE model_id = ${modelId} AND status = 'succeeded'`,
+    ]);
+
+  const n = (rows: unknown): number => (rows as Array<{ n: number }>)[0]?.n ?? 0;
+
+  return {
+    spaceCount: n(spaces),
+    leaseCount: n(leases),
+    operatingExpenseCount: n(expenses),
+    capitalItemCount: n(capital),
+    debtFacilityCount: n(debt),
+    appliedImportCount: n(imports),
+    siblingModelCount: n(siblings),
+    hasSucceededCalculation: n(calculations) > 0,
+  };
+}
+
 export async function listModels(
   sql: Sql,
   organizationId: string,
