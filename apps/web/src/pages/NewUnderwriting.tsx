@@ -1,0 +1,258 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { modelClassificationEnum, propertyTypeEnum } from '@cre/domain-models';
+import { api, type Model, type Property } from '../api.js';
+import { EmptyState, ErrorMessage, Field } from '../components.js';
+import { titleCase } from '../format.js';
+import { useMutation } from '../hooks.js';
+import { useSession } from '../session.js';
+
+/**
+ * New Underwriting: the guided start of a real acquisition underwrite.
+ *
+ * Before this, starting one meant two separate screens with nothing routing
+ * an analyst from the first to the second — create a property, land on its
+ * detail page, then remember to also create a model there, then click
+ * through to it. This is one form, one atomic `POST /underwriting` (so a
+ * failure partway through never leaves a property with no model), and one
+ * landing spot: the new model's own Assumptions tab, ready to start
+ * entering the deal.
+ *
+ * The fields here are exactly `propertyBody`'s and `modelAssumptions`'
+ * required fields, plus the handful of optional ones already surfaced on
+ * the two standalone forms this replaces (`Properties.tsx`'s
+ * `NewPropertyForm`, `PropertyDetail.tsx`'s `NewModelForm`) — nothing new
+ * invented, and nothing skipped that an analyst already expects to set at
+ * creation time.
+ */
+export function NewUnderwritingPage(): JSX.Element {
+  const { can } = useSession();
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    // Property
+    name: '',
+    propertyType: 'office',
+    city: '',
+    stateRegion: '',
+    market: '',
+    rentableArea: '',
+    unitCount: '0',
+    // Model
+    modelName: 'Acquisition underwriting',
+    classification: 'acquisition',
+    valuationDate: new Date().toISOString().slice(0, 10),
+    forecastStartDate: `${new Date().getFullYear() + 1}-01-01`,
+    forecastMonths: '84',
+    discountRate: '0.08',
+    terminalCapRate: '0.065',
+    saleMonth: '60',
+    saleCostPercent: '0.01',
+    acquisitionPrice: '',
+  });
+
+  const set = (key: keyof typeof form, value: string): void =>
+    setForm((current) => ({ ...current, [key]: value }));
+
+  const create = useMutation(async () =>
+    api.post<{ property: Property; model: Model }>('/underwriting', {
+      property: {
+        name: form.name,
+        propertyType: form.propertyType,
+        city: form.city || null,
+        stateRegion: form.stateRegion || null,
+        market: form.market || null,
+        rentableArea: form.rentableArea || null,
+        unitCount: Number(form.unitCount) || 0,
+      },
+      model: {
+        name: form.modelName,
+        classification: form.classification,
+        valuationDate: form.valuationDate,
+        forecastStartDate: form.forecastStartDate,
+        forecastMonths: Number(form.forecastMonths),
+        discountRate: form.discountRate || null,
+        terminalCapRate: form.terminalCapRate || null,
+        saleMonth: Number(form.saleMonth) || null,
+        saleCostPercent: form.saleCostPercent,
+        acquisitionPrice: form.acquisitionPrice || null,
+        terminalNoiBasis: 'forward_12',
+      },
+    }),
+  );
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    const result = await create.run();
+    if (result) navigate(`/models/${result.model.id}/assumptions`);
+  }
+
+  if (!can('property:write') || !can('model:write')) {
+    return (
+      <EmptyState title="You cannot start a new underwriting">
+        Creating a property and a model needs both the property and model write capabilities. Ask an
+        organization owner or manager to grant them, or ask them to start this one for you.
+      </EmptyState>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-title">
+        <div>
+          <h1>New underwriting</h1>
+          <p>
+            Creates the property and its first model together, then opens the model's own
+            assumptions so you can start entering the deal.
+          </p>
+        </div>
+      </div>
+
+      <form className="card" onSubmit={submit}>
+        <ErrorMessage error={create.error} />
+
+        <h2 style={{ marginTop: 0 }}>The property</h2>
+        <div className="form-grid">
+          <Field label="Name">
+            <input
+              required
+              maxLength={200}
+              value={form.name}
+              onChange={(event) => set('name', event.target.value)}
+            />
+          </Field>
+          <Field label="Property type">
+            <select
+              value={form.propertyType}
+              onChange={(event) => set('propertyType', event.target.value)}
+            >
+              {propertyTypeEnum.options.map((option) => (
+                <option key={option} value={option}>
+                  {titleCase(option)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="City">
+            <input value={form.city} onChange={(event) => set('city', event.target.value)} />
+          </Field>
+          <Field label="State or region">
+            <input
+              value={form.stateRegion}
+              onChange={(event) => set('stateRegion', event.target.value)}
+            />
+          </Field>
+          <Field label="Market">
+            <input value={form.market} onChange={(event) => set('market', event.target.value)} />
+          </Field>
+          <Field label="Rentable area" hint="Total rentable area in the property's area unit.">
+            <input
+              inputMode="decimal"
+              value={form.rentableArea}
+              onChange={(event) => set('rentableArea', event.target.value)}
+            />
+          </Field>
+          <Field label="Units" hint="Residential, storage or parking units, where applicable.">
+            <input
+              inputMode="numeric"
+              value={form.unitCount}
+              onChange={(event) => set('unitCount', event.target.value)}
+            />
+          </Field>
+        </div>
+
+        <h2>The first model</h2>
+        <div className="form-grid">
+          <Field label="Model name">
+            <input
+              required
+              maxLength={200}
+              value={form.modelName}
+              onChange={(event) => set('modelName', event.target.value)}
+            />
+          </Field>
+          <Field label="Classification">
+            <select
+              value={form.classification}
+              onChange={(event) => set('classification', event.target.value)}
+            >
+              {modelClassificationEnum.options.map((option) => (
+                <option key={option} value={option}>
+                  {titleCase(option)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Valuation date">
+            <input
+              type="date"
+              required
+              value={form.valuationDate}
+              onChange={(event) => set('valuationDate', event.target.value)}
+            />
+          </Field>
+          <Field label="Forecast start" hint="Coerced to the first of the month.">
+            <input
+              type="date"
+              required
+              value={form.forecastStartDate}
+              onChange={(event) => set('forecastStartDate', event.target.value)}
+            />
+          </Field>
+          <Field
+            label="Forecast months"
+            hint="Run at least 12 months past the sale so a forward NOI is available."
+          >
+            <input
+              inputMode="numeric"
+              required
+              value={form.forecastMonths}
+              onChange={(event) => set('forecastMonths', event.target.value)}
+            />
+          </Field>
+          <Field label="Acquisition price" hint="Optional. Used as the going-in basis for returns.">
+            <input
+              inputMode="decimal"
+              value={form.acquisitionPrice}
+              onChange={(event) => set('acquisitionPrice', event.target.value)}
+            />
+          </Field>
+          <Field label="Discount rate" hint="Annual effective rate as a decimal, e.g. 0.08.">
+            <input
+              inputMode="decimal"
+              value={form.discountRate}
+              onChange={(event) => set('discountRate', event.target.value)}
+            />
+          </Field>
+          <Field label="Exit capitalization rate" hint="Decimal, e.g. 0.065.">
+            <input
+              inputMode="decimal"
+              value={form.terminalCapRate}
+              onChange={(event) => set('terminalCapRate', event.target.value)}
+            />
+          </Field>
+          <Field label="Sale month">
+            <input
+              inputMode="numeric"
+              value={form.saleMonth}
+              onChange={(event) => set('saleMonth', event.target.value)}
+            />
+          </Field>
+          <Field label="Costs of sale" hint="Fraction of the gross sale price.">
+            <input
+              inputMode="decimal"
+              value={form.saleCostPercent}
+              onChange={(event) => set('saleCostPercent', event.target.value)}
+            />
+          </Field>
+        </div>
+
+        <div className="row end">
+          <button type="submit" className="primary" disabled={create.pending}>
+            {create.pending ? 'Creating…' : 'Start underwriting'}
+          </button>
+        </div>
+      </form>
+    </>
+  );
+}

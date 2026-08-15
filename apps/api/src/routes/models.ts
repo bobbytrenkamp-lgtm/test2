@@ -35,7 +35,13 @@ import { HttpError, badRequest, forbidden, notFound, requireCapability } from '.
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
-const modelAssumptions = z.object({
+/**
+ * Exported for `underwriting.ts`'s atomic "create a property and a model
+ * together" route, which validates its `model` field with this exact
+ * schema (minus `propertyId`, which the atomic route fills in itself once
+ * the property it just created exists) rather than redefining a subset of it.
+ */
+export const modelAssumptions = z.object({
   name: z.string().min(1).max(200),
   classification: modelClassificationEnum,
   valuationDate: isoDate,
