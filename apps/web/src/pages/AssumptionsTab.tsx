@@ -52,8 +52,29 @@ export function AssumptionsTab(): JSX.Element {
           { key: 'growth_curve', label: 'Growth curve' },
           { key: 'recoverable_share', label: 'Recoverable', numeric: true, percent: true },
           { key: 'variable_share', label: 'Occupancy variable', numeric: true, percent: true },
+          {
+            key: 'source_template_name',
+            label: 'Source',
+            transform: (value) => `Library: ${value}`,
+          },
         ]}
         description="Expenses defined as a percentage of effective gross revenue are solved together with recoveries, because a recoverable management fee feeds the revenue it is charged on."
+        librarySegment="operating-expense-templates"
+        templateToDraft={(t) => ({
+          code: t.code,
+          name: t.name,
+          category: t.category,
+          accountCode: t.account_code,
+          method: t.method,
+          amount: t.amount,
+          growthCurve: t.growth_curve,
+          recoverableShare: t.recoverable_share,
+          variableShare: t.variable_share,
+          monthlySchedule: t.monthly_schedule,
+          isCapitalized: t.is_capitalized,
+          sourceTemplateCode: t.code,
+          sourceTemplateName: t.name,
+        })}
       />
 
       <Collection
@@ -514,17 +535,25 @@ function Collection({
    * pointer to the template, which can be renamed or deleted afterward
    * without effect.
    *
-   * Opens in the raw JSON view even on a collection with a structured
-   * `RecordEditor` (market leasing does) — the seeded values, including
-   * sourceTemplateCode/sourceTemplateName, are worth seeing plainly right
-   * after starting from a template. `editingRecord` is filled too, from the
-   * same object, so switching to the structured form (a button the raw view
-   * already offers) shows what was seeded instead of opening blank — that
-   * button reads `editingRecord`, not `draft`.
+   * Opens the same view a plain "Add" would: the structured form when this
+   * collection has a `RecordEditor` (`recordSpec`), the raw JSON view
+   * otherwise. `editingRecord` is filled either way, from the same seeded
+   * object, so a collection with no structured editor still shows what was
+   * seeded rather than opening blank, and an analyst on a structured
+   * collection lands on a normal populated form instead of being routed
+   * through JSON to reach it.
+   *
+   * `pendingSourceTemplate` is what actually carries provenance through to
+   * the save regardless of which view is used — `RecordEditor.onSave` only
+   * forwards fields its own spec knows about (deliberately, see its own
+   * comment), so sourceTemplateCode/sourceTemplateName would otherwise be
+   * dropped by a save made from the structured form. The `save` mutation
+   * above merges them into the request body unconditionally, so this can
+   * default to the structured view without losing traceability.
    */
   function beginFromTemplate(template: Record<string, unknown>): void {
     setParseError(null);
-    setRawJson(true);
+    setRawJson(!recordSpec);
     setEditing('');
     setOpenedVersion(null);
     setPendingSourceTemplate({ code: String(template.code), name: String(template.name) });

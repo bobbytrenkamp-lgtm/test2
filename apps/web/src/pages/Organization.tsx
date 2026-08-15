@@ -270,6 +270,48 @@ export function OrganizationPage(): JSX.Element {
               },
             ]}
           />
+          <TemplateLibraryCard
+            orgId={orgId}
+            segment="operating-expense-templates"
+            title="Operating expense library"
+            description="A firm's normal tax, insurance, utilities, management fee, repairs and CAM assumptions, reusable across every model in this organization. Applying one seeds a new expense's fields; the model owns its own copy from that point, exactly like the libraries above."
+            emptyBody="Every model still enters its own operating expenses by hand until this library has something in it."
+            newItemSkeleton={{
+              name: '',
+              category: 'operating',
+              method: 'fixed_annual',
+              amount: '0',
+              recoverableShare: '0',
+              variableShare: '0',
+              isCapitalized: false,
+            }}
+            columns={[
+              { key: 'category', label: 'Category' },
+              {
+                key: 'method',
+                label: 'Method',
+                format: (value) => String(value).replace(/_/g, ' '),
+              },
+              {
+                key: 'amount',
+                label: 'Amount',
+                numeric: true,
+                format: (value) => formatNumber(value as string),
+              },
+              {
+                key: 'recoverable_share',
+                label: 'Recoverable',
+                numeric: true,
+                format: (value) => formatPercent(value as string),
+              },
+              {
+                key: 'variable_share',
+                label: 'Variable',
+                numeric: true,
+                format: (value) => formatPercent(value as string),
+              },
+            ]}
+          />
         </>
       )}
 

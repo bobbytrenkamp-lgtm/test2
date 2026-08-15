@@ -5,7 +5,7 @@ router's own route table, printed. Every route not marked public refuses an
 unauthenticated request, which `tests/route-inventory.test.ts` enforces for
 every route rather than for a chosen few.
 
-143 routes, of which 7 are reachable without a session.
+152 routes, of which 7 are reachable without a session.
 
 ## *
 
@@ -189,10 +189,19 @@ every route rather than for a chosen few.
 | GET | `/api/v1/organizations` | Yes |
 | POST | `/api/v1/organizations` | Yes |
 | GET | `/api/v1/organizations/:id/export` | Yes |
+| GET | `/api/v1/organizations/:id/growth-curve-templates` | Yes |
+| PUT | `/api/v1/organizations/:id/growth-curve-templates/:code` | Yes |
+| DELETE | `/api/v1/organizations/:id/growth-curve-templates/:code` | Yes |
 | POST | `/api/v1/organizations/:id/invitations` | Yes |
+| GET | `/api/v1/organizations/:id/market-leasing-profile-templates` | Yes |
+| PUT | `/api/v1/organizations/:id/market-leasing-profile-templates/:code` | Yes |
+| DELETE | `/api/v1/organizations/:id/market-leasing-profile-templates/:code` | Yes |
 | GET | `/api/v1/organizations/:id/members` | Yes |
 | PATCH | `/api/v1/organizations/:id/members/:userId` | Yes |
 | DELETE | `/api/v1/organizations/:id/members/:userId` | Yes |
+| GET | `/api/v1/organizations/:id/operating-expense-templates` | Yes |
+| PUT | `/api/v1/organizations/:id/operating-expense-templates/:code` | Yes |
+| DELETE | `/api/v1/organizations/:id/operating-expense-templates/:code` | Yes |
 | POST | `/api/v1/organizations/:id/switch` | Yes |
 
 ## portfolios

@@ -28,6 +28,7 @@ import { registerAssumptionImportRoutes } from './routes/assumption-import.js';
 import { registerFavouriteRoutes } from './routes/favourites.js';
 import { registerGrowthCurveTemplateRoutes } from './routes/growth-curve-templates.js';
 import { registerMarketLeasingProfileTemplateRoutes } from './routes/market-leasing-profile-templates.js';
+import { registerOperatingExpenseTemplateRoutes } from './routes/expense-templates.js';
 
 export interface ServerOptions {
   env: Env;
@@ -264,6 +265,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerFavouriteRoutes(api);
       await registerGrowthCurveTemplateRoutes(api);
       await registerMarketLeasingProfileTemplateRoutes(api);
+      await registerOperatingExpenseTemplateRoutes(api);
     },
     { prefix: '/api/v1' },
   );
