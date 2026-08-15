@@ -318,19 +318,63 @@ test.describe('as an analyst', () => {
       .getByLabel(/Start a new market leasing assumption from the organization/)
       .selectOption({ label: 'E2E office standard' });
 
-    // Forced into the raw JSON view even though this collection normally
-    // opens a structured form — see `beginFromTemplate`'s own comment: the
-    // structured editor reads `editingRecord`, and only the raw view proves
-    // what actually landed in the draft that gets saved.
-    const draft = leasing.getByRole('textbox', { name: 'New market leasing assumption' });
-    await expect(draft).toHaveValue(/e2e-office-standard/);
-    await expect(draft).toHaveValue(/"marketRent": "41\.000000"/);
-    await expect(draft).toHaveValue(/sourceTemplateName/);
+    // Opens the collection's own structured form, populated, rather than
+    // routing the analyst through raw JSON to reach it — see
+    // `beginFromTemplate`'s own comment. Provenance still reaches the saved
+    // row because the shared `save` mutation injects it regardless of which
+    // view the analyst actually submits from.
+    await expect(page.getByLabel('Code *')).toHaveValue('e2e-office-standard');
+    await expect(page.getByLabel('Market rent *')).toHaveValue('41.000000');
 
-    await leasing.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Save market leasing assumption' }).click();
     const savedRow = leasing.getByRole('row', { name: /e2e-office-standard/ });
     await expect(savedRow).toBeVisible();
     await expect(savedRow).toContainText('Library: E2E office standard');
+  });
+
+  test('an operating expense can start from the organization library, opening the structured form populated', async ({
+    page,
+  }) => {
+    await page.goto('/organization');
+    const expenseLibrary = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Operating expense library' }),
+    });
+    await expect(expenseLibrary).toBeVisible();
+    await expenseLibrary.getByRole('button', { name: 'Add to Operating expense library' }).click();
+    await expenseLibrary.getByLabel('New template').fill(
+      JSON.stringify(
+        {
+          code: 'e2e-real-estate-tax',
+          name: 'E2E real estate tax',
+          category: 'taxes',
+          method: 'fixed_annual',
+          amount: '185000',
+          recoverableShare: '1',
+          variableShare: '0',
+        },
+        null,
+        2,
+      ),
+    );
+    await expenseLibrary.getByRole('button', { name: 'Save Operating expense library' }).click();
+    await expect(expenseLibrary.getByRole('row', { name: /e2e-real-estate-tax/ })).toBeVisible();
+
+    await openAssumptions(page);
+    const expenses = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Operating expenses' }),
+    });
+    await expenses
+      .getByLabel(/Start a new operating expense from the organization/)
+      .selectOption({ label: 'E2E real estate tax' });
+
+    // The normal structured operating-expense form, populated from the
+    // template — not the raw JSON view.
+    await expect(page.getByLabel('Code *')).toHaveValue('e2e-real-estate-tax');
+    await expect(page.getByLabel('Amount *')).toHaveValue('185000.000000');
+
+    await page.getByRole('button', { name: 'Save operating expense' }).click();
+    const savedRow = expenses.getByRole('row', { name: /e2e-real-estate-tax/ });
+    await expect(savedRow).toBeVisible();
   });
 });
 

@@ -339,18 +339,31 @@ export async function upsertExpense(
     monthlySchedule?: string[];
     isCapitalized?: boolean;
     sortOrder?: number;
+    /**
+     * Set only when this row was seeded from the organization's operating
+     * expense library (`operating_expense_templates`) rather than typed by
+     * hand. A snapshot, not a live reference — see migration 0023.
+     * Deliberately absent from the `ON CONFLICT` clause below: once a row
+     * exists, a plain edit (which never carries these) must not erase where
+     * it originally came from, and a second "start from library" always
+     * targets a fresh code, never an existing row.
+     */
+    sourceTemplateCode?: string | null;
+    sourceTemplateName?: string | null;
   },
 ): Promise<CollectionRow> {
   const rows = (await sql`
     INSERT INTO operating_expenses (
       model_id, code, name, category, account_code, method, amount, growth_curve,
-      recoverable_share, variable_share, monthly_schedule, is_capitalized, sort_order
+      recoverable_share, variable_share, monthly_schedule, is_capitalized, sort_order,
+      source_template_code, source_template_name
     ) VALUES (
       ${input.modelId}, ${input.code}, ${input.name}, ${input.category},
       ${input.accountCode ?? null}, ${input.method}, ${input.amount},
       ${input.growthCurve ?? null}, ${input.recoverableShare ?? '0'},
       ${input.variableShare ?? '0'}, ${sql.json((input.monthlySchedule ?? []) as never)},
-      ${input.isCapitalized ?? false}, ${input.sortOrder ?? 0}
+      ${input.isCapitalized ?? false}, ${input.sortOrder ?? 0},
+      ${input.sourceTemplateCode ?? null}, ${input.sourceTemplateName ?? null}
     )
     ON CONFLICT (model_id, code) DO UPDATE SET
       name = EXCLUDED.name, category = EXCLUDED.category, account_code = EXCLUDED.account_code,

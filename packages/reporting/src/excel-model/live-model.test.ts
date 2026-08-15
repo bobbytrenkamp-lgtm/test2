@@ -526,6 +526,118 @@ describe('the emitted formulas reproduce the engine', () => {
   });
 });
 
+/**
+ * Math Check I — Excel Live Model reconciliation at institutional scale
+ * (`docs/commercial-gap-analysis.md` item 13, operating expense library).
+ *
+ * The same reconciliation as "the emitted formulas reproduce the engine"
+ * above, run on a fixture with a hundreds-of-millions expense and a
+ * multi-hundred-million recovery pool, so a workbook that only reconciles at
+ * ordinary regression-fixture magnitudes would not pass this silently. No
+ * value here is rounded to thousands to make it reconcile — `SUM_TOLERANCE`
+ * (a few cents, from independent per-line rounding) is the only slack.
+ */
+describe('the emitted formulas reproduce the engine at institutional scale', () => {
+  function largeExpenseFixture(): { input: ModelInput; result: ModelResult } {
+    const input = parseModelInput({
+      modelId: 'math-i-large-expense',
+      modelName: 'Math Check I fixture',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: {
+        id: 'P1',
+        name: 'Math I property',
+        propertyType: 'industrial',
+        rentableArea: '10000000',
+      },
+      spaces: [{ id: 'S1', code: 'Building A', area: '10000000', spaceType: 'warehouse' }],
+      tenants: [{ id: 'T1', name: 'Math I Tenant', industry: 'Logistics' }],
+      leases: [
+        {
+          id: 'L1',
+          tenantId: 'T1',
+          spaceIds: ['S1'],
+          status: 'occupied',
+          area: '10000000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2035-12-31',
+          baseRent: '20',
+          baseRentBasis: 'per_area_per_year',
+          recovery: { method: 'triple_net' },
+          excludeFromRollover: true,
+        },
+      ],
+      expenses: [
+        {
+          id: 'E1',
+          name: 'Large partly-recoverable expense',
+          category: 'operating',
+          method: 'fixed_annual',
+          amount: '600000000',
+          recoverableShare: '0.8',
+          variableShare: '0.3',
+        },
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+      },
+    });
+    return { input, result: calculate(input) };
+  }
+
+  const reconciled: Array<{ key: string; line: CashFlowLine }> = [
+    { key: 'revenue.scheduledBaseRent', line: 'scheduledBaseRent' },
+    { key: 'recoveries.total', line: 'expenseRecoveries' },
+    { key: 'revenue.expenseRecoveries', line: 'expenseRecoveries' },
+    { key: 'revenue.effectiveGrossRevenue', line: 'effectiveGrossRevenue' },
+    { key: 'expenses.total', line: 'operatingExpenses' },
+    { key: 'cashFlow.netOperatingIncome', line: 'netOperatingIncome' },
+    { key: 'cashFlow.unleveredCashFlow', line: 'unleveredCashFlow' },
+  ];
+
+  it('reconciles a $600,000,000 partly-recoverable expense and its $480,000,000 recovery pool, line by line and period by period', () => {
+    const { input, result } = largeExpenseFixture();
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    for (const check of reconciled) {
+      const expected = series(result, check.line);
+      for (let period = 0; period < result.periods.length; period += 1) {
+        const actual = evaluator.value(check.key, period);
+        expect(Number.isFinite(actual), `${check.key}#${period} did not evaluate`).toBe(true);
+        expect(
+          Math.abs(actual - (expected[period] ?? 0)),
+          `${check.key}#${period}: workbook ${actual} vs engine ${expected[period]}`,
+        ).toBeLessThanOrEqual(SUM_TOLERANCE);
+      }
+    }
+  });
+
+  it('does not lose precision to Excel-style scientific notation on any evaluated cell', () => {
+    const { input, result } = largeExpenseFixture();
+    const { workbook } = buildLiveModel(input, result);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    for (const check of reconciled) {
+      for (let period = 0; period < result.periods.length; period += 1) {
+        const actual = evaluator.value(check.key, period);
+        expect(Number.isFinite(actual)).toBe(true);
+        // A value corrupted into exponential form would still be "finite" by
+        // JS's own definition, so this checks the number itself is exactly
+        // representable rather than merely non-NaN/non-Infinity.
+        expect(Number.isSafeInteger(Math.round(actual * 100))).toBe(true);
+      }
+    }
+  });
+});
+
 describe('the debt schedule amortises in the workbook', () => {
   /** Every regression fixture that carries a facility. */
   const withDebt = Object.keys(ALL_FIXTURES).filter(

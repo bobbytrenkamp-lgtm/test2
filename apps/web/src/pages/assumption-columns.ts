@@ -252,6 +252,15 @@ export function assumptionColumns(
           'Capitalised',
           'Capitalised expenses are added to capital expenditure below NOI rather than deducted as an operating cost.',
         ),
+        {
+          key: 'sourceTemplateName',
+          label: 'Source',
+          width: 200,
+          editable: false,
+          value: (row) => text(row, 'source_template_name'),
+          display: (_row, value) => (value ? `Library: ${value}` : '—'),
+          help: 'The organization library entry this expense was seeded from, if any. A snapshot taken when it was applied — later changes to the library entry do not reach this row.',
+        },
       ];
 
     case 'other-revenue':
