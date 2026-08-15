@@ -127,8 +127,43 @@ export function AssumptionsTab(): JSX.Element {
           { key: 'interest_only_months', label: 'IO months', numeric: true },
           { key: 'amortization_months', label: 'Amort. months', numeric: true },
           { key: 'term_months', label: 'Term', numeric: true },
+          {
+            key: 'source_template_name',
+            label: 'Source',
+            transform: (value) => `Library: ${value}`,
+          },
         ]}
         description="Several facilities can run at once. A facility that matures before the modelled sale is flagged in validation."
+        librarySegment="debt-facility-templates"
+        templateToDraft={(t) => ({
+          code: t.code,
+          name: t.name,
+          type: t.type,
+          commitment: t.commitment,
+          initialFunding: t.initial_funding,
+          fundingDate: t.funding_date,
+          draws: t.draws,
+          rateType: t.rate_type,
+          fixedRate: t.fixed_rate,
+          indexCurve: t.index_curve,
+          spread: t.spread,
+          rateFloor: t.rate_floor,
+          rateCap: t.rate_cap,
+          interestOnlyMonths: t.interest_only_months,
+          amortizationMonths: t.amortization_months,
+          termMonths: t.term_months,
+          originationFeePercent: t.origination_fee_percent,
+          exitFeePercent: t.exit_fee_percent,
+          unusedFeePercent: t.unused_fee_percent,
+          capitalizeInterest: t.capitalize_interest,
+          minimumDscr: t.minimum_dscr,
+          maximumLtv: t.maximum_ltv,
+          maximumLtc: t.maximum_ltc,
+          minimumDebtYield: t.minimum_debt_yield,
+          repayOnSale: t.repay_on_sale,
+          sourceTemplateCode: t.code,
+          sourceTemplateName: t.name,
+        })}
       />
 
       <Collection
@@ -403,6 +438,17 @@ interface ColumnSpec {
 }
 
 /**
+ * Singularizes a collection title for inline prose ("Debt facilities" ->
+ * "debt facility"). A plain `replace(/s$/, '')` gets every title here right
+ * except an "-ies" plural, where it produces "debt facilitie" — this exists
+ * because that is a real title, not a hypothetical one.
+ */
+function singularize(lowercaseTitle: string): string {
+  if (lowercaseTitle.endsWith('ies')) return `${lowercaseTitle.slice(0, -3)}y`;
+  return lowercaseTitle.replace(/s$/, '');
+}
+
+/**
  * A model-scoped assumption collection. Rows are read here and edited as JSON
  * so every field the API accepts is reachable, while the common fields stay
  * legible in the table above.
@@ -596,7 +642,7 @@ function Collection({
         {librarySegment && editable && (templates.data?.templates.length ?? 0) > 0 && (
           <>
             <label htmlFor={`${segment}-template`} className="visually-hidden">
-              Start a new {title.toLowerCase().replace(/s$/, '')} from the organization's library
+              Start a new {singularize(title.toLowerCase())} from the organization's library
             </label>
             <select
               id={`${segment}-template`}
@@ -793,7 +839,7 @@ function Collection({
               <ErrorMessage error={save.error} />
             )}
             <Field
-              label={editing ? `Edit ${editing}` : `New ${title.toLowerCase().replace(/s$/, '')}`}
+              label={editing ? `Edit ${editing}` : `New ${singularize(title.toLowerCase())}`}
               error={parseError ?? undefined}
               hint="Field names use camelCase, matching the API. Amounts and rates are decimal strings."
             >

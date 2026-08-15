@@ -501,7 +501,8 @@ export async function upsertDebtFacility(
       rate_type, fixed_rate, index_curve, spread, rate_floor, rate_cap,
       interest_only_months, amortization_months, term_months, origination_fee_percent,
       exit_fee_percent, unused_fee_percent, capitalize_interest, minimum_dscr,
-      maximum_ltv, maximum_ltc, minimum_debt_yield, repay_on_sale, sort_order
+      maximum_ltv, maximum_ltc, minimum_debt_yield, repay_on_sale, sort_order,
+      source_template_code, source_template_name
     ) VALUES (
       ${input.modelId}, ${input.code}, ${input.name as string}, ${input.type as string},
       ${(input.commitment as string) ?? '0'}, ${(input.initialFunding as string) ?? '0'},
@@ -515,7 +516,9 @@ export async function upsertDebtFacility(
       ${(input.capitalizeInterest as boolean) ?? false}, ${(input.minimumDscr as string) ?? null},
       ${(input.maximumLtv as string) ?? null}, ${(input.maximumLtc as string) ?? null},
       ${(input.minimumDebtYield as string) ?? null}, ${(input.repayOnSale as boolean) ?? true},
-      ${(input.sortOrder as number) ?? 0}
+      ${(input.sortOrder as number) ?? 0},
+      ${(input.sourceTemplateCode as string | undefined) ?? null},
+      ${(input.sourceTemplateName as string | undefined) ?? null}
     )
     ON CONFLICT (model_id, code) DO UPDATE SET
       name = EXCLUDED.name, type = EXCLUDED.type, commitment = EXCLUDED.commitment,

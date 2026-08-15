@@ -109,8 +109,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | The organization's market leasing profile library, and traceability when a profile is applied from it | `tests/market-leasing-profile-templates.test.ts` | 11 | Yes |
 | The organization's operating expense library, its provenance, template/hand-entered equivalence and database round-trip precision | `tests/expense-templates.test.ts` | 16 | Yes |
 | Operating expense numerical integrity at institutional scale: large fixed and per-area expenses, multi-year growth, recoverable/variable splits, a multi-billion-dollar acquisition's accounting identities, and scale invariance | `packages/calculation-engine/src/expense-templates-integrity.test.ts` | 23 | No |
+| The organization's debt facility library, its provenance, boundary validation, and template/hand-entered equivalence on a billion-dollar facility | `tests/debt-facility-templates.test.ts` | 13 | Yes |
 
-**1313 tests in total.**
+**1326 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -141,7 +142,7 @@ built bundle:
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
-| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 8 |
+| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 9 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 49 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
@@ -150,7 +151,7 @@ built bundle:
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
 
-**202 browser tests in total**, for 1515 across the whole repository.
+**203 browser tests in total**, for 1529 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

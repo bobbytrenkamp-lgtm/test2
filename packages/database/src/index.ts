@@ -17,5 +17,6 @@ export * from './repositories/favourites.js';
 export * from './repositories/growth-curve-templates.js';
 export * from './repositories/market-leasing-profile-templates.js';
 export * from './repositories/expense-templates.js';
+export * from './repositories/debt-facility-templates.js';
 export * from './repositories/entitlements.js';
 export * from './totp.js';

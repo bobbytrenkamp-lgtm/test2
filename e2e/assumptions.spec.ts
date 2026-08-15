@@ -376,6 +376,73 @@ test.describe('as an analyst', () => {
     const savedRow = expenses.getByRole('row', { name: /e2e-real-estate-tax/ });
     await expect(savedRow).toBeVisible();
   });
+
+  test('a debt facility can start from the organization library, opening the structured form populated with deal-specific placeholders to change', async ({
+    page,
+  }) => {
+    await page.goto('/organization');
+    const debtLibrary = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Debt facility library' }),
+    });
+    await expect(debtLibrary).toBeVisible();
+    await debtLibrary.getByRole('button', { name: 'Add to Debt facility library' }).click();
+    await debtLibrary.getByLabel('New template').fill(
+      JSON.stringify(
+        {
+          code: 'e2e-bridge-standard',
+          name: 'E2E bridge standard',
+          type: 'bridge',
+          rateType: 'fixed',
+          fixedRate: '0.065',
+          interestOnlyMonths: 36,
+          originationFeePercent: '0.01',
+        },
+        null,
+        2,
+      ),
+    );
+    await debtLibrary.getByRole('button', { name: 'Save Debt facility library' }).click();
+    await expect(debtLibrary.getByRole('row', { name: /e2e-bridge-standard/ })).toBeVisible();
+
+    await openAssumptions(page);
+    const modelId = /\/models\/([0-9a-f-]+)/.exec(page.url())?.[1];
+    if (!modelId) throw new Error('Could not read the model id from the URL.');
+
+    const debt = page.locator('.card', {
+      has: page.getByRole('heading', { name: 'Debt facilities' }),
+    });
+    await debt
+      .getByLabel(/Start a new debt facility from the organization/)
+      .selectOption({ label: 'E2E bridge standard' });
+
+    // The normal structured debt-facility form, populated from the template.
+    // Commitment, funding date and term are deal-specific and the template
+    // can only seed placeholders for them — the analyst is expected to
+    // replace all three before this is a real facility, which the field's
+    // own help text says explicitly. The funding date placeholder in
+    // particular (2020-01-01, well before any real forecast) is a critical
+    // validation error until it is moved on or after the model's own
+    // forecast start, which is exactly why it has to be replaced here too:
+    // an unedited placeholder is a template applied without the review step
+    // "Start from library" is supposed to prompt.
+    await expect(page.getByLabel('Code *')).toHaveValue('e2e-bridge-standard');
+    await expect(page.getByLabel('Fixed rate')).toHaveValue('0.06500000');
+    await page.getByLabel('Commitment *').fill('25000000');
+    await page.getByLabel('Funding date *').fill('2026-06-01');
+
+    await page.getByRole('button', { name: 'Save debt facility' }).click();
+    const savedRow = debt.getByRole('row', { name: /e2e-bridge-standard/ });
+    await expect(savedRow).toBeVisible();
+    await expect(savedRow).toContainText('Library: E2E bridge standard');
+
+    // Cleaned up rather than left standing, unlike the market-leasing and
+    // expense library tests above: a debt facility actively enters the cash
+    // flow (interest, principal, DSCR, returns), so leaving one behind would
+    // change what every other test sharing this seeded model calculates —
+    // where an unused market rent or a zero-recoverable-share expense
+    // wouldn't.
+    await page.request.delete(`/api/v1/models/${modelId}/debt/e2e-bridge-standard`);
+  });
 });
 
 test.describe('as a reviewer', () => {
