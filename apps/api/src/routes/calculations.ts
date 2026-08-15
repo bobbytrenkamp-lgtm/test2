@@ -732,4 +732,4 @@ function extractMetric(
   }
 }
 
-export { runAndStoreCalculationFromInput };
+export { extractMetric, runAndStoreCalculationFromInput };
