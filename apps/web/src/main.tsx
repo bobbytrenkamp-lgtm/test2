@@ -11,6 +11,7 @@ import { SecurityPage } from './pages/Security.js';
 import { OrganizationPage } from './pages/Organization.js';
 import { AcceptInvitationPage } from './pages/AcceptInvitation.js';
 import { PropertiesPage } from './pages/Properties.js';
+import { NewUnderwritingPage } from './pages/NewUnderwriting.js';
 import { PropertyDetailPage } from './pages/PropertyDetail.js';
 import { ModelWorkspace } from './pages/ModelWorkspace.js';
 import { CashFlowTab } from './pages/CashFlowTab.js';
@@ -41,6 +42,7 @@ createRoot(container).render(
         <Routes>
           <Route element={<Shell />}>
             <Route index element={<DashboardPage />} />
+            <Route path="underwriting/new" element={<NewUnderwritingPage />} />
             <Route path="properties" element={<PropertiesPage />} />
             <Route path="properties/:propertyId" element={<PropertyDetailPage />} />
             <Route path="portfolios" element={<PortfoliosPage />} />

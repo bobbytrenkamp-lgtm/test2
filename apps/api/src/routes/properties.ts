@@ -16,7 +16,12 @@ import {
 import { decimalString, propertyTypeEnum } from '@cre/domain-models';
 import { notFound, requireCapability } from '../context.js';
 
-const propertyBody = z.object({
+/**
+ * Exported for `underwriting.ts`'s atomic "create a property and a model
+ * together" route, which validates its `property` field with this exact
+ * schema rather than redefining a subset of it.
+ */
+export const propertyBody = z.object({
   name: z.string().min(1).max(200),
   propertyType: propertyTypeEnum,
   propertySubtype: z.string().max(100).nullish(),

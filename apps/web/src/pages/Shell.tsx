@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import type { Capability } from '@cre/domain-models';
 import { useSession } from '../session.js';
 import { Loading } from '../components.js';
 import { SignInPage } from './SignIn.js';
@@ -6,8 +7,16 @@ import { CommandPalette } from '../components/CommandPalette.js';
 import { CreateOrganizationForm } from '../components/CreateOrganizationForm.js';
 import { useResource } from '../hooks.js';
 
-const NAV = [
+/**
+ * `capability` hides an item for a role that could not act on it anyway —
+ * used sparingly, only for a link whose entire purpose is a write action
+ * (matching the button-level gating `Properties.tsx`'s "New property" and
+ * `PropertyDetail.tsx`'s "New model" already do), not for every read-only
+ * destination in this list.
+ */
+const NAV: Array<{ to: string; label: string; end?: boolean; capability?: Capability }> = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/underwriting/new', label: 'New underwriting', capability: 'model:write' },
   { to: '/properties', label: 'Properties' },
   { to: '/portfolios', label: 'Portfolios' },
   { to: '/funds', label: 'Funds' },
@@ -26,7 +35,7 @@ const NAV = [
 const ORGANIZATION_OPTIONAL_PATHS = new Set(['/accept-invitation']);
 
 export function Shell(): JSX.Element {
-  const { session, loading, signOut, switchOrganization } = useSession();
+  const { session, loading, signOut, switchOrganization, can } = useSession();
   const location = useLocation();
   // Fetched from the public, unauthenticated health check rather than a
   // protected route, so establishing what a support conversation needs never
@@ -86,7 +95,7 @@ export function Shell(): JSX.Element {
       </header>
 
       <nav className="app-nav" aria-label="Primary">
-        {NAV.map((item) => (
+        {NAV.filter((item) => !item.capability || can(item.capability)).map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end}>
             {item.label}
           </NavLink>

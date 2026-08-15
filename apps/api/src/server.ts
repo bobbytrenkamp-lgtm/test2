@@ -13,6 +13,7 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerOrganizationRoutes } from './routes/organizations.js';
 import { registerPropertyRoutes } from './routes/properties.js';
 import { registerModelRoutes } from './routes/models.js';
+import { registerUnderwritingRoutes } from './routes/underwriting.js';
 import { registerCalculationRoutes } from './routes/calculations.js';
 import { registerCollaborationRoutes } from './routes/collaboration.js';
 import { registerTaskRoutes } from './routes/tasks.js';
@@ -251,6 +252,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerOrganizationRoutes(api, env);
       await registerPropertyRoutes(api);
       await registerModelRoutes(api);
+      await registerUnderwritingRoutes(api);
       await registerCalculationRoutes(api);
       await registerPortfolioRoutes(api);
       await registerFundRoutes(api);
