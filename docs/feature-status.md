@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1344 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1351 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -101,8 +101,9 @@ Tests       1344 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
-                         7 sensitivity and scenario-batch input validation)
-Browser     211 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         7 sensitivity and scenario-batch input validation,
+                         7 pending assumption decisions organization-wide)
+Browser     215 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -115,7 +116,8 @@ Browser     211 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
-                         3 new underwriting, 2 workflow progress, 3 inputs tab)
+                         3 new underwriting, 2 workflow progress, 3 inputs tab,
+                         4 pending decisions on the dashboard)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)

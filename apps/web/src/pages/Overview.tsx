@@ -20,6 +20,7 @@ import {
   titleCase,
 } from '../format.js';
 import { useResource } from '../hooks.js';
+import { describeTarget } from './ProvenanceTab.js';
 import { readRecents, type Recent } from '../recents.js';
 import { useSession } from '../session.js';
 
@@ -54,6 +55,7 @@ export function DashboardPage(): JSX.Element {
 
       <ErrorMessage error={properties.error} />
 
+      {rows.length > 0 && <PendingDecisions />}
       {rows.length > 0 && <PinnedAndRecent />}
 
       {rows.length === 0 ? (
@@ -140,6 +142,81 @@ export function DashboardPage(): JSX.Element {
         </>
       )}
     </>
+  );
+}
+
+interface PendingProposal {
+  id: string;
+  model_id: string;
+  property_id: string;
+  property_name: string;
+  model_name: string;
+  target: string;
+  source_name: string;
+  created_at: string;
+}
+
+/**
+ * The other direction from `ProvenanceTab`'s per-model list: what needs
+ * deciding across the whole organization, without already knowing which
+ * model to open first. Read-only — deciding still only happens on a model's
+ * own Provenance tab, which every row here links straight to. Self-hiding
+ * when nothing is pending, the same as `PinnedAndRecent` below.
+ */
+function PendingDecisions(): JSX.Element | null {
+  const { session } = useSession();
+  const pending = useResource<{ proposals: PendingProposal[] }>(
+    session?.organizationId
+      ? `/organizations/${session.organizationId}/assumption-proposals/pending`
+      : null,
+  );
+
+  const proposals = pending.data?.proposals ?? [];
+  if (pending.loading || proposals.length === 0) return null;
+
+  const shown = proposals.slice(0, 8);
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>Assumption decisions waiting</h2>
+        <span className="badge warning">{proposals.length}</span>
+      </div>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        Something outside these models has a view on one of their assumptions, and nobody has said
+        yet whether to use it. Oldest first.
+      </p>
+      <ul className="pinned-list">
+        {shown.map((proposal) => (
+          <li key={proposal.id}>
+            {/* A rotor lists every control on the page by its accessible
+                name, and several pending proposals commonly land on the same
+                model at once (a source reporting more than one assumption),
+                which would otherwise leave two links both named "Harborview
+                Tower · Valuation - 31 December 2026" with nothing to tell
+                them apart. The visible text stays the short property/model
+                pair; aria-label carries the one thing that actually
+                distinguishes this row from a sibling on the same model. */}
+            <Link
+              to={`/models/${proposal.model_id}/provenance`}
+              aria-label={`${proposal.property_name} · ${proposal.model_name}: ${describeTarget(proposal.target)} from ${proposal.source_name}`}
+            >
+              {proposal.property_name} · {proposal.model_name}
+            </Link>
+            <span className="field-hint">
+              {' '}
+              · {describeTarget(proposal.target)} from {proposal.source_name}, proposed{' '}
+              {formatDateTime(proposal.created_at)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {proposals.length > shown.length && (
+        <p className="field-hint" style={{ marginBottom: 0 }}>
+          +{proposals.length - shown.length} more waiting.
+        </p>
+      )}
+    </div>
   );
 }
 
