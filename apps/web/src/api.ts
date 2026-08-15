@@ -208,6 +208,19 @@ export type CashFlowResponse = Pick<
   areaUnit: string;
 };
 
+export interface WorkflowStep {
+  key: string;
+  label: string;
+  tab: string;
+  optional: boolean;
+  done: boolean;
+  detail: string;
+}
+
+export interface WorkflowResponse {
+  steps: WorkflowStep[];
+}
+
 export interface CalculateResponse {
   runId: string;
   engineVersion: string;

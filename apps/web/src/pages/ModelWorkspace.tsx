@@ -6,6 +6,8 @@ import {
   type CashFlowResponse,
   type Model,
   type Property,
+  type WorkflowResponse,
+  type WorkflowStep,
 } from '../api.js';
 import { EmptyState, ErrorMessage, FavouriteButton, Loading, StatusBadge } from '../components.js';
 import { formatDate, titleCase } from '../format.js';
@@ -71,6 +73,9 @@ export function ModelWorkspace(): JSX.Element {
   const cashFlowResource = useResource<CashFlowResponse>(
     modelId ? `/models/${modelId}/cashflow` : null,
   );
+  const workflowResource = useResource<WorkflowResponse>(
+    modelId ? `/models/${modelId}/workflow` : null,
+  );
 
   const visitedModel = modelResource.data?.model;
   useEffect(() => {
@@ -100,10 +105,13 @@ export function ModelWorkspace(): JSX.Element {
             : `Calculated with engine ${result.engineVersion}.`,
         );
         cashFlowResource.reload();
+        // The "Calculate" step (and, on a first successful run, nothing
+        // else) can only just have flipped to done.
+        workflowResource.reload();
       }
     },
     // Deps are listed deliberately; see the comment above.
-    [calculation.run, cashFlowResource.reload],
+    [calculation.run, cashFlowResource.reload, workflowResource.reload],
   );
 
   // Recalculate without leaving the keyboard, the way an analyst works.
@@ -177,6 +185,8 @@ export function ModelWorkspace(): JSX.Element {
       )}
       <ErrorMessage error={calculation.error} />
 
+      {workflowResource.data && <WorkflowProgress steps={workflowResource.data.steps} />}
+
       <nav className="tabs" aria-label="Model sections">
         {TABS.map((tab) => (
           <NavLink key={tab.label} to={tab.to} end={tab.end}>
@@ -187,5 +197,44 @@ export function ModelWorkspace(): JSX.Element {
 
       <Outlet context={context} />
     </>
+  );
+}
+
+/**
+ * The workflow/progress surface: Setup -> Rent Roll -> Imports -> Operating
+ * -> Capital -> Debt -> Calculate -> Scenarios -> Review -> Output. `done`
+ * comes from `GET /models/:id/workflow`, which reads real rows rather than
+ * a "visited this tab" flag — reloading the page, or a second person
+ * opening the model, sees the same state.
+ *
+ * Deliberately a plain status list, not a second set of links to the tabs
+ * below: several step names are, by design, the same word as the tab that
+ * moves them forward ("Rent Roll", "Imports", "Scenarios", "Review" all
+ * name a real tab in `TABS`), and a `role="link"` element repeating that
+ * exact word would be indistinguishable, by accessible name, from the tab
+ * itself to anything that queries by role and name rather than by position
+ * — which is how every other test in this suite already finds a tab.
+ * Making these non-interactive status text avoids inventing a second,
+ * ambiguous way to reach the same destination the tab strip immediately
+ * below already provides.
+ */
+function WorkflowProgress({ steps }: { steps: WorkflowStep[] }): JSX.Element {
+  return (
+    <ul className="workflow-progress" aria-label="Underwriting workflow">
+      {steps.map((step) => (
+        <li
+          key={step.key}
+          className={`workflow-step ${step.done ? 'done' : ''}`}
+          title={step.detail}
+        >
+          <span className="workflow-step-mark" aria-hidden="true">
+            {step.done ? '✓' : '○'}
+          </span>
+          <span className="visually-hidden">{step.done ? 'Done: ' : 'Not done: '}</span>
+          {step.label}
+          {step.optional && <span className="workflow-step-optional"> (optional)</span>}
+        </li>
+      ))}
+    </ul>
   );
 }

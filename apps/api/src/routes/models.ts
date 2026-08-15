@@ -7,6 +7,7 @@ import {
   buildModelInput,
   deleteLease,
   getModel,
+  getModelWorkflowCounts,
   getProperty,
   listLeases,
   listModelVersions,
@@ -131,6 +132,138 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
     if (!model) throw notFound('That model does not exist in this organization.');
     const property = await getProperty(request.db, context.organizationId, model.property_id);
     return { model, property };
+  });
+
+  /**
+   * The workflow/progress surface: Setup -> Rent Roll -> Imports ->
+   * Operating -> Capital -> Debt -> Calculate -> Scenarios -> Review ->
+   * Output, each step's "done" state read from real rows rather than from
+   * whether the analyst has ever clicked on the corresponding tab — a
+   * signal that survives a reload, a shared link, or a second person
+   * picking the model back up, none of which a client-side "visited"
+   * flag would.
+   */
+  app.get('/models/:id/workflow', async (request) => {
+    const context = requireCapability(request, 'model:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const model = await getModel(request.db, context.organizationId, id);
+    if (!model) throw notFound('That model does not exist in this organization.');
+
+    const counts = await getModelWorkflowCounts(
+      request.db,
+      context.organizationId,
+      id,
+      model.property_id,
+    );
+    const reviewed = ['analyst_review', 'manager_review', 'approved', 'published'].includes(
+      model.status,
+    );
+
+    const steps = [
+      {
+        key: 'setup',
+        label: 'Setup',
+        tab: 'rent-roll',
+        optional: false,
+        done: counts.spaceCount > 0,
+        detail:
+          counts.spaceCount > 0
+            ? `${counts.spaceCount} space${counts.spaceCount === 1 ? '' : 's'} defined`
+            : 'No spaces defined on the property yet',
+      },
+      {
+        key: 'rent_roll',
+        label: 'Rent Roll',
+        tab: 'rent-roll',
+        optional: false,
+        done: counts.leaseCount > 0,
+        detail:
+          counts.leaseCount > 0
+            ? `${counts.leaseCount} lease${counts.leaseCount === 1 ? '' : 's'}`
+            : 'No leases entered yet',
+      },
+      {
+        key: 'imports',
+        label: 'Imports',
+        tab: 'assumption-import',
+        optional: true,
+        done: counts.appliedImportCount > 0,
+        detail:
+          counts.appliedImportCount > 0
+            ? `${counts.appliedImportCount} import${counts.appliedImportCount === 1 ? '' : 's'} applied`
+            : 'No imports applied — optional',
+      },
+      {
+        key: 'operating',
+        label: 'Operating',
+        tab: 'assumptions',
+        optional: false,
+        done: counts.operatingExpenseCount > 0,
+        detail:
+          counts.operatingExpenseCount > 0
+            ? `${counts.operatingExpenseCount} operating expense${counts.operatingExpenseCount === 1 ? '' : 's'}`
+            : 'No operating expenses entered yet',
+      },
+      {
+        key: 'capital',
+        label: 'Capital',
+        tab: 'assumptions',
+        optional: true,
+        done: counts.capitalItemCount > 0,
+        detail:
+          counts.capitalItemCount > 0
+            ? `${counts.capitalItemCount} capital item${counts.capitalItemCount === 1 ? '' : 's'}`
+            : 'No capital items — optional',
+      },
+      {
+        key: 'debt',
+        label: 'Debt',
+        tab: 'assumptions',
+        optional: true,
+        done: counts.debtFacilityCount > 0,
+        detail:
+          counts.debtFacilityCount > 0
+            ? `${counts.debtFacilityCount} debt facilit${counts.debtFacilityCount === 1 ? 'y' : 'ies'}`
+            : 'Unlevered — no debt facilities',
+      },
+      {
+        key: 'calculate',
+        label: 'Calculate',
+        tab: '.',
+        optional: false,
+        done: counts.hasSucceededCalculation,
+        detail: counts.hasSucceededCalculation ? 'Calculated at least once' : 'Not calculated yet',
+      },
+      {
+        key: 'scenarios',
+        label: 'Scenarios',
+        tab: 'scenarios',
+        optional: true,
+        done: counts.siblingModelCount > 0,
+        detail:
+          counts.siblingModelCount > 0
+            ? `${counts.siblingModelCount} other model${counts.siblingModelCount === 1 ? '' : 's'} on this property`
+            : 'No alternate case cloned yet — optional',
+      },
+      {
+        key: 'review',
+        label: 'Review',
+        tab: 'review',
+        optional: false,
+        done: reviewed,
+        detail: reviewed ? `Status: ${model.status.replace(/_/g, ' ')}` : 'Not yet submitted',
+      },
+      {
+        key: 'output',
+        label: 'Output',
+        tab: 'reports',
+        optional: true,
+        done: model.status === 'published',
+        detail: model.status === 'published' ? 'Published' : 'Not yet published',
+      },
+    ];
+
+    return { steps };
   });
 
   app.patch('/models/:id', async (request) => {
