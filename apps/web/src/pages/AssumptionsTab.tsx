@@ -15,13 +15,6 @@ import { useMutation, useResource, useUnsavedChangesWarning } from '../hooks.js'
 import { useSession } from '../session.js';
 import { useModelContext } from './ModelWorkspace.js';
 
-interface GrowthCurveTemplate {
-  code: string;
-  name: string;
-  default_rate: string;
-  by_year: Array<{ year: number; rate: string }>;
-}
-
 /**
  * Model assumptions: the valuation inputs, the vacancy allowances, and the
  * model-scoped collections (expenses, other revenue, capital, debt, growth
@@ -137,8 +130,37 @@ export function AssumptionsTab(): JSX.Element {
           { key: 'new_ti_per_area', label: 'New TI', numeric: true },
           { key: 'renewal_ti_per_area', label: 'Renewal TI', numeric: true },
           { key: 'precedence', label: 'Precedence', numeric: true },
+          {
+            key: 'source_template_name',
+            label: 'Source',
+            transform: (value) => `Library: ${value}`,
+          },
         ]}
         description="Rollover is modelled probability-weighted: a renewal branch at the renewal probability and a new-lease branch at its complement, with downtime applied only to the new-lease branch. Precedence resolves overlaps; the winner is recorded in the trace."
+        librarySegment="market-leasing-profile-templates"
+        templateToDraft={(t) => ({
+          code: t.code,
+          name: t.name,
+          marketRent: t.market_rent,
+          marketRentBasis: t.market_rent_basis,
+          marketRentGrowthCurve: t.market_rent_growth_curve,
+          renewalProbability: t.renewal_probability,
+          renewalTermMonths: t.renewal_term_months,
+          newLeaseTermMonths: t.new_lease_term_months,
+          downtimeMonths: t.downtime_months,
+          renewalFreeRentMonths: t.renewal_free_rent_months,
+          newFreeRentMonths: t.new_free_rent_months,
+          renewalTiPerArea: t.renewal_ti_per_area,
+          newTiPerArea: t.new_ti_per_area,
+          renewalLcPercent: t.renewal_lc_percent,
+          newLcPercent: t.new_lc_percent,
+          renewalEscalation: t.renewal_escalation,
+          newEscalation: t.new_escalation,
+          recovery: t.recovery,
+          precedence: t.precedence,
+          sourceTemplateCode: t.code,
+          sourceTemplateName: t.name,
+        })}
       />
 
       <Collection
@@ -157,6 +179,15 @@ export function AssumptionsTab(): JSX.Element {
           },
         ]}
         description="Named annual rates used for inflation, market rent growth, tenant sales and floating-rate index paths. Year one carries a factor of 1.0; growth compounds from year two."
+        librarySegment="growth-curve-templates"
+        templateToDraft={(t) => ({
+          code: t.code,
+          name: t.name,
+          defaultRate: t.default_rate,
+          byYear: t.by_year,
+          sourceTemplateCode: t.code,
+          sourceTemplateName: t.name,
+        })}
       />
     </>
   );
@@ -362,6 +393,8 @@ function Collection({
   description,
   editable,
   onSaved,
+  librarySegment,
+  templateToDraft,
 }: {
   title: string;
   segment: string;
@@ -369,6 +402,15 @@ function Collection({
   description: string;
   editable: boolean;
   onSaved: () => void;
+  /**
+   * The organization-scoped template family this collection can start a new
+   * row from (e.g. `'growth-curve-templates'`), if any. Every reusable
+   * assumption library shares this shape — see `TemplateLibraryCard` in
+   * `Organization.tsx`, where the same templates are maintained.
+   */
+  librarySegment?: string;
+  /** Turns a library entry into the seeded draft `beginFromTemplate` opens. */
+  templateToDraft?: (template: Record<string, unknown>) => Record<string, unknown>;
 }): JSX.Element {
   const { model } = useModelContext();
   const { session } = useSession();
@@ -378,15 +420,14 @@ function Collection({
     [segment, model.currency, model.area_unit],
   );
   /*
-   * The organization's growth curve library (see
-   * `apps/api/src/routes/growth-curve-templates.ts`). Fetched only for this
-   * one segment — every other collection has no library to offer, and
-   * fetching one anyway would be a request nothing on screen uses.
+   * The organization's library for this assumption family, if it has one.
+   * Fetched only when `librarySegment` is given — most collections have no
+   * library yet, and fetching one anyway would be a request nothing on
+   * screen uses.
    */
-  const isGrowthCurves = segment === 'growth-curves';
-  const templates = useResource<{ templates: GrowthCurveTemplate[] }>(
-    isGrowthCurves && editable && session?.organizationId
-      ? `/organizations/${session.organizationId}/growth-curve-templates`
+  const templates = useResource<{ templates: Array<Record<string, unknown>> }>(
+    librarySegment && editable && session?.organizationId
+      ? `/organizations/${session.organizationId}/${librarySegment}`
       : null,
   );
   const [focused, setFocused] = useState<AssumptionRow | null>(null);
@@ -405,9 +446,30 @@ function Collection({
   // row as this screen last saw it, and the server refuses the write if it has
   // moved on since.
   const [openedVersion, setOpenedVersion] = useState<number | null>(null);
+  /*
+   * Set only by `beginFromTemplate`, cleared by every other way of opening
+   * the form. `RecordEditor.submit` only sends fields its own spec knows
+   * about (deliberately — see its own comment), so sourceTemplateCode/
+   * sourceTemplateName would be silently dropped if an analyst starts from
+   * a template, switches to the structured form, and saves from there.
+   * Held apart from `draft`/`editingRecord` so both save paths below can
+   * merge it in regardless of which one the analyst actually used.
+   */
+  const [pendingSourceTemplate, setPendingSourceTemplate] = useState<{
+    code: string;
+    name: string;
+  } | null>(null);
 
   const save = useMutation(async (code: string, body: Record<string, unknown>) =>
-    api.put(`/models/${model.id}/${segment}/${encodeURIComponent(code)}`, body),
+    api.put(`/models/${model.id}/${segment}/${encodeURIComponent(code)}`, {
+      ...body,
+      ...(pendingSourceTemplate
+        ? {
+            sourceTemplateCode: pendingSourceTemplate.code,
+            sourceTemplateName: pendingSourceTemplate.name,
+          }
+        : {}),
+    }),
   );
   const remove = useMutation(async (code: string) =>
     api.delete(`/models/${model.id}/${segment}/${encodeURIComponent(code)}`),
@@ -416,6 +478,7 @@ function Collection({
   function beginEdit(row: Record<string, unknown> | null): void {
     setParseError(null);
     setRawJson(false);
+    setPendingSourceTemplate(null);
     if (row) {
       const {
         id: _id,
@@ -439,37 +502,35 @@ function Collection({
   }
 
   /*
-   * Seeds a new growth curve from a library entry. Not a live reference: this
-   * only fills the draft the same "Add" would open blank, so the result is a
+   * Seeds a new row from a library entry. Not a live reference: this only
+   * fills the draft the same "Add" would open blank, so the result is a
    * normal new row the analyst still reviews and saves — editing the library
    * entry afterward does not reach back into any model that started from it.
    *
-   * sourceTemplateCode/sourceTemplateName travel with the draft and land on
-   * the saved row (see `upsertGrowthCurve`), so the model keeps a record of
-   * where the curve started even though it now owns its own copy — a
-   * snapshot of "what this was called when applied," not a pointer to the
-   * template, which can be renamed or deleted afterward without effect.
+   * `templateToDraft` is expected to include sourceTemplateCode/
+   * sourceTemplateName alongside the fields it copies, so the saved row
+   * keeps a record of where it started even though the model now owns its
+   * own copy — a snapshot of "what this was called when applied," not a
+   * pointer to the template, which can be renamed or deleted afterward
+   * without effect.
+   *
+   * Opens in the raw JSON view even on a collection with a structured
+   * `RecordEditor` (market leasing does) — the seeded values, including
+   * sourceTemplateCode/sourceTemplateName, are worth seeing plainly right
+   * after starting from a template. `editingRecord` is filled too, from the
+   * same object, so switching to the structured form (a button the raw view
+   * already offers) shows what was seeded instead of opening blank — that
+   * button reads `editingRecord`, not `draft`.
    */
-  function beginFromTemplate(template: GrowthCurveTemplate): void {
+  function beginFromTemplate(template: Record<string, unknown>): void {
     setParseError(null);
-    setRawJson(false);
+    setRawJson(true);
     setEditing('');
     setOpenedVersion(null);
-    setEditingRecord(null);
-    setDraft(
-      JSON.stringify(
-        {
-          code: template.code,
-          name: template.name,
-          defaultRate: template.default_rate,
-          byYear: template.by_year,
-          sourceTemplateCode: template.code,
-          sourceTemplateName: template.name,
-        },
-        null,
-        2,
-      ),
-    );
+    setPendingSourceTemplate({ code: String(template.code), name: String(template.name) });
+    const seeded = templateToDraft?.(template) ?? {};
+    setEditingRecord(seeded);
+    setDraft(JSON.stringify(seeded, null, 2));
   }
 
   async function submit(event: React.FormEvent): Promise<void> {
@@ -503,13 +564,13 @@ function Collection({
         <h2 style={{ margin: 0 }}>{title}</h2>
         <span className="badge">{resource.data?.items.length ?? 0}</span>
         <div className="spacer" />
-        {isGrowthCurves && editable && (templates.data?.templates.length ?? 0) > 0 && (
+        {librarySegment && editable && (templates.data?.templates.length ?? 0) > 0 && (
           <>
-            <label htmlFor="growth-curve-template" className="visually-hidden">
-              Start a new growth curve from the organization's library
+            <label htmlFor={`${segment}-template`} className="visually-hidden">
+              Start a new {title.toLowerCase().replace(/s$/, '')} from the organization's library
             </label>
             <select
-              id="growth-curve-template"
+              id={`${segment}-template`}
               value=""
               onChange={(event) => {
                 const template = templates.data?.templates.find(
@@ -520,8 +581,8 @@ function Collection({
             >
               <option value="">Start from library…</option>
               {templates.data?.templates.map((template) => (
-                <option key={template.code} value={template.code}>
-                  {template.name}
+                <option key={String(template.code)} value={String(template.code)}>
+                  {String(template.name)}
                 </option>
               ))}
             </select>

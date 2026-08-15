@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Role } from '@cre/domain-models';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading, Metric, StatusBadge } from '../components.js';
-import { formatDateTime, formatPercent, titleCase } from '../format.js';
+import { formatDateTime, formatNumber, formatPercent, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
 
@@ -209,7 +209,69 @@ export function OrganizationPage(): JSX.Element {
         </div>
       )}
 
-      {orgId && can('model:write') && <GrowthCurveLibraryCard orgId={orgId} />}
+      {orgId && can('model:write') && (
+        <>
+          <TemplateLibraryCard
+            orgId={orgId}
+            segment="growth-curve-templates"
+            title="Growth curve library"
+            description="Named rate paths any model in this organization can start a growth curve from. A model keeps its own copy once applied — editing or removing an entry here never changes a model that already used it."
+            emptyBody="Every model still enters its own growth curves by hand until this library has something in it."
+            newItemSkeleton={{ name: '', defaultRate: '0', byYear: [] }}
+            columns={[
+              {
+                key: 'default_rate',
+                label: 'Default rate',
+                numeric: true,
+                format: (value) => formatPercent(value as string),
+              },
+              {
+                key: 'by_year',
+                label: 'Overrides',
+                numeric: true,
+                format: (value) => String((value as unknown[] | null)?.length ?? 0),
+              },
+            ]}
+          />
+          <TemplateLibraryCard
+            orgId={orgId}
+            segment="market-leasing-profile-templates"
+            title="Market leasing profile library"
+            description="A firm's standard renewal probability, downtime, free rent, TI and LC assumptions, reusable across every model in this organization. Applying one seeds a new profile's fields; the model owns its own copy from that point, exactly like the growth curve library above."
+            emptyBody="Every model still enters its own market leasing assumptions by hand until this library has something in it."
+            newItemSkeleton={{
+              name: '',
+              marketRent: '0',
+              marketRentBasis: 'per_area_per_year',
+              renewalProbability: '0.65',
+              downtimeMonths: 6,
+              newFreeRentMonths: 3,
+              newTiPerArea: '0',
+              renewalTiPerArea: '0',
+            }}
+            columns={[
+              {
+                key: 'market_rent',
+                label: 'Market rent',
+                numeric: true,
+                format: (value) => formatNumber(value as string),
+              },
+              {
+                key: 'renewal_probability',
+                label: 'Renewal probability',
+                numeric: true,
+                format: (value) => formatPercent(value as string),
+              },
+              {
+                key: 'downtime_months',
+                label: 'Downtime',
+                numeric: true,
+                format: (value) => formatNumber(value as string),
+              },
+            ]}
+          />
+        </>
+      )}
 
       {canInvite && (
         <div className="card">
@@ -283,56 +345,83 @@ export function OrganizationPage(): JSX.Element {
   );
 }
 
-interface GrowthCurveTemplate {
-  code: string;
-  name: string;
-  default_rate: string;
-  by_year: Array<{ year: number; rate: string }>;
+interface TemplateColumn {
+  key: string;
+  label: string;
+  numeric?: boolean;
+  format?: (value: unknown) => string;
+}
+
+/** camelCases a row read back from the API, so the JSON draft an analyst
+ *  edits matches the camelCase body every write route already expects. */
+function toCamel(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    out[key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())] = value;
+  }
+  return out;
 }
 
 /**
- * The organization's growth curve library — Argus's "Global Value File"
- * concept for a reusable rate assumption. A growth curve has always been
- * model-scoped only (`packages/database/migrations/0003`); this is the
- * first assumption reusable across models, so a portfolio's inflation and
- * market-rent-growth paths can be kept in step instead of re-typed by hand
- * in every model.
- *
- * Applying an entry is not a live reference: the model's own "Start from
- * library" picker (`AssumptionsTab.tsx`) only seeds a new row's fields, and
- * from that point the model owns its own copy, exactly like every other
- * assumption here. Editing or deleting a library entry never changes a model
- * that already started from it.
+ * An organization-scoped, code-addressable assumption library: growth
+ * curves, market leasing profiles, and every reusable template family after
+ * them share this exact shape (`docs/commercial-gap-analysis.md` item 13).
+ * A firm's standard assumption is entered once here; a model's own "Start
+ * from library" picker (`AssumptionsTab.tsx`) seeds a new row's fields from
+ * it, and from that point the model owns its own copy, exactly like every
+ * other assumption in this schema. Editing or deleting a library entry
+ * never changes a model that already started from it — this card only ever
+ * calls the organization-scoped `/organizations/:id/${segment}` routes,
+ * never anything under `/models/:id/...`.
  */
-function GrowthCurveLibraryCard({ orgId }: { orgId: string }): JSX.Element {
-  const templates = useResource<{ templates: GrowthCurveTemplate[] }>(
-    `/organizations/${orgId}/growth-curve-templates`,
+function TemplateLibraryCard({
+  orgId,
+  segment,
+  title,
+  description,
+  emptyBody,
+  columns,
+  newItemSkeleton,
+}: {
+  orgId: string;
+  segment: string;
+  title: string;
+  description: string;
+  emptyBody: string;
+  columns: TemplateColumn[];
+  newItemSkeleton: Record<string, unknown>;
+}): JSX.Element {
+  const templates = useResource<{ templates: Array<Record<string, unknown>> }>(
+    `/organizations/${orgId}/${segment}`,
   );
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
 
   const save = useMutation(async (code: string, body: Record<string, unknown>) =>
-    api.put(`/organizations/${orgId}/growth-curve-templates/${encodeURIComponent(code)}`, body),
+    api.put(`/organizations/${orgId}/${segment}/${encodeURIComponent(code)}`, body),
   );
   const remove = useMutation(async (code: string) =>
-    api.delete(`/organizations/${orgId}/growth-curve-templates/${encodeURIComponent(code)}`),
+    api.delete(`/organizations/${orgId}/${segment}/${encodeURIComponent(code)}`),
   );
 
-  function beginEdit(template: GrowthCurveTemplate | null): void {
+  function beginEdit(template: Record<string, unknown> | null): void {
     setParseError(null);
     if (template) {
-      setEditing(template.code);
-      setDraft(
-        JSON.stringify(
-          { name: template.name, defaultRate: template.default_rate, byYear: template.by_year },
-          null,
-          2,
-        ),
-      );
+      const {
+        id: _id,
+        organization_id: _organizationId,
+        created_by: _createdBy,
+        created_at: _createdAt,
+        updated_at: _updatedAt,
+        code: _code,
+        ...rest
+      } = template;
+      setEditing(String(template.code));
+      setDraft(JSON.stringify(toCamel(rest), null, 2));
     } else {
       setEditing('');
-      setDraft(JSON.stringify({ code: '', name: '', defaultRate: '0', byYear: [] }, null, 2));
+      setDraft(JSON.stringify({ code: '', ...newItemSkeleton }, null, 2));
     }
   }
 
@@ -361,80 +450,94 @@ function GrowthCurveLibraryCard({ orgId }: { orgId: string }): JSX.Element {
   return (
     <div className="card">
       <div className="row" style={{ marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>Growth curve library</h2>
+        <h2 style={{ margin: 0 }}>{title}</h2>
         <span className="badge">{templates.data?.templates.length ?? 0}</span>
         <div className="spacer" />
-        <button type="button" onClick={() => beginEdit(null)}>
+        <button type="button" aria-label={`Add to ${title}`} onClick={() => beginEdit(null)}>
           Add
         </button>
       </div>
       <p className="field-hint" style={{ marginTop: 0 }}>
-        Named rate paths any model in this organization can start a growth curve from. A model keeps
-        its own copy once applied — editing or removing an entry here never changes a model that
-        already used it.
+        {description}
       </p>
 
       <ErrorMessage error={templates.error} />
-      {templates.loading && <Loading label="Loading the growth curve library" />}
+      {templates.loading && <Loading label={`Loading ${title.toLowerCase()}`} />}
 
       {templates.data && templates.data.templates.length === 0 ? (
         <EmptyState
           title="No templates yet"
           action={
-            <button type="button" className="primary" onClick={() => beginEdit(null)}>
+            <button
+              type="button"
+              className="primary"
+              aria-label={`Add the first entry to ${title}`}
+              onClick={() => beginEdit(null)}
+            >
               Add the first one
             </button>
           }
         >
-          Every model still enters its own growth curves by hand until this library has something in
-          it.
+          {emptyBody}
         </EmptyState>
       ) : (
         templates.data && (
           <div className="table-scroll" tabIndex={0}>
             <table>
-              <caption className="visually-hidden">Growth curve library</caption>
+              <caption className="visually-hidden">{title}</caption>
               <thead>
                 <tr>
                   <th scope="col">Code</th>
                   <th scope="col">Name</th>
-                  <th scope="col" className="numeric">
-                    Default rate
-                  </th>
-                  <th scope="col" className="numeric">
-                    Overrides
-                  </th>
+                  {columns.map((column) => (
+                    <th key={column.key} scope="col" className={column.numeric ? 'numeric' : ''}>
+                      {column.label}
+                    </th>
+                  ))}
                   <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {templates.data.templates.map((template) => (
-                  <tr key={template.code}>
-                    <th scope="row">{template.code}</th>
-                    <td>{template.name}</td>
-                    <td className="numeric">{formatPercent(template.default_rate)}</td>
-                    <td className="numeric">{template.by_year.length}</td>
-                    <td>
-                      <button type="button" className="subtle" onClick={() => beginEdit(template)}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="subtle"
-                        onClick={async () => {
-                          if (
-                            window.confirm(`Remove "${template.name}" from the library?`) &&
-                            (await remove.run(template.code))
-                          ) {
-                            templates.reload();
-                          }
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {templates.data.templates.map((template) => {
+                  const code = String(template.code);
+                  const name = String(template.name ?? code);
+                  return (
+                    <tr key={code}>
+                      <th scope="row">{code}</th>
+                      <td>{name}</td>
+                      {columns.map((column) => (
+                        <td key={column.key} className={column.numeric ? 'numeric' : ''}>
+                          {column.format
+                            ? column.format(template[column.key])
+                            : String(template[column.key] ?? '—')}
+                        </td>
+                      ))}
+                      <td>
+                        <button
+                          type="button"
+                          className="subtle"
+                          onClick={() => beginEdit(template)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="subtle"
+                          onClick={async () => {
+                            if (
+                              window.confirm(`Remove "${name}" from the library?`) &&
+                              (await remove.run(code))
+                            ) {
+                              templates.reload();
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -463,10 +566,19 @@ function GrowthCurveLibraryCard({ orgId }: { orgId: string }): JSX.Element {
             />
           </Field>
           <div className="row">
-            <button type="submit" className="primary" disabled={save.pending}>
+            <button
+              type="submit"
+              className="primary"
+              disabled={save.pending}
+              aria-label={`${save.pending ? 'Saving' : 'Save'} ${title}`}
+            >
               {save.pending ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={() => setEditing(null)}>
+            <button
+              type="button"
+              aria-label={`Cancel editing ${title}`}
+              onClick={() => setEditing(null)}
+            >
               Cancel
             </button>
           </div>

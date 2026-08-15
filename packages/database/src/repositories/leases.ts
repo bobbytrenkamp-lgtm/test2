@@ -423,6 +423,15 @@ export async function upsertMarketLeasingProfile(
     newEscalation?: Record<string, unknown>;
     recovery?: Record<string, unknown>;
     precedence?: number;
+    /**
+     * Set only when this row was seeded from the organization's market
+     * leasing profile library. A snapshot, not a live reference — see
+     * migration 0022. Deliberately absent from `ON CONFLICT` below, for the
+     * same reason `upsertGrowthCurve` leaves it out: a plain edit never
+     * carries these, and must not erase where the row originally came from.
+     */
+    sourceTemplateCode?: string | null;
+    sourceTemplateName?: string | null;
   },
 ): Promise<CollectionRow> {
   const rows = (await sql`
@@ -430,7 +439,8 @@ export async function upsertMarketLeasingProfile(
       model_id, code, name, market_rent, market_rent_basis, market_rent_growth_curve,
       renewal_probability, renewal_term_months, new_lease_term_months, downtime_months,
       renewal_free_rent_months, new_free_rent_months, renewal_ti_per_area, new_ti_per_area,
-      renewal_lc_percent, new_lc_percent, renewal_escalation, new_escalation, recovery, precedence
+      renewal_lc_percent, new_lc_percent, renewal_escalation, new_escalation, recovery, precedence,
+      source_template_code, source_template_name
     ) VALUES (
       ${input.modelId}, ${input.code}, ${input.name}, ${input.marketRent},
       ${input.marketRentBasis ?? 'per_area_per_year'}, ${input.marketRentGrowthCurve ?? null},
@@ -441,7 +451,8 @@ export async function upsertMarketLeasingProfile(
       ${input.renewalLcPercent ?? '0'}, ${input.newLcPercent ?? '0'},
       ${sql.json((input.renewalEscalation ?? {}) as never)},
       ${sql.json((input.newEscalation ?? {}) as never)},
-      ${sql.json((input.recovery ?? {}) as never)}, ${input.precedence ?? 0}
+      ${sql.json((input.recovery ?? {}) as never)}, ${input.precedence ?? 0},
+      ${input.sourceTemplateCode ?? null}, ${input.sourceTemplateName ?? null}
     )
     ON CONFLICT (model_id, code) DO UPDATE SET
       name = EXCLUDED.name, market_rent = EXCLUDED.market_rent,

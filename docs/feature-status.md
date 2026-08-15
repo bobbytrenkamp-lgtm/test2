@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1261 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1272 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -82,6 +82,7 @@ Tests       1261 passed (251 engine regression, 31 engine unit, 16 fund,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 6 organization export,
                          11 the growth curve library and its provenance,
+                         11 the market leasing profile library and its provenance,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
@@ -96,13 +97,13 @@ Tests       1261 passed (251 engine regression, 31 engine unit, 16 fund,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
                          7 sensitivity and scenario-batch input validation)
-Browser     200 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     201 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 lease editor, search and sort,
                          11 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
                          11 health, drivers and timeline,
-                         6 assumption provenance, 6 assumptions editor, 4 favourites,
+                         6 assumption provenance, 7 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
                          5 funds, 2 version comparison, 4 review comments,
@@ -112,7 +113,7 @@ Browser     200 passed  (3 sign-in, 5 underwriting and the virtualised grid,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (378 kB, 106 kB gzipped)
-Migrations  21 applied against PostgreSQL 16
+Migrations  22 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
