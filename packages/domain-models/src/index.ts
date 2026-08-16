@@ -9,4 +9,5 @@ export * from './assumption-import-analyze.js';
 export * from './cre-property-research.js';
 export * from './research-interfaces.js';
 export * from './research-to-proposal.js';
+export * from './research-comparison.js';
 export * from './entitlements.js';
