@@ -238,8 +238,16 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       );
     }
 
+    // `mapRows` never puts an error row in `result.leases` to begin with
+    // (an erroring row is excluded before it ever reaches the array), so
+    // filtering `result.leases` by `errorRows` here removes nothing — it is
+    // kept as defense in depth, not because it currently does anything.
+    // `errorRows.size` (not `result.leases.length - importable.length`,
+    // which is always zero for exactly that reason) is what actually counts
+    // the rows a caller's `skipRowsWithErrors` left out.
     const errorRows = new Set(errors.map((issue) => issue.rowIndex));
     const importable = result.leases.filter((lease) => !errorRows.has(lease.rowIndex));
+    const skipped = errorRows.size;
 
     // Tenants are matched by name inside the property before a new one is
     // created, so re-importing an updated rent roll does not duplicate them.
@@ -311,13 +319,13 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       entityId: body.batchId ?? null,
       modelId: id,
       propertyId: model.property_id,
-      metadata: { imported, skipped: result.leases.length - importable.length },
+      metadata: { imported, skipped },
       ipAddress: request.ip,
     });
 
     return {
       imported,
-      skipped: result.leases.length - importable.length,
+      skipped,
       warnings: result.issues.filter((issue) => issue.severity === 'warning'),
       scanned: upload.scanned,
     };

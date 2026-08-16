@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1415 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1420 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -111,7 +111,8 @@ Tests       1415 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 malware scanner driver selection,
                          5 malware scanning at the API boundary,
                          4 the worker's own tick orchestration,
-                         8 model cloning, 4 sensitivity grid values)
+                         8 model cloning, 4 sensitivity grid values,
+                         5 rent-roll import commit path)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -260,7 +261,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
 | Reports (JSON, CSV, XLSX, print HTML) | Functional | |
 | Portable JSON export | Functional | Documented, non-proprietary |
-| Rent-roll import (analyse, validate, commit) | Functional | Parsing itself is Tested |
+| Rent-roll import (analyse, validate, commit) | Tested | Parsing itself was already Tested; the commit route's own behaviour — tenant dedup by name across a re-import, `skipRowsWithErrors`, `saveMappingAs`, the model-status guard, the audit trail — now is too. Found and fixed in the process: the response's `skipped` count was dead code that could never report anything but zero, silently defeating a warning `SupportTabs.tsx` already displayed when it was nonzero |
 | Audit read and NDJSON export | Tested | |
 | Capability checks on every protected route | Tested | 23 tests |
 | Cross-organization isolation | Tested | 10 dedicated tests |
