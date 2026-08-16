@@ -126,3 +126,49 @@ test('is accessible with a real version comparison rendered', async ({ page }) =
   );
   expect(summary, summary.join('\n')).toEqual([]);
 });
+
+/**
+ * Found by a repository-wide correctness audit: every approval-workflow
+ * button (Submit, Approve, Reject, Publish, Withdraw, Archive) was gated
+ * only by `model:read` — a capability nearly every role has — instead of
+ * the transition-specific capability
+ * (`packages/domain-models/src/permissions.ts`'s own `TRANSITIONS` table,
+ * the same table `POST /models/:id/transition` enforces server-side) each
+ * button actually requires. An analyst has `model:submit` but not
+ * `model:approve`, so on a model awaiting analyst review they would see
+ * both "Send to manager review" (real) and "Return to draft" (`model
+ * :approve`, which they lack) as equally clickable — a button that does
+ * nothing but a rejected request when pressed.
+ */
+test.describe('as an analyst without approval capability', () => {
+  test.use({ storageState: sessionFile('analyst') });
+
+  test('sees only the transition it can actually perform enabled', async ({ page }) => {
+    const modelId = await isolatedModel(page);
+    // `model:submit` is exactly the capability this transition requires, and
+    // exactly what the analyst role holds -- this call is the same "Submit
+    // for analyst review" action the UI itself would perform.
+    const submitted = await page.request.post(`/api/v1/models/${modelId}/transition`, {
+      headers: HEADERS,
+      data: { to: 'analyst_review' },
+    });
+    expect(submitted.status(), await submitted.text()).toBe(200);
+
+    await page.goto(`/models/${modelId}/review`);
+    await expect(page.getByRole('heading', { name: 'Approval workflow' })).toBeVisible();
+
+    // Real transition this role can make: enabled.
+    await expect(page.getByRole('button', { name: 'Send to manager review' })).toBeEnabled();
+
+    // "Return to draft" from analyst_review requires `model:approve`
+    // (`TRANSITIONS` in permissions.ts), which the analyst role does not
+    // hold. Before the fix this was enabled, because every button shared
+    // the same `model:read` gate.
+    const returnToDraft = page.getByRole('button', { name: 'Return to draft' });
+    await expect(returnToDraft).toBeDisabled();
+    await expect(returnToDraft).toHaveAttribute(
+      'title',
+      'You do not have permission to make this change.',
+    );
+  });
+});

@@ -427,6 +427,12 @@ export function RentRollTab(): JSX.Element {
 
       {(creating || editing) && (
         <LeaseEditor
+          // Keyed on which lease (or "new") is open: without this, jumping
+          // from one lease's editor straight to another's — or from a new
+          // draft to an existing lease — via the toolbar button, without
+          // cancelling first, would keep this component mounted and leave
+          // its form state showing the previous lease or draft.
+          key={editing ?? '__new__'}
           modelId={model.id}
           currency={model.currency}
           spaces={spaces.data?.spaces ?? []}

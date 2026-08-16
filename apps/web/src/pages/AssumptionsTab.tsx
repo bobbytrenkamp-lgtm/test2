@@ -806,6 +806,11 @@ function Collection({
       {editing !== null &&
         (recordSpec && !rawJson ? (
           <RecordEditor
+            // Keyed on which row is open: without this, switching from one
+            // row's editor straight to another's (via the toolbar button,
+            // without cancelling first) would keep this component mounted
+            // and leave its internal form state showing the previous row.
+            key={editing}
             spec={recordSpec}
             initial={editingRecord}
             expectedVersion={openedVersion}
