@@ -324,3 +324,96 @@ describe('a portfolio member with no valuation at all', () => {
     expect(Number(aggregate.totalDebt)).toBeCloseTo(5_000_000, 2);
   });
 });
+
+/**
+ * Portfolio unlevered/levered IRR and equity multiple, for a property bought
+ * below its own concluded value.
+ *
+ * Found by a repository-wide correctness audit: `aggregatePortfolio` built
+ * `initialUnlevered`/`initialEquity` from the member's *concluded* DCF or
+ * direct-cap value, not what was actually paid for it. The property-level
+ * `unleveredIrr`/`leveredIrr` in `engine.ts` correctly discount from
+ * `acquisitionBasis + acquisitionCosts` (and the equity actually funded at
+ * close) — buying below or above appraised value is the ordinary case, not a
+ * contrived one, so the two bases routinely differ. A single property held
+ * at 100% ownership must roll up to *exactly* its own property-level IRR and
+ * equity multiple; any drift proves the portfolio is discounting the same
+ * cash flows against a basis the property itself never used.
+ */
+describe('a portfolio member bought below its own concluded value', () => {
+  it('rolls up to exactly the property-level unlevered IRR, levered IRR and equity multiple', () => {
+    const model = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      otherRevenue: [
+        {
+          id: 'OTHER',
+          name: 'Flat other revenue',
+          method: 'custom_monthly_schedule',
+          monthlySchedule: Array.from({ length: 12 }, () => '50000'),
+        },
+      ],
+      valuation: {
+        discountRate: '0',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        // Priced well below the $2,520,000 the sale at a 5% terminal cap
+        // rate is going to realise, so the two bases cannot coincidentally
+        // agree.
+        acquisitionPrice: '1000000',
+        saleMonth: 12,
+        terminalCapRate: '0.05',
+        terminalNoiBasis: 'trailing_12',
+      },
+      debt: [
+        {
+          id: 'D1',
+          name: 'Bridge loan',
+          type: 'bridge',
+          commitment: '500000',
+          initialFunding: '500000',
+          fundingDate: '2026-01-01',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 12,
+        },
+      ],
+    });
+    const result = calculate(model);
+    const dcfValue = Number(result.valuations.find((v) => v.method === 'dcf')?.value);
+    expect(dcfValue).toBeGreaterThan(1_000_000);
+    expect(result.returns.unleveredIrr).not.toBeNull();
+    expect(result.returns.leveredIrr).not.toBeNull();
+
+    const member: PortfolioMember = {
+      propertyId: 'P1',
+      propertyName: 'Fixture Property',
+      propertyType: 'office',
+      market: null,
+      ownershipPercent: '1',
+      rentableArea: '100000',
+      unitCount: 0,
+      result,
+    };
+    const aggregate = aggregatePortfolio([member]);
+
+    // The bug discounted the same cash flows against the ~$3.5M+ direct-cap
+    // value instead of the $3,000,000 actually paid (less debt funded at
+    // close for the levered figure), reporting a materially different,
+    // understated IRR and equity multiple than the property itself.
+    expect(Number(aggregate.portfolioUnleveredIrr)).toBeCloseTo(
+      Number(result.returns.unleveredIrr),
+      8,
+    );
+    expect(Number(aggregate.portfolioLeveredIrr)).toBeCloseTo(Number(result.returns.leveredIrr), 8);
+    expect(Number(aggregate.portfolioEquityMultiple)).toBeCloseTo(
+      Number(result.returns.equityMultiple),
+      8,
+    );
+  });
+});

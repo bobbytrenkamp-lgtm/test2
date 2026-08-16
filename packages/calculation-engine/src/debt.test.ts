@@ -320,3 +320,80 @@ describe("a floating-rate facility's DSCR covenant across a rate step", () => {
     expect(breaches.some((b) => b.periodIndex === 24)).toBe(true);
   });
 });
+
+/**
+ * A facility that both capitalizes interest and amortizes.
+ *
+ * Found by a repository-wide correctness audit: once `pastInterestOnly`, the
+ * loop capitalized that period's interest onto `balance` *and*, in the same
+ * period, computed a level payment against that just-inflated balance, then
+ * subtracted the never-paid `accrued` interest back out as "principal" — a
+ * figure that corresponds to no real amortization schedule, since nothing
+ * was actually paid in cash to justify calling any of it principal
+ * repayment. A construction-to-permanent facility (capitalize through
+ * lease-up, then amortize in cash once stabilised) is the ordinary shape
+ * this combination models, not a contrived one.
+ */
+describe('a facility that capitalizes interest through a window, then amortizes', () => {
+  it('fully retires on schedule once amortization begins, capitalizing nothing further', () => {
+    // $1,000,000 at a flat 12% fixed rate (1%/month) makes every figure hand
+    // -derivable. Capitalizes for month 1 only, then a 2-month level-payment
+    // amortization: a level payment recomputed each period against the
+    // current balance and remaining term is a textbook annuity that retires
+    // to exactly zero at the end of its own schedule, provided (and only
+    // provided) every period after capitalization stops is serviced in cash
+    // rather than having its unpaid interest folded back into the balance
+    // being amortized.
+    const model = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 6,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      debt: [
+        {
+          id: 'D-CAPAM',
+          name: 'Construction-to-permanent facility',
+          type: 'construction',
+          commitment: '1000000',
+          initialFunding: '1000000',
+          fundingDate: '2026-01-01',
+          rateType: 'fixed',
+          fixedRate: '0.12',
+          interestOnlyMonths: 1,
+          amortizationMonths: 2,
+          termMonths: 6,
+          capitalizeInterest: true,
+        },
+      ],
+    });
+
+    const result = calculate(model);
+    const rows = result.debtSchedules[0]?.rows ?? [];
+
+    // Month 1 (index 0): capitalizes, as before the fix. $1,000,000 x 1% =
+    // $10,000 added to balance, nothing paid in cash.
+    expect(rows[0]?.capitalizedInterest).toBe('10000');
+    expect(rows[0]?.cashInterest).toBe('0');
+    expect(rows[0]?.endingBalance).toBe('1010000');
+
+    // Month 2 (index 1): amortization begins. The fix stops capitalizing
+    // here — every dollar of interest from this period on is cash-serviced,
+    // not folded back into the balance being amortized.
+    expect(rows[1]?.capitalizedInterest).toBe('0');
+    expect(Number(rows[1]?.cashInterest)).toBeGreaterThan(0);
+    expect(Number(rows[1]?.principal)).toBeGreaterThan(0);
+
+    // Month 3 (index 2): the second and last scheduled amortization period.
+    // The bug never reached zero here — capitalization kept inflating the
+    // balance every period, including this one, so the two-period schedule
+    // could not and did not retire the loan on time.
+    expect(rows[2]?.capitalizedInterest).toBe('0');
+    expect(rows[2]?.endingBalance).toBe('0');
+
+    // Nothing left to service once retired.
+    expect(rows[3]?.cashInterest).toBe('0');
+    expect(rows[3]?.principal).toBe('0');
+  });
+});

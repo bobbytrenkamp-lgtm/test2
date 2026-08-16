@@ -1594,6 +1594,8 @@ function computeReturns(ctx: ReturnsContext): ReturnMetrics {
     breakevenOccupancy: toStringOrNull(breakevenOccupancy(year1Gpr, year1Opex, year1DebtService)),
     valuePerArea: toStringOrNull(safeDivide(concludedValue, totalRentableArea)),
     valuePerUnit: unitCount === 0 ? null : concludedValue.dividedBy(unitCount).toString(),
+    initialInvestment: initialOutflow.negated().toString(),
+    initialEquity: initialEquity.toString(),
   };
 }
 
@@ -1707,11 +1709,6 @@ function validateModel(
       );
     }
   }
-  const currencies = new Set([input.currency]);
-  if (currencies.size > 1) {
-    trace.error('MULTIPLE_CURRENCIES', 'A model cannot mix currencies.', 'model', 'currency');
-  }
-
   // Every one of these entity types is looked up elsewhere in the engine by
   // its own id, via a Map keyed on that id. A duplicate id is not a merge or
   // a sum there — it is one entry silently shadowing another (whichever the

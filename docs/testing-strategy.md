@@ -41,14 +41,14 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
-| A debt facility funded before the forecast, a draw outside it, a delayed-draw origination fee, and a floating-rate DSCR covenant across a rate step | `packages/calculation-engine/src/debt.test.ts` | 5 | No |
+| A debt facility funded before the forecast, a draw outside it, a delayed-draw origination fee, a floating-rate DSCR covenant across a rate step, and a facility that capitalizes interest through a window then amortizes | `packages/calculation-engine/src/debt.test.ts` | 6 | No |
 | Loan sizing: the level-payment inverse, and each covenant constraint alone, combined and tied | `packages/calculation-engine/src/debt-sizing.test.ts` | 12 | No |
 | Straight-line rent: an escalation spread evenly, a rounding residual, a free-rent period, and the always-zero ending balance | `packages/calculation-engine/src/straight-line-rent.test.ts` | 6 | No |
 | Sales comparison approach: per-comp adjustment and weighting, equal and unequal weighted-average and median reconciliation, and non-positive/empty input rejection | `packages/calculation-engine/src/sales-comparison.test.ts` | 8 | No |
 | Cost approach: per-improvement depreciation, entrepreneurial profit, depreciation clamped to [0, 1] both above and below, land with no improvements, and negative-value rejection | `packages/calculation-engine/src/cost-approach.test.ts` | 8 | No |
 | Equity distributions stop at the sale date, zero-sum contribution shares (capital calls and the residual fallback), and two partners sharing an id | `packages/calculation-engine/src/waterfall.test.ts` | 11 | No |
 | Metrics that annualise a forecast shorter than 12 months | `packages/calculation-engine/src/short-forecast.test.ts` | 4 | No |
-| Portfolio year-1 NOI, weighted exit cap rate and value-weighted ratios on boundary members | `packages/calculation-engine/src/portfolio.test.ts` | 3 | No |
+| Portfolio year-1 NOI, weighted exit cap rate, value-weighted ratios on boundary members, and unlevered/levered IRR discounted from the same basis the property itself used | `packages/calculation-engine/src/portfolio.test.ts` | 4 | No |
 | A cash trap open through the sale date, and a multi-facility cure period | `packages/calculation-engine/src/cash-trap.test.ts` | 3 | No |
 | Zero and negative capitalization and discount rates | `packages/calculation-engine/src/valuation.test.ts` | 11 | No |
 | A renewal option at the forecast horizon, a termination fee, and rollover after a nonzero-cost termination | `packages/calculation-engine/src/lease-options.test.ts` | 4 | No |
@@ -117,7 +117,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1375 tests in total.**
+**1377 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -164,7 +164,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**228 browser tests in total**, for 1603 across the whole repository.
+**228 browser tests in total**, for 1605 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
