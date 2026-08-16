@@ -117,6 +117,10 @@ Validated at startup; the process **refuses to start** if any of these is wrong.
 | `ALLOW_SELF_REGISTRATION` | | Set `false` to require invitations |
 | `STORAGE_DRIVER`, `STORAGE_LOCAL_DIR` | | Object storage abstraction |
 | `AI_ASSISTANT_PROVIDER` | | `none` by default; the assistant is disabled |
+| `MAIL_DRIVER` | | `console` by default — logs the message instead of sending it, which is why password reset works out of the box in development with nothing configured. Set `smtp` to actually deliver mail. |
+| `MAIL_FROM` | | The `From` address on outgoing mail. Defaults to a placeholder that no real deployment should keep. |
+| `SMTP_HOST` | when `MAIL_DRIVER=smtp` | **Required and enforced at startup** once `MAIL_DRIVER=smtp` — the process refuses to start without it, the same way a misconfigured `SESSION_COOKIE_SECURE` refuses. This platform bundles no mail relay; point it at one you operate or one you have an account with. |
+| `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | | Standard SMTP connection settings, passed straight to `nodemailer` |
 
 Secrets belong in the platform's secret manager. `.env` is git-ignored.
 

@@ -8,6 +8,7 @@ import { ENGINE_VERSION } from '@cre/calculation-engine';
 import { createDatabase, recordError, referenceFor, resolveSession, type Sql } from '@cre/database';
 import type { Env } from './env.js';
 import { HttpError, SESSION_COOKIE, assertSameOriginIntent } from './context.js';
+import { createMailer, type Mailer } from './mailer.js';
 import { APP_VERSION } from './version.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerOrganizationRoutes } from './routes/organizations.js';
@@ -36,6 +37,8 @@ export interface ServerOptions {
   env: Env;
   /** Injected in tests so each run gets an isolated pool. */
   db?: Sql;
+  /** Injected in tests to assert on what would have been sent, without a real mailer. */
+  mailer?: Mailer;
   logger?: boolean;
 }
 
@@ -72,6 +75,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     trustProxy: true,
     bodyLimit: 5 * 1024 * 1024,
   });
+
+  const mailer = options.mailer ?? createMailer(env, app.log);
 
   /*
    * Every route this server exposes, recorded as it is registered.
@@ -154,6 +159,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   // their own database without the routes reaching for a module singleton.
   app.addHook('onRequest', async (request) => {
     request.db = db;
+    request.mailer = mailer;
   });
 
   // Identity resolution runs for every request; authorization is per route.

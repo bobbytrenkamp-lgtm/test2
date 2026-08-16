@@ -53,14 +53,15 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1385 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1390 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
                          6 reforecast, 10 comments, 12 tasks, 31 TOTP,
-                         13 multi-factor, 5 route inventory, 9 property-based,
+                         13 multi-factor, 2 password reset, 3 mailer driver selection,
+                         5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
@@ -133,7 +134,7 @@ Drill       21 checks passed (dump, restore, valuations reproduced)
 Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
 Load test   5,000 properties, 200,000 leases; every query inside budget
 Concurrency 200 parallel clients, ~1,000 req/s, p95 200ms, 0 failures
-Licences    343 packages, none requiring payment or a commercial licence
+Licences    345 packages, none requiring payment or a commercial licence
 ```
 
 ---
@@ -212,7 +213,7 @@ Licences    343 packages, none requiring payment or a commercial licence
 | Organizations, users, memberships | Tested | |
 | Sessions, hashed tokens, sliding expiry | Tested | |
 | scrypt password hashing, policy, rehash on login | Tested | |
-| Password reset | Functional | Token returned in non-production; no mailer |
+| Password reset | Tested | Sent through a pluggable mailer (`MAIL_DRIVER=console` by default, logs instead of sending; `smtp` sends for real via `nodemailer`). The reset token is still echoed in non-production for convenience, alongside the same message the mailer sent, not a separate path around it. 5 tests |
 | Invitations | Tested | |
 | Properties, buildings, spaces | Tested | Property and space tested; building CRUD not exposed |
 | Tenants and leases | Tested | |

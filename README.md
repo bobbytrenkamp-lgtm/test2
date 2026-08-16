@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1385 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1390 tests, plus 231 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -170,7 +170,8 @@ of a space reporting the whole space occupied. Each is described in
 
 **Solid and tested.** The calculation engine and its regression library; the
 database schema and migrations; authentication, authorization, multi-factor
-authentication and cross-organization isolation; the deterministic import
+authentication, password reset delivery and cross-organization isolation; the
+deterministic import
 parser, CSV and Excel alike; budgets, actuals and variance reporting; version
 comparison and the approval workflow; the vertical slice from sign-in through
 to a traced valuation and a frozen approval. The browser suite reaches the

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { canUseFeature, roleHasCapability } from '@cre/domain-models';
 import type { AuthenticatedContext, Sql } from '@cre/database';
 import { getEntitlements } from '@cre/database';
+import type { Mailer } from './mailer.js';
 
 /**
  * Request authorization.
@@ -23,6 +24,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     auth?: AuthenticatedContext;
     db: Sql;
+    mailer: Mailer;
   }
 }
 

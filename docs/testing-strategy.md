@@ -76,6 +76,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
+| Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
+| The mailer's driver selection and startup validation | `apps/api/src/mailer.test.ts` | 3 | No |
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
@@ -119,7 +121,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1385 tests in total.**
+**1390 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -166,7 +168,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1616 across the whole repository.
+**231 browser tests in total**, for 1621 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
