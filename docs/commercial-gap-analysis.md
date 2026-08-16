@@ -239,6 +239,67 @@ correctly, including every place doing raw templated SQL with interpolated
 table names (all drawn from a fixed internal registry, never user input — no
 SQL injection found).
 
+A fourth pass, scoped to `packages/reporting/src` and `apps/worker/src` — the
+report/export renderers, rent-roll import parsing, and background job
+handlers, the only two major areas neither of the first three passes had
+touched — found two further real defects and one forward-looking
+correctness fix in a test-only instrument:
+
+11. **The `aggregate_portfolio` background job handler read a portfolio's
+    properties by `portfolioId` alone, with no check that the portfolio
+    belonged to the job's own organization** (`apps/worker/src/handlers.ts`)
+    — the same class of gap as items 8 and 9 above, in the one area of the
+    codebase those two passes had not reached. No current API route enqueues
+    this job kind (`GET /portfolios/:id/aggregate` computes the same thing
+    synchronously and organization-scoped, through a different code path),
+    but `enqueueJob` is a generic, exported function, and a job's handler is
+    the last line of defense against a payload naming another organization's
+    portfolio however it got enqueued. Fixed by adding an organization-scoped
+    `portfolios` ownership check before the aggregate query, plus
+    `organization_id` on the properties join as defense-in-depth. A new test
+    suite, `tests/worker-handlers.test.ts` — the first to call a worker job
+    handler directly rather than through the queue, since nothing else
+    reaches this one — constructs a real, calculated portfolio in one
+    organization and confirms a job tagged with a different organization is
+    refused; confirmed to fail, by returning the first organization's real
+    property and financial data, against the pre-fix code via a load-bearing
+    check.
+12. **`mapRows` returned rows in `leases` that its own `issues` array
+    simultaneously flagged as duplicate-lease-code errors**
+    (`packages/reporting/src/rent-roll-import.ts`), because duplicate
+    detection runs after every row is already provisionally pushed to
+    `leases`. A caller trusting `leases` without independently re-deriving
+    error rows from `issues` would import every duplicate row, reintroducing
+    the exact `ON CONFLICT (model_id, code) DO UPDATE` collision an earlier
+    audit pass (documented in this same file's own comments, "found by an
+    eleventh audit pass") already fixed for the *error reporting* half of
+    this same duplicate-code check without fixing the *importable rows*
+    half. Fixed by filtering
+    `leases` to exclude any row flagged as a duplicate past the first
+    occurrence, matching the pattern the sibling `mapActuals` function
+    already used correctly. A new regression test confirms only the first
+    occurrence survives into `leases` for a lease code repeated three times,
+    confirmed to fail (returning all three rows) against the pre-fix code via
+    a load-bearing check.
+13. **The workbook reconciliation instrument's `IFERROR` never read its
+    second argument** (`packages/reporting/src/excel-model/evaluate.ts`) —
+    it returned `NaN` whenever the first argument was non-finite regardless
+    of the fallback, unlike real Excel semantics. Every `IFERROR` this
+    exporter emits today wraps an unimplemented function (`XIRR`, `XNPV`,
+    `SUMIF`, all deliberately `NaN` in this test-only evaluator) with a
+    string-literal fallback (also `NaN`, since this arithmetic-only parser
+    has nowhere to put a string), so the bug changed no currently-reported
+    value. It is real nonetheless: a future formula wrapping a genuine
+    divide-by-zero risk in `IFERROR` would have had its reconciliation check
+    silently skipped rather than verified against the fallback — exactly the
+    "pretend to have checked it" failure mode this evaluator's own module
+    documentation says it exists to avoid. Fixed to return the second
+    argument on a non-finite first argument. Two new unit tests in a new
+    `evaluate.test.ts` — the first test file to exercise this parser in
+    isolation rather than only through a full workbook reconciliation —
+    confirm both the fallback and the pass-through cases, confirmed to fail
+    against the pre-fix code via a load-bearing check.
+
 ## Cross-organization security audit
 
 Milestone 64 treats cross-organization exposure as unacceptable and asks

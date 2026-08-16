@@ -54,7 +54,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | A renewal option at the forecast horizon, a termination fee, and rollover after a nonzero-cost termination | `packages/calculation-engine/src/lease-options.test.ts` | 4 | No |
 | A zero-baseline recovery cap, overlapping recovery pools, and a revenue-basis expense's recoverable split | `packages/calculation-engine/src/recoveries.test.ts` | 3 | No |
 | Duplicate entity ids, a dangling growth-curve reference, and a duplicate growth-curve year | `packages/calculation-engine/src/validation.test.ts` | 9 | No |
-| Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 33 | No |
+| Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 34 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 23 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
 | Authorization and isolation | `tests/authorization.test.ts` | 29 | Yes |
@@ -66,6 +66,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Funds through the API | `tests/funds.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Job reaper attempt cap | `tests/jobs.test.ts` | 3 | Yes |
+| The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
 | Sensitivity and scenario-batch input validation | `tests/scenario-sensitivity.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
@@ -78,6 +79,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
+| The workbook formula evaluator's own `IFERROR` fallback | `packages/reporting/src/excel-model/evaluate.test.ts` | 2 | No |
 | Excel Live Model, reconciled to the engine | `packages/reporting/src/excel-model/live-model.test.ts` | 88 | No |
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
@@ -117,7 +119,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1380 tests in total.**
+**1385 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -164,7 +166,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**228 browser tests in total**, for 1608 across the whole repository.
+**228 browser tests in total**, for 1613 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

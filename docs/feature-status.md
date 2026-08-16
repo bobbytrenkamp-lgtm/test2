@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1380 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1385 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -64,6 +64,7 @@ Tests       1380 passed (251 engine regression, 31 engine unit, 16 fund,
                          12 workbook reading, 5 workbook import,
                          10 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
+                         2 the workbook evaluator's own IFERROR fallback,
                          88 Excel Live Model reconciliation,
                          5 Excel Live Model export, 40 grid behaviour,
                          8 batch lease writes, 9 batched assumptions,
@@ -102,6 +103,7 @@ Tests       1380 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 job reaper attempt cap,
+                         2 the aggregate_portfolio job handler across organizations,
                          7 sensitivity and scenario-batch input validation,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export)

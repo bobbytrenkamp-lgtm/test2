@@ -675,6 +675,7 @@ export function mapRows(
   const duplicates = [...seen.entries()]
     .filter(([, indexes]) => indexes.length > 1)
     .map(([leaseCode, rowIndexes]) => ({ leaseCode, rowIndexes }));
+  const duplicateRows = new Set<number>();
   for (const duplicate of duplicates) {
     // The first occurrence is kept as the row of record; every later one is
     // an error row, not just the second — a lease code appearing on three or
@@ -688,10 +689,23 @@ export function mapRows(
         severity: 'error',
         message: `Lease reference "${duplicate.leaseCode}" appears on rows ${duplicate.rowIndexes.map((i) => i + 1).join(', ')}.`,
       });
+      duplicateRows.add(rowIndex);
     }
   }
 
-  return { leases, issues, duplicates };
+  // Duplicate detection runs after every row is already provisionally
+  // pushed to `leases`, so the per-row error check above never saw these
+  // issues. Without this filter a lease code appearing on three or more
+  // rows would put every one of them in `leases` even though rows past the
+  // first are simultaneously reported as error rows — silently reintroducing
+  // the `ON CONFLICT (model_id, code) DO UPDATE` collision the duplicate
+  // check above exists to catch.
+  const importableLeases =
+    duplicateRows.size === 0
+      ? leases
+      : leases.filter((lease) => !duplicateRows.has(lease.rowIndex));
+
+  return { leases: importableLeases, issues, duplicates };
 }
 
 /**
