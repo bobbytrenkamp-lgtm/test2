@@ -189,6 +189,56 @@ Removed rather than fixed, since building a real multi-currency check would
 require adding a second currency-bearing field to the schema, well beyond a
 bug-fix's scope.
 
+A third pass, scoped to `apps/api/src` and `packages/database/src` — the
+routes, authorization and persistence layer, not yet touched by either
+earlier pass — found two genuine cross-organization data-isolation gaps and
+one dead-code cleanup:
+
+8. **`PUT /models/:id/leases/:code` wrote a caller-supplied `tenantId` (and
+   `marketLeasingProfileId`) onto a lease without checking either belonged to
+   the caller's own organization** (`apps/api/src/routes/models.ts`). Every
+   other cross-reference in this route file — `spaceIds`, comment mentions,
+   task assignees, favourites — is checked against the caller's organization
+   before being written; this one was not, and `tenants`/
+   `market_leasing_profiles` enforce no such scope at the database level (a
+   bare `REFERENCES ... (id)`). A user who could guess or otherwise obtain
+   another organization's tenant id could attach it to a lease in their own
+   model, and since `GET /models/:id/leases` joins `tenants` unconditionally,
+   that tenant's name would then be readable by anyone in the attacker's own
+   organization who could see the model — a real cross-tenant data leak, not
+   a theoretical one. Fixed by adding an organization-scoped `tenants`
+   ownership check and a model-scoped `market_leasing_profiles` ownership
+   check before the write, matching the pattern every other reference in the
+   file already follows. Two new regression tests in
+   `tests/authorization.test.ts` construct a second organization's real
+   tenant and a second organization's real leasing profile and confirm both
+   are refused with 404 rather than silently attached — confirmed to fail
+   (as 200s that silently wrote the cross-org reference) against the pre-fix
+   code via a load-bearing check.
+9. **`POST /budgets` accepted an optional `modelId` without checking it
+   belonged to the caller's organization** (`apps/api/src/routes/budgets.ts`),
+   the same class of gap as the lease fix above: `budget_periods.model_id` is
+   a bare foreign key with no organization scope of its own, and the route
+   already scoped its required `propertyId` this way but not the optional
+   `modelId`. Fixed by adding the same organization-scoped existence check.
+   A new regression test confirms the caller's own model still works (201)
+   while another organization's model is refused (404) — confirmed to fail
+   (as a 201 that silently created the cross-org reference) against the
+   pre-fix code via a load-bearing check.
+10. **A duplicate, unreachable `return lease;` statement** in
+    `upsertLeaseWithin` (`packages/database/src/repositories/leases.ts`) —
+    no functional effect, but dead code left in a function signals it was
+    not cleanly reviewed before merge. Removed.
+
+The rest of the reviewed surface — authentication, session handling, MFA/
+TOTP, organization switching and export, comments and collaboration, tasks,
+funds, portfolios, imports, assumption proposals, calculations, and audit/
+error-reporting — consistently follows the "fetch scoped by
+`organization_id`, 404 instead of 403 on a cross-org guess" pattern
+correctly, including every place doing raw templated SQL with interpolated
+table names (all drawn from a fixed internal registry, never user input — no
+SQL injection found).
+
 ## Cross-organization security audit
 
 Milestone 64 treats cross-organization exposure as unacceptable and asks

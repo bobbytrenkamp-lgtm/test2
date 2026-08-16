@@ -295,7 +295,6 @@ export async function upsertLeaseWithin(tx: Sql, input: UpsertLeaseInput): Promi
   }
 
   return lease;
-  return lease;
 }
 
 export async function deleteLease(sql: Sql, modelId: string, code: string): Promise<boolean> {

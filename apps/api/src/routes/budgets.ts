@@ -67,6 +67,16 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
     `) as unknown as Array<{ id: string }>;
     if (owned.length === 0) throw notFound('That property does not exist.');
 
+    // `budget_periods.model_id` is a bare FK to `models(id)` with no
+    // organization scoping of its own, so an unchecked value here would let
+    // a budget period point at another organization's model.
+    if (body.modelId) {
+      const modelOwned = (await request.db`
+        SELECT id FROM models WHERE id = ${body.modelId} AND organization_id = ${context.organizationId}
+      `) as unknown as Array<{ id: string }>;
+      if (modelOwned.length === 0) throw notFound('That model does not exist.');
+    }
+
     const period = await createBudgetPeriod(request.db, context.organizationId, body);
 
     await writeAudit(request.db, {

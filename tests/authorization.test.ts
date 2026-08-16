@@ -126,6 +126,19 @@ describe.skipIf(!hasDatabase)('authorization', () => {
     return (response.json() as { period: { id: string } }).period.id;
   }
 
+  async function createTenant(cookie: string, name: string): Promise<string> {
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/tenants',
+      headers: authed(cookie),
+      payload: { name },
+    });
+    if (response.statusCode !== 201) {
+      throw new Error(`Tenant creation failed (${response.statusCode}): ${response.body}`);
+    }
+    return (response.json() as { tenant: { id: string } }).tenant.id;
+  }
+
   /* ---------------------------------------------------------------------- */
   /* Authentication                                                          */
   /* ---------------------------------------------------------------------- */
@@ -285,6 +298,85 @@ describe.skipIf(!hasDatabase)('authorization', () => {
       expect(response.statusCode).toBe(404);
     });
 
+    /**
+     * Found by a repository-wide correctness audit: `PUT
+     * /models/:id/leases/:code` wrote the caller-supplied `tenantId` straight
+     * onto the lease without checking it belonged to the caller's own
+     * organization — unlike every other cross-reference in this route file.
+     * `tenants` has no organization scope enforced at the database level (a
+     * bare `REFERENCES tenants(id)`), so nothing else would have caught it:
+     * `GET /models/:id/leases` joins `tenants` unconditionally and returns
+     * `tenant_name` to anyone who can read the model, which would have handed
+     * organization B's tenant name to every organization A user who opened
+     * this lease. Unlike the previous test (org B writing into org A's
+     * model, refused by the model-level ownership check alone), this is org
+     * A writing into its *own* model but pointing at org B's tenant — the
+     * model-level check alone cannot see this.
+     */
+    it('refuses to attach another organization’s tenant to a lease in one’s own model', async () => {
+      const tenantB = await createTenant(ownerB.cookie, 'Beta Tenant');
+
+      const response = await ctx.app.inject({
+        method: 'PUT',
+        url: `/api/v1/models/${modelA}/leases/CROSS-TENANT`,
+        headers: authed(ownerA.cookie),
+        payload: {
+          tenantId: tenantB,
+          status: 'occupied',
+          area: '1000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2027-01-01',
+          baseRent: '1',
+          baseRentBasis: 'per_area_per_year',
+        },
+      });
+      expect(response.statusCode).toBe(404);
+
+      // Not written at all, not written with the reference silently dropped.
+      const leases = await ctx.app.inject({
+        method: 'GET',
+        url: `/api/v1/models/${modelA}/leases`,
+        headers: authed(ownerA.cookie),
+      });
+      const codes = (leases.json() as { leases: Array<{ code: string }> }).leases.map(
+        (lease) => lease.code,
+      );
+      expect(codes).not.toContain('CROSS-TENANT');
+    });
+
+    /**
+     * Same mechanism as the tenant check above, for the lease's other
+     * optional foreign key: `market_leasing_profiles` is scoped to a model,
+     * not directly to an organization, and was likewise never checked.
+     */
+    it('refuses to attach another organization’s market leasing profile to a lease', async () => {
+      const propertyB = await createProperty(ownerB.cookie, 'Beta Tower');
+      const modelB = await createModel(ownerB.cookie, propertyB, 'Beta base case');
+      const [profile] = (await ctx.sql`
+        INSERT INTO market_leasing_profiles (model_id, code, name)
+        VALUES (${modelB}, 'MLP-B', 'Beta market profile')
+        RETURNING id
+      `) as unknown as Array<{ id: string }>;
+      const tenantA = await createTenant(ownerA.cookie, 'Alpha Tenant');
+
+      const response = await ctx.app.inject({
+        method: 'PUT',
+        url: `/api/v1/models/${modelA}/leases/CROSS-PROFILE`,
+        headers: authed(ownerA.cookie),
+        payload: {
+          tenantId: tenantA,
+          marketLeasingProfileId: profile?.id,
+          status: 'occupied',
+          area: '1000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2027-01-01',
+          baseRent: '1',
+          baseRentBasis: 'per_area_per_year',
+        },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
     it('refuses to export another organization’s model', async () => {
       const response = await ctx.app.inject({
         method: 'GET',
@@ -359,6 +451,50 @@ describe.skipIf(!hasDatabase)('authorization', () => {
         payload: { modelId: modelA, closedThrough: '2026-06-30', label: 'Hijacked reforecast' },
       });
       expect(response.statusCode).toBe(404);
+    });
+
+    /**
+     * Found by the same audit pass as the two lease cross-reference checks
+     * above: `POST /budgets` scoped its required `propertyId` to the
+     * caller's organization, but the optional `modelId` — a bare
+     * `REFERENCES models(id)` with no organization scope of its own — was
+     * never checked. A budget period pointing at another organization's
+     * model is exactly the kind of dangling cross-org reference every other
+     * write in this file refuses at the boundary rather than storing.
+     */
+    it('refuses to point a budget period at another organization’s model', async () => {
+      const response = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/budgets',
+        headers: authed(ownerA.cookie),
+        payload: {
+          propertyId: propertyA,
+          modelId: modelA,
+          kind: 'original_budget',
+          fiscalYear: 2026,
+          label: 'A genuine budget',
+        },
+      });
+      // Sanity check the happy path still works with the caller's own model,
+      // before proving the cross-org one is refused.
+      expect(response.statusCode).toBe(201);
+
+      const propertyB = await createProperty(ownerB.cookie, 'Beta Tower IV');
+      const modelB = await createModel(ownerB.cookie, propertyB, 'Beta base case IV');
+
+      const hijacked = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/budgets',
+        headers: authed(ownerA.cookie),
+        payload: {
+          propertyId: propertyA,
+          modelId: modelB,
+          kind: 'reforecast',
+          fiscalYear: 2026,
+          label: 'Hijacked budget',
+        },
+      });
+      expect(hijacked.statusCode).toBe(404);
     });
 
     it('does not surface another organization’s audit entries', async () => {

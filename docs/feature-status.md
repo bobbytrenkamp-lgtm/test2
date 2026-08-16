@@ -53,9 +53,9 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1377 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1380 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
-                         26 authorization, 14 budgets, 7 portfolios,
+                         29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
