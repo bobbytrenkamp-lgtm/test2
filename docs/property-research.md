@@ -38,7 +38,7 @@ second write path.
 | The universal research-request contract | **Designed, typed, tested** — no orchestrator reads it yet | `packages/domain-models/src/research-interfaces.ts` |
 | The test1 research-interface contract | **Designed, typed, tested** — test1 is a separate repository; nothing here calls it | Same file |
 | The test3 recommendation contract | **Designed, typed, tested** — same status as test1's | Same file (re-exports `cre-property-research.ts`'s `ModelEstimate`) |
-| Comparable-set selection / percentile engine (§10–17 of the milestone this was scoped from) | **Not built** | Would be `assumption-import-analyze.ts`'s sibling — a pure function over a caller-supplied observation array. Does not require test1 to exist to build or test, and is the natural next increment |
+| Comparable-set selection / percentile engine (§10–17 of the milestone this was scoped from) | **Built, tested** | `packages/domain-models/src/research-comparison.ts`'s `buildComparison` — `assumption-import-analyze.ts`'s sibling, a pure function over a caller-supplied observation array. Filters by metric, unit type and a recency window (each exclusion recorded with a count and reason, never silent); computes min/p25/median/p75/max by linear interpolation, subject percentile and premium-to-median; flags a 1.5×IQR outlier out of the statistics without touching the source `observations` array, which is what "flagging rather than deletion" means in practice. Deliberately does not attempt geographic-distance filtering — an `Observation` carries a free-text `geography` string, not a coordinate, so narrowing the candidate set geographically stays the caller's job, stated as a `coverage.limitations` entry on every comparison this produces rather than implied by silence. Still not wired to anything live: no orchestrator, no test1, no UI calls this yet — it is exactly the increment the row below was already waiting on |
 | Listing/property-URL Claude Skill | **Not built** | External to this repository by design — see *Boundaries*, below |
 | Live test1 integration | **Not built** | test1 is a separate system; `research-interfaces.ts` specifies the shape a real integration would satisfy |
 | Live test3 integration | **Not built** | Same status |
@@ -179,14 +179,6 @@ these same interfaces — never wiring it in as the default path. See
 
 ## What deliberately is not built yet, and why that is not an oversight
 
-- **The comparable-selection and percentile engine** (distance, bed/bath
-  match, vintage, recency, robust statistics, outlier flagging rather than
-  deletion) is real, valuable work — and it does not require test1 to exist
-  to build or test, since it is a pure function over a caller-supplied
-  observation array, exactly like `assumption-import-analyze.ts` is a pure
-  function over a parsed document. It is the natural next increment and was
-  deliberately left out of this pass so the contracts it will need to
-  satisfy (`ResearchComparison`, `ResearchCoverage`) were fixed first.
 - **A listing/property-URL Claude Skill** is, by design, built and run
   outside this repository — see *Boundaries*. Nothing here blocks it from
   being written; nothing here can shortcut writing it either.
@@ -210,7 +202,8 @@ these same interfaces — never wiring it in as the default path. See
 | `cre-property-research` v1 schema and parser | `packages/domain-models/src/cre-property-research.ts` |
 | Universal research request, test1 and test3 contracts | `packages/domain-models/src/research-interfaces.ts` |
 | Conversion into the existing assumption-proposal architecture | `packages/domain-models/src/research-to-proposal.ts` |
-| Tests | `cre-property-research.test.ts`, `research-interfaces.test.ts`, `research-to-proposal.test.ts` in the same directory |
+| Comparable-selection and percentile engine | `packages/domain-models/src/research-comparison.ts` |
+| Tests | `cre-property-research.test.ts`, `research-interfaces.test.ts`, `research-to-proposal.test.ts`, `research-comparison.test.ts` in the same directory |
 
 ## Relationship to `cre-assumption-import`
 
