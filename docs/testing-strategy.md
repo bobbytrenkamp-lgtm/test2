@@ -68,6 +68,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Job reaper attempt cap | `tests/jobs.test.ts` | 3 | Yes |
 | The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
 | The worker's own orchestration: `tick()` claims, runs and completes or fails a real job — empty queue, success, a handler that throws, and an unregistered job kind | `tests/worker-pipeline.test.ts` | 4 | Yes |
+| Model cloning: eleven copied tables field-by-field, the lease and model-default market-leasing-profile foreign keys remapped to the clone's own rows, editing the clone never reaching the source, and organization isolation | `tests/model-cloning.test.ts` | 8 | Yes |
 | Sensitivity and scenario-batch input validation | `tests/scenario-sensitivity.test.ts` | 7 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
@@ -124,7 +125,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1403 tests in total.**
+**1411 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -171,7 +172,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1634 across the whole repository.
+**231 browser tests in total**, for 1642 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -494,7 +495,7 @@ that it stopped describing the codebase; corrected here rather than trusted.
 reader (needs a person with JAWS or VoiceOver — see `docs/feature-status.md`).
 
 **Functional but not yet covered by an automated test at the API layer:**
-sensitivity analysis, model cloning, the general reports/exports engine, and
-the rent-roll import *write* path (parsing itself is tested). The browser
-suite still runs in Chromium only; cross-browser coverage is the next
-increment, not a claim already made.
+sensitivity analysis, the general reports/exports engine, and the rent-roll
+import *write* path (parsing itself is tested). The browser suite still runs
+in Chromium only; cross-browser coverage is the next increment, not a claim
+already made.
