@@ -169,28 +169,39 @@ of a space reporting the whole space occupied. Each is described in
 [`docs/feature-status.md`](docs/feature-status.md) is authoritative. In summary:
 
 **Solid and tested.** The calculation engine and its regression library; the
-database schema and migrations; authentication, authorization and
-cross-organization isolation; the deterministic import parser; the vertical
-slice from sign-in through to a traced valuation and a frozen approval.
+database schema and migrations; authentication, authorization, multi-factor
+authentication and cross-organization isolation; the deterministic import
+parser, CSV and Excel alike; budgets, actuals and variance reporting; version
+comparison and the approval workflow; the vertical slice from sign-in through
+to a traced valuation and a frozen approval. The browser suite reaches the
+assumptions editor, scenarios, versions, reports and the portfolio roll-up,
+not only the underwriting path — Chromium only, and not a substitute for the
+screen-reader audit below.
 
-**Works, not yet proven.** Background jobs, reports and exports, sensitivity
-analysis, model cloning, portfolio aggregation, and the screens the browser
-suite does not reach — the assumptions editor, scenarios, versions, reports and
-the portfolio builder. The suite runs in Chromium only.
+**Works, not yet proven.** The background worker's claim/retry/reap pipeline
+as a whole (individual job handlers are tested in isolation); sensitivity
+analysis; model cloning; the general reports/exports engine; the rent-roll
+import *write* path (parsing itself is tested).
 
-**Designed only.** Budgets and actuals, variance reporting, collaboration,
-configurable dashboards, documents, portfolio reports, Excel *import*,
-server-side PDF, multi-factor authentication, and the optional AI assistant —
-which is disabled by default and adds no paid dependency without approval.
+**Designed only.** Documents and configurable dashboards, malware scanning of
+uploaded files, server-side PDF, import rollback, mention notifications and
+an activity feed, a handful of lease-option types (expansion, purchase,
+ROFR, ROFO), fund-level recallable distributions, the live property-research
+integration, and the optional AI assistant — which is disabled by default and
+adds no paid dependency without approval.
 
-**Written but unverified.** The Docker Compose stack and the backup/restore
-procedure. The build environment had no Docker daemon and no restore drill has
-been run. Both are documented; neither should be relied on until executed.
+**Written but unverified.** The Docker Compose stack only — the container
+images have never been built, because this environment's egress policy
+refuses the image-layer CDN. The backup/restore drill is not in this
+category: it runs against a real PostgreSQL instance in CI on every build
+(`pnpm drill:restore`) and has never failed.
 
 Nothing in this repository is marked *production ready*. That designation is
-reserved for features that have also passed load testing, an accessibility audit
-with a real screen reader, and a restore drill — none of which has been done.
-The `axe-core` checks catch mechanical failures; they are not a screen-reader
+reserved for features that have also passed an accessibility audit with a
+real screen reader, a built and run container image, and a scripted deploy —
+none of which has been done. Load testing and the restore drill *have* been
+done and run in CI on every build; they are not what is missing. The
+`axe-core` checks catch mechanical failures; they are not a screen-reader
 audit and are not offered as one.
 
 ## Licence

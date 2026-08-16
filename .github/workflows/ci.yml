@@ -144,10 +144,15 @@ jobs:
       - name: Backup and restore drill
         run: pnpm db:seed && pnpm drill:restore
 
-      # Reported, not yet enforced. Raising this to a failure is tracked in
-      # docs/feature-status.md.
+      # Fails the build on a high or critical vulnerability. Moderate findings
+      # are still visible in the job log but do not block: react-router-dom's
+      # three moderate open-redirect/XSS advisories are only patched in its
+      # v7 line, a real routing-API migration, not a version bump, and
+      # exceljs's transitive uuid dependency (moderate, a buffer-bounds check
+      # exceljs's own v4 usage never triggers) is tracked for exceljs's next
+      # major release. Both are recorded here rather than silently ignored.
       - name: Dependency audit
-        run: pnpm audit --audit-level=high || true
+        run: pnpm audit --audit-level=high
 
       # Fails the build if a dependency arrives under a licence that would
       # require a commercial licence for this project's use. Runs offline

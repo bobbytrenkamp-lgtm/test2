@@ -125,7 +125,7 @@ Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 consolidated review screen, 3 underwriting package)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (378 kB, 106 kB gzipped)
+Web build   succeeds (542 kB, 152 kB gzipped)
 Migrations  24 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
@@ -133,7 +133,7 @@ Drill       21 checks passed (dump, restore, valuations reproduced)
 Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
 Load test   5,000 properties, 200,000 leases; every query inside budget
 Concurrency 200 parallel clients, ~1,000 req/s, p95 200ms, 0 failures
-Licences    340 packages, none requiring payment or a commercial licence
+Licences    343 packages, none requiring payment or a commercial licence
 ```
 
 ---
@@ -360,7 +360,7 @@ are the current state.)
 | Error messages that leak nothing | Functional | Internals logged, never returned |
 | Secrets outside source control | Functional | `.env` git-ignored, validated at startup |
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
-| Dependency scanning in CI | Functional | `pnpm audit` runs; not yet failing the build |
+| Dependency scanning in CI | Tested | `pnpm audit --audit-level=high` fails the build on a high or critical finding; moderate findings are logged, not blocked |
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
 | Malware scanning of uploads | Designed | Column exists; no scanner |
 | Upload size and type verification | Partial | Body limit enforced; no upload endpoint yet |
