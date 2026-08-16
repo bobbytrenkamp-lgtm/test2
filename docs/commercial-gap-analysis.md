@@ -300,6 +300,52 @@ correctness fix in a test-only instrument:
     confirm both the fallback and the pass-through cases, confirmed to fail
     against the pre-fix code via a load-bearing check.
 
+A fifth pass, scoped to `apps/web/src` — the React analyst interface, the
+one major area still uncovered, since the earlier UI-focused pass in this
+session ("main since 5c753e7^") only reached this session's own newest
+priorities, not the bulk of the application built before them — found three
+real defects:
+
+14. **Every approval-workflow button was gated by `model:read` instead of
+    the capability each transition actually requires**
+    (`apps/web/src/pages/ReviewTab.tsx`). `model:read` is a capability
+    nearly every role has, so an analyst — who holds `model:submit` but not
+    `model:approve` — would see "Return to draft" rendered exactly as
+    clickable as the "Send to manager review" button they could actually
+    use, for a click the server was only ever going to refuse with a 403.
+    Fixed by looking up each transition's real required capability through
+    `findTransition` (`packages/domain-models/src/permissions.ts`'s own
+    `TRANSITIONS` table — the same one `POST /models/:id/transition`
+    enforces server-side) and gating each button on that, with a disabled
+    -state tooltip explaining why. A new e2e test in
+    `e2e/consolidated-review.spec.ts` submits a real model into
+    `analyst_review` as the analyst role, then confirms the transition they
+    can perform is enabled and the one they cannot is disabled — confirmed
+    to fail (both equally enabled) against the pre-fix code via a
+    load-bearing check.
+15. **`RecordEditor` had no `key`** (`apps/web/src/pages/AssumptionsTab.tsx`),
+    so switching from editing one assumption row straight to another — via
+    the toolbar "Edit … in full" button, without cancelling first — left the
+    same component instance mounted. `useState`'s lazy initializer only ever
+    runs once, so the form kept showing the row it opened on while the
+    underlying `editing` code and `expectedVersion` silently moved to the
+    new row underneath it — a save from that point would have submitted the
+    new row's identity against the previous row's field values. Fixed by
+    keying `RecordEditor` on `editing`, forcing a remount on every row
+    switch. A new e2e test creates two real debt facilities, opens the
+    first, switches straight to the second without cancelling, and confirms
+    the form shows the second facility's own commitment amount, not the
+    first's — confirmed to fail (the stale figure) against the pre-fix code
+    via a load-bearing check.
+16. **The same bug, in `LeaseEditor`** (`apps/web/src/pages/RentRollTab.tsx`)
+    — switching from one lease's editor straight to another's, or from a new
+    -lease draft to an existing lease, kept the same stale form state
+    mounted. Fixed the same way, keying `LeaseEditor` on `editing ?? '__new__'`.
+    A new e2e test switches between two of the seeded office model's real
+    leases and confirms the lease reference and tenant shown both update to
+    the newly selected lease, confirmed to fail (both still reading the
+    first lease) against the pre-fix code via a load-bearing check.
+
 ## Cross-organization security audit
 
 Milestone 64 treats cross-organization exposure as unacceptable and asks

@@ -443,6 +443,71 @@ test.describe('as an analyst', () => {
     // wouldn't.
     await page.request.delete(`/api/v1/models/${modelId}/debt/e2e-bridge-standard`);
   });
+
+  /**
+   * Found by a repository-wide correctness audit: `RecordEditor` had no
+   * `key`, so jumping from editing one row straight to another's — via this
+   * same "Edit … in full" toolbar button, without cancelling first — kept
+   * the same component instance mounted. `useState`'s initializer only ever
+   * runs once, so the form kept showing the row it opened on, and a save
+   * from that point would have submitted the new row's code against the
+   * previous row's field values and `expectedVersion`.
+   */
+  test('switching the record editor from one debt facility straight to another shows the new one, not the old one', async ({
+    page,
+  }) => {
+    const HEADERS = { 'X-Requested-With': 'cre-platform' };
+    await openAssumptions(page);
+    const modelId = /\/models\/([0-9a-f-]+)/.exec(page.url())?.[1];
+    if (!modelId) throw new Error('Could not read the model id from the URL.');
+
+    const codeA = `e2e-switch-a-${Date.now()}`;
+    const codeB = `e2e-switch-b-${Date.now()}`;
+    try {
+      for (const [code, commitment] of [
+        [codeA, '1000000'],
+        [codeB, '2000000'],
+      ] as const) {
+        const response = await page.request.put(`/api/v1/models/${modelId}/debt/${code}`, {
+          headers: HEADERS,
+          data: {
+            name: `E2E ${code}`,
+            type: 'bridge',
+            commitment,
+            fundingDate: '2026-06-01',
+            termMonths: 24,
+          },
+        });
+        expect(response.status(), await response.text()).toBe(200);
+      }
+      await page.reload();
+
+      const debt = page.locator('.card', {
+        has: page.getByRole('heading', { name: 'Debt facilities' }),
+      });
+      const rowA = debt.getByRole('row', { name: new RegExp(codeA) });
+      const rowB = debt.getByRole('row', { name: new RegExp(codeB) });
+      await expect(rowA).toBeVisible();
+      await expect(rowB).toBeVisible();
+
+      await rowA.getByRole('gridcell').first().click();
+      await debt.getByRole('button', { name: `Edit ${codeA} in full` }).click();
+      await expect(page.getByLabel('Commitment *')).toHaveValue('1000000.00');
+
+      // Switches straight to B without cancelling A's editor first — the
+      // exact sequence the bug required.
+      await rowB.getByRole('gridcell').first().click();
+      await debt.getByRole('button', { name: `Edit ${codeB} in full` }).click();
+
+      await expect(page.getByLabel('Code *')).toHaveValue(codeB);
+      // The bug's own failure mode: this would still read 1000000.00, B's
+      // row selected but A's form values still on screen.
+      await expect(page.getByLabel('Commitment *')).toHaveValue('2000000.00');
+    } finally {
+      await page.request.delete(`/api/v1/models/${modelId}/debt/${codeA}`, { headers: HEADERS });
+      await page.request.delete(`/api/v1/models/${modelId}/debt/${codeB}`, { headers: HEADERS });
+    }
+  });
 });
 
 test.describe('as a reviewer', () => {

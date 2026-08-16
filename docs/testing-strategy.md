@@ -131,7 +131,7 @@ built bundle:
 | --- | --- | --- |
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
-| Lease editor validation, rent-roll search and sort | `e2e/rent-roll.spec.ts` | 4 |
+| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling | `e2e/rent-roll.spec.ts` | 5 |
 | Spreadsheet editing on the rent roll, including applying one typed value to every selected cell in a column at once | `e2e/rent-roll-grid.spec.ts` | 14 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
@@ -150,7 +150,7 @@ built bundle:
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
 | Asset-management tasks, across two roles | `e2e/tasks.spec.ts` | 4 |
 | Two-factor enrolment and sign-in | `e2e/security.spec.ts` | 3 |
-| Assumptions editor, and that its numbers reach the engine | `e2e/assumptions.spec.ts` | 9 |
+| Assumptions editor, and that its numbers reach the engine, including switching the record editor between two rows without cancelling | `e2e/assumptions.spec.ts` | 10 |
 | Accessibility tree, beyond what axe checks | `e2e/screen-reader.spec.ts` | 49 |
 | Proposals from outside, and the decision on each | `e2e/provenance.spec.ts` | 6 |
 | Recents and favourites | `e2e/favourites.spec.ts` | 4 |
@@ -163,10 +163,10 @@ built bundle:
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 | Pending decisions on the dashboard: shows and links to a pending proposal, gives two proposals on the same model names a rotor can tell apart, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 4 |
 | Scenario comparison on the property page: shows scenarios side by side once a property has more than one model, hides below two, accessibility | `e2e/scenario-comparison.spec.ts` | 3 |
-| Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
+| Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**228 browser tests in total**, for 1613 across the whole repository.
+**231 browser tests in total**, for 1616 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

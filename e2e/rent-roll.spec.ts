@@ -135,3 +135,43 @@ test('sorts area as a number, not as text', async ({ page }) => {
   await expect(header).toHaveAttribute('aria-sort', 'descending');
   await expect(grid.getByRole('row').nth(1)).toContainText('51,300');
 });
+
+/**
+ * Found by a repository-wide correctness audit: `LeaseEditor` had no `key`,
+ * so switching straight from one lease's editor to another's — via the same
+ * "Edit … in full" toolbar button, without cancelling first — kept the same
+ * component instance mounted. `useState`'s initializer only ever runs once,
+ * so the form kept showing the lease it opened on even though a different
+ * row was now selected.
+ */
+test('switching the lease editor from one lease straight to another shows the new one, not the old one', async ({
+  page,
+}) => {
+  // The toolbar button lives beside the grid, not inside it (`role="grid"`
+  // holds only rows and gridcells), so the button is found through the
+  // surrounding card rather than through the grid locator itself.
+  const card = page.locator('.card', { has: page.getByRole('heading', { name: 'Leases' }) });
+  const grid = page.getByRole('grid', { name: 'Leases on this model' });
+  const rowMeridian = grid.getByRole('row').filter({ hasText: 'Meridian Actuarial' });
+  const rowKestrel = grid.getByRole('row').filter({ hasText: 'Kestrel Analytics' });
+  await expect(rowMeridian).toBeVisible();
+  await expect(rowKestrel).toBeVisible();
+
+  await rowMeridian.getByRole('gridcell').first().click();
+  await card.getByRole('button', { name: /^Edit L-SUITE-1200 in full$/ }).click();
+  await expect(page.getByLabel('Lease reference')).toHaveValue('L-SUITE-1200');
+
+  // Switches straight to Kestrel's lease without cancelling Meridian's editor
+  // first — the exact sequence the bug required.
+  await rowKestrel.getByRole('gridcell').first().click();
+  await card.getByRole('button', { name: /^Edit L-SUITE-1600 in full$/ }).click();
+
+  // The bug's own failure mode: this would still read L-SUITE-1200, Kestrel's
+  // row selected but Meridian's form values still on screen.
+  await expect(page.getByLabel('Lease reference')).toHaveValue('L-SUITE-1600');
+  const selectedTenant = page.getByLabel('Tenant').locator('option:checked');
+  await expect(selectedTenant).toHaveText('Kestrel Analytics');
+
+  // Read-only check: nothing here is saved.
+  await page.getByRole('button', { name: 'Cancel' }).click();
+});

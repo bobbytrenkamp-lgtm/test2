@@ -1,3 +1,4 @@
+import { findTransition } from '@cre/domain-models';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Loading } from '../components.js';
 import { CommentThread } from '../components/CommentThread.js';
@@ -71,19 +72,28 @@ function ApprovalWorkflowCard(): JSX.Element {
       </p>
       <ErrorMessage error={transition.error} />
       <div className="row">
-        {(NEXT[model.status] ?? []).map((option) => (
-          <button
-            key={option.to}
-            type="button"
-            className={option.to === 'approved' || option.to === 'published' ? 'primary' : ''}
-            disabled={transition.pending || !can('model:read')}
-            onClick={async () => {
-              if (await transition.run(option.to)) window.location.reload();
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
+        {(NEXT[model.status] ?? []).map((option) => {
+          // Each edge names the capability it actually requires server-side
+          // (submit, approve, or publish); a reader who can only view the
+          // model should not see an enabled "Approve" or "Publish" button
+          // that the server is only going to refuse.
+          const edge = findTransition(model.status, option.to);
+          const allowed = edge ? can(edge.capability) : false;
+          return (
+            <button
+              key={option.to}
+              type="button"
+              className={option.to === 'approved' || option.to === 'published' ? 'primary' : ''}
+              disabled={transition.pending || !allowed}
+              title={allowed ? undefined : 'You do not have permission to make this change.'}
+              onClick={async () => {
+                if (await transition.run(option.to)) window.location.reload();
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
         {(NEXT[model.status] ?? []).length === 0 && (
           <span style={{ color: 'var(--text-muted)' }}>
             This model is {titleCase(model.status).toLowerCase()}; there is no further transition.
