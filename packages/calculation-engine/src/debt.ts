@@ -190,18 +190,28 @@ export function computeDebt(
         // carry a full month of interest. Interest is therefore accrued on the
         // balance after the draw, not the balance brought forward.
         const accrued = balance.times(monthlyRate);
+        const pastInterestOnly = monthsSinceFunding >= facility.interestOnlyMonths;
 
-        if (facility.capitalizeInterest) {
+        // Capitalization only applies through the interest-only window — the
+        // construction or lease-up phase this facility is accruing through
+        // without a cash payment. Once amortization is due, the facility
+        // must switch to servicing interest in cash: capitalizing here too
+        // would mean computing a level payment against a balance the very
+        // same period's interest had just inflated, then subtracting that
+        // never-paid interest back out as if it were the period's cash
+        // interest — a principal figure that corresponds to no real
+        // amortization schedule and silently misstates every balance,
+        // DSCR, LTV and debt yield from this period on.
+        if (facility.capitalizeInterest && !pastInterestOnly) {
           capitalizedInterest = accrued;
           balance = balance.plus(accrued);
         } else {
           cashInterest = accrued;
         }
 
-        const pastInterestOnly = monthsSinceFunding >= facility.interestOnlyMonths;
         if (pastInterestOnly && facility.amortizationMonths > 0 && remainingAmortMonths > 0) {
           const payment = levelPayment(balance, monthlyRate, remainingAmortMonths);
-          principal = minOf(maxOf(payment.minus(accrued), ZERO), balance);
+          principal = minOf(maxOf(payment.minus(cashInterest), ZERO), balance);
           balance = balance.minus(principal);
           remainingAmortMonths -= 1;
         }

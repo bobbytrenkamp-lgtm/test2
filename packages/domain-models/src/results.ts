@@ -185,6 +185,23 @@ export interface ReturnMetrics {
   breakevenOccupancy: string | null;
   valuePerArea: string | null;
   valuePerUnit: string | null;
+  /**
+   * The unlevered outflow `unleveredIrr` was actually discounted from:
+   * acquisition price plus acquisition costs. Not the concluded DCF or
+   * direct-cap value, which routinely differs from what was actually paid.
+   * Portfolio aggregation must roll up this figure, not re-derive a basis
+   * from concluded value, or a property bought below (or above) its
+   * appraised value would report a portfolio-level IRR discounted against a
+   * basis the property itself never used.
+   */
+  initialInvestment: string;
+  /**
+   * The equity outflow `leveredIrr` was actually discounted from: total cost
+   * plus sponsor fees at close, minus debt drawn at closing. Same rationale
+   * as `initialInvestment` — portfolio-level levered IRR and equity multiple
+   * must roll up this exact figure.
+   */
+  initialEquity: string;
 }
 
 export interface WaterfallDistribution {

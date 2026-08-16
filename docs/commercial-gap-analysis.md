@@ -109,6 +109,86 @@ correctness bugs and one dead CSS reference:
    styling hook and does nothing invites a future edit to assume it works.
    Removed.
 
+A second pass, scoped this time to the core calculation engine and its type
+layer (`packages/calculation-engine/src`, `packages/domain-models/src`) rather
+than the session's UI-heavy work, found three further defects, all in
+`aggregatePortfolio`/`computeDebt` — the highest-value place for a CRE
+platform to be wrong, since these are dollar figures a reader trusts without
+re-deriving by hand:
+
+4. **Portfolio-level IRR and equity multiple were discounted from the
+   member's concluded valuation, not what was actually paid for it.**
+   `aggregatePortfolio` built its initial unlevered/equity outflow from
+   `dcfValue(result)` — the property's concluded DCF or direct-cap value —
+   while the property's own `unleveredIrr`/`leveredIrr` in `engine.ts`
+   correctly discount from `acquisitionBasis + acquisitionCosts` and the
+   equity actually funded at close. Buying below or above appraised value is
+   the ordinary case, not a contrived one, so the two bases routinely
+   differ, and a single 100%-owned member's portfolio IRR should equal its
+   own property-level IRR exactly — it did not. Fixed by exposing the exact
+   basis figures the property-level IRR was already computed from as two new
+   `ReturnMetrics` fields, `initialInvestment` and `initialEquity`
+   (`packages/domain-models/src/results.ts`, populated in
+   `packages/calculation-engine/src/engine.ts`), and having
+   `aggregatePortfolio` roll up those instead of re-deriving a basis from
+   concluded value.
+5. **The same portfolio cash-flow combination folded a levered figure into
+   the "unlevered" series.** `netDispositionProceeds` is sale proceeds net
+   of *debt payoff* — a levered figure, and the same one `leveredCashFlow`
+   already accounts for — but `aggregatePortfolio` added it into
+   `unleveredFlows` too, double-counting the loan's effect on the sale once
+   as a levered figure standing in for an unlevered one, and again in the
+   levered series. Fixed by adding back `grossSaleProceeds` net of
+   `sellingCosts` instead — gross of any debt, exactly what `engine.ts`'s
+   own `computeReturns` adds to build the property-level `unleveredIrr` this
+   must match.
+6. **The same combination also double-counted month-0 debt proceeds against
+   the levered flows.** Month 0's `leveredCashFlow` already carries the
+   loan's own proceeds landing in the account; `initialEquity` is *net* of
+   that same debt (what was actually funded at closing after the loan), so
+   summing the raw month-0 figure counted the debt-funded portion of the
+   purchase twice. Fixed by subtracting `debtProceeds[0]` from month 0
+   before combining, matching the same subtraction `engine.ts` already does
+   when building the property-level `leveredIrr`. A new regression test in
+   `packages/calculation-engine/src/portfolio.test.ts` asserts the
+   fixable invariant directly: a single 100%-owned member's
+   `portfolioUnleveredIrr`/`portfolioLeveredIrr`/`portfolioEquityMultiple`
+   must equal its own property-level figures exactly, confirmed to fail
+   against the pre-fix code (for all three bugs at once, one assertion at a
+   time as each was found) via a load-bearing check.
+7. **A facility that both capitalizes interest and amortizes computed a
+   principal figure that corresponded to no real amortization schedule**
+   (`packages/calculation-engine/src/debt.ts`). Once past the interest-only
+   window, the loop capitalized that period's interest onto the balance
+   *and*, in the same period, computed a level payment against that
+   just-inflated balance, then subtracted the never-paid capitalized
+   interest back out as "principal" — nothing was actually paid in cash to
+   justify calling any of it repayment, so the resulting balance, DSCR, LTV
+   and debt yield were all silently wrong for every period from there on. A
+   construction-to-permanent facility (capitalize through lease-up, then
+   amortize in cash once stabilised) is the ordinary shape this combination
+   models, and no existing fixture or test exercised it — every
+   `capitalizeInterest: true` fixture pairs it with `amortizationMonths: 0`.
+   Fixed by only capitalizing while still inside the interest-only window;
+   once amortization is due, interest is serviced in cash like any other
+   amortizing facility. A new regression test confirms the facility now
+   fully retires to an exactly-zero balance at the end of its own
+   amortization schedule — the textbook property of a level-payment annuity
+   recomputed each period, which the pre-fix code could not and did not
+   reach, confirmed via a load-bearing check.
+
+Also investigated and discarded as not a genuine defect: `MULTIPLE_CURRENCIES`
+validation in `engine.ts` built its "distinct currencies" set from a single
+one-element array (`new Set([input.currency])`), which can never have more
+than one member since `ModelInput` carries exactly one top-level `currency`
+field and nothing else in the schema names a currency. The check was
+therefore unreachable dead code rather than a bug with an observable wrong
+answer — but dead code masquerading as a validation gives false assurance
+that currency consistency is being checked when it structurally cannot be.
+Removed rather than fixed, since building a real multi-currency check would
+require adding a second currency-bearing field to the schema, well beyond a
+bug-fix's scope.
+
 ## Cross-organization security audit
 
 Milestone 64 treats cross-organization exposure as unacceptable and asks

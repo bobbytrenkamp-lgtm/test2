@@ -1,6 +1,6 @@
 # Calculation specification
 
-Engine version **14.0.0** — `packages/calculation-engine`.
+Engine version **15.0.0** — `packages/calculation-engine`.
 
 This document states what the engine computes and how. It is the reference a
 reviewer should be able to check a number against by hand. Every formula here
@@ -1007,6 +1007,41 @@ an engine upgrade is assessed against approved work before it is adopted.
 
 That is why a purely additive field still moves the minor version: the recorded
 version is what tells a consumer which fields a stored result will have.
+
+### 15.0.0
+
+**A twelfth audit pass**, scoped to the calculation engine itself. Major
+because two of its findings change numbers an existing model would already
+be reporting.
+
+- **Portfolio-level unlevered/levered IRR and equity multiple no longer
+  discount from a member's concluded valuation instead of what was actually
+  paid for it.** `aggregatePortfolio` built its initial outflow from the
+  concluded DCF/direct-cap value, while the property's own IRRs correctly
+  discount from acquisition price and cost, and the equity actually funded
+  at close. Buying below or above appraised value is the ordinary case, so
+  the two bases routinely differ — a single 100%-owned member's portfolio
+  IRR should equal its own property-level IRR exactly, and did not. Two
+  further bugs in the same cash-flow combination, both changing the same
+  figures: sale proceeds net of debt payoff (a levered figure) were folded
+  into the "unlevered" series instead of proceeds gross of any debt; and
+  month zero's raw levered cash flow, which already carries the loan's own
+  proceeds, was summed against an equity figure already net of that same
+  debt, double-counting the debt-funded portion of the purchase.
+- **A facility that both capitalizes interest and amortizes no longer
+  computes a principal figure with no corresponding real amortization
+  schedule.** Once past the interest-only window, the loop capitalized that
+  period's interest onto the balance *and* computed a level payment against
+  the just-inflated balance in the same period, then subtracted the
+  never-paid interest back out as "principal" — silently misstating
+  balance, DSCR, LTV and debt yield from that point on. A
+  construction-to-permanent facility is the ordinary shape this combination
+  models; no existing fixture exercised it before now.
+
+Also removed, as unreachable dead code rather than a numeric defect: a
+currency-consistency check that built its "distinct currencies" set from a
+single-element array, which could never exceed size 1 since a model carries
+exactly one top-level currency field.
 
 ### 14.0.0
 

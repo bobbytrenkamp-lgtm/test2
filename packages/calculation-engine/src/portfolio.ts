@@ -199,17 +199,45 @@ export function aggregatePortfolio(members: PortfolioMember[]): PortfolioAggrega
     // Cash flows combine at ownership share and are padded to the longest
     // horizon so a shorter hold does not shift a longer one's timing.
     for (let i = 0; i < horizonMonths; i += 1) {
+      // `netDispositionProceeds` is sale proceeds net of *debt payoff* — a
+      // levered figure, the same one `leveredCashFlow` below already folds
+      // in. Combining it into the unlevered series here would double-count
+      // the loan's effect on the sale: once as a levered figure standing in
+      // for an unlevered one, and again in `leveredFlows`. The unlevered
+      // series must instead add back the sale gross of any debt, which is
+      // `grossSaleProceeds` net of `sellingCosts` (stored negated) only —
+      // exactly what `engine.ts`'s own `computeReturns` adds to build the
+      // property-level `unleveredIrr` this must match.
       const unlevered = d(result.monthly.unleveredCashFlow[i] ?? '0')
-        .plus(d(result.monthly.netDispositionProceeds[i] ?? '0'))
+        .plus(d(result.monthly.grossSaleProceeds[i] ?? '0'))
+        .plus(d(result.monthly.sellingCosts[i] ?? '0'))
         .times(share);
       unleveredFlows[i] = (unleveredFlows[i] as Decimal).plus(unlevered);
-      leveredFlows[i] = (leveredFlows[i] as Decimal).plus(
-        d(result.monthly.leveredCashFlow[i] ?? '0').times(share),
-      );
+      // Month 0's `leveredCashFlow` already carries the loan's own proceeds
+      // landing in the account alongside that month's operating cash flow.
+      // `initialEquity` below is *net* of that same debt (it is what was
+      // actually funded at closing after the loan), so combining the raw
+      // month-0 figure as-is would count the debt-funded portion of the
+      // purchase twice — once as reduced equity, again as a cash inflow.
+      // `engine.ts`'s own `computeReturns` subtracts it for exactly this
+      // reason before computing the property-level `leveredIrr` this must
+      // match.
+      const leveredThisMonth =
+        i === 0
+          ? d(result.monthly.leveredCashFlow[0] ?? '0').minus(
+              d(result.monthly.debtProceeds[0] ?? '0'),
+            )
+          : d(result.monthly.leveredCashFlow[i] ?? '0');
+      leveredFlows[i] = (leveredFlows[i] as Decimal).plus(leveredThisMonth.times(share));
     }
-    const basis = d(result.returns.valuePerArea ?? '0').times(area);
-    initialUnlevered = initialUnlevered.minus((dcf ? dcfValue(result) : basis).times(share));
-    initialEquity = initialEquity.minus(dcfValue(result).minus(debtAtStart).times(share));
+    // The property-level IRRs were discounted from the property's own
+    // `initialInvestment`/`initialEquity` (acquisition price and cost, not
+    // concluded value) — the portfolio roll-up must combine the same
+    // figures, or a property bought below or above its appraised value
+    // would report a portfolio IRR discounted against a basis the property
+    // itself never used.
+    initialUnlevered = initialUnlevered.minus(d(result.returns.initialInvestment).times(share));
+    initialEquity = initialEquity.minus(d(result.returns.initialEquity).times(share));
 
     accumulate(byType, member.propertyType, value);
     accumulate(byMarket, member.market ?? 'Unassigned', value);
