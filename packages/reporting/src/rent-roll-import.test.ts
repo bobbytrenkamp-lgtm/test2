@@ -328,6 +328,32 @@ describe('row mapping', () => {
     expect(flaggedRows).toEqual([1, 2]);
   });
 
+  it('excludes every duplicate row past the first from the importable leases', () => {
+    /*
+     * Found by a repository-wide correctness audit: duplicate-lease-code
+     * detection runs after every row has already been provisionally pushed
+     * to `leases`, so flagging a row in `issues` never removed it from
+     * `leases` too. A caller trusting `leases` without independently
+     * re-deriving error rows from `issues` (the ordinary way to consume this
+     * function's result) would import all three rows below, silently
+     * reintroducing the `ON CONFLICT (model_id, code) DO UPDATE` collision
+     * the duplicate check exists to catch in the first place.
+     */
+    const withLease = { ...mapping, leaseCode: 0 };
+    const result = mapRows(
+      [
+        ['L-1', 'First Co', '1000', '2026-01-01', '2031-12-31', '10000', ''],
+        ['L-1', 'Second Co', '2000', '2026-01-01', '2031-12-31', '20000', ''],
+        ['L-1', 'Third Co', '3000', '2026-01-01', '2031-12-31', '30000', ''],
+      ],
+      withLease,
+    );
+    // The first occurrence is kept as the row of record; only the two later
+    // rows past it are excluded, matching the same rows `issues` flags.
+    expect(result.leases).toHaveLength(1);
+    expect(result.leases[0]?.tenantName).toBe('First Co');
+  });
+
   it('warns about an ambiguous date instead of importing it silently', () => {
     const result = mapRows(
       [['601', 'Ambiguous Co', '1000', '01/02/2026', '01/02/2031', '10000', '']],

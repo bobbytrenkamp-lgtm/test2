@@ -374,8 +374,15 @@ class Parser {
         return lhs === rhs ? (args[1]?.value ?? 0) : (args[2]?.value ?? 0);
       }
       case 'IFERROR': {
+        // Real Excel semantics: fall back to the second argument whenever the
+        // first is an error. `NaN` here means either an actual arithmetic
+        // error or a deliberately unimplemented function (XIRR, XNPV, SUMIF);
+        // in the latter case the fallback is just as unverifiable as the
+        // primary, so it is also NaN when nothing was supplied, and callers
+        // keep skipping the cell rather than treating it as checked.
         const value = args[0]?.value ?? Number.NaN;
-        return Number.isFinite(value) ? value : Number.NaN;
+        if (Number.isFinite(value)) return value;
+        return args[1]?.value ?? Number.NaN;
       }
       default:
         // XIRR, XNPV, SUMIF and anything else: not implemented on purpose.

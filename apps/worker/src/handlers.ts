@@ -107,12 +107,26 @@ export const handlers: Record<string, JobHandler> = {
     const organizationId = job.organization_id;
     if (!organizationId) throw new Error('aggregate_portfolio requires an organization.');
 
+    // The portfolio itself must belong to this job's organization: nothing
+    // upstream of this query re-checks that, so without it a job whose
+    // payload names another organization's portfolio id would aggregate
+    // that organization's property data across the boundary.
+    const portfolioRows = (await sql`
+      SELECT id FROM portfolios
+      WHERE id = ${portfolioId} AND organization_id = ${organizationId} AND deleted_at IS NULL
+    `) as unknown as Array<{ id: string }>;
+    if (!portfolioRows[0]) {
+      throw new Error(`Portfolio ${portfolioId} was not found in this organization.`);
+    }
+
     const properties = (await sql`
       SELECT p.id, p.name, p.property_type, p.market, p.rentable_area, p.unit_count,
              pp.ownership_percent
       FROM portfolio_properties pp
       JOIN properties p ON p.id = pp.property_id
-      WHERE pp.portfolio_id = ${portfolioId} AND p.deleted_at IS NULL
+      WHERE pp.portfolio_id = ${portfolioId}
+        AND p.organization_id = ${organizationId}
+        AND p.deleted_at IS NULL
     `) as unknown as Array<Record<string, unknown>>;
 
     const members: PortfolioMember[] = [];
