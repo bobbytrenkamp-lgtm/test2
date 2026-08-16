@@ -66,6 +66,19 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((value) => value === 'true'),
+  /**
+   * `none` (default) never scans an upload — nothing to configure, which is
+   * why a fresh checkout can run the rent-roll and actuals import wizards
+   * with nothing installed. Every response from those two import routes
+   * says explicitly whether the file was scanned, so "not scanned" is a
+   * visible fact, not a silent gap. `clamav` requires a reachable `clamd`
+   * (the docker-compose stack runs one as a service — free and open
+   * source, no paid API) and refuses the specific upload, not the whole
+   * server, if the scanner cannot be reached when a scan is due.
+   */
+  SCAN_DRIVER: z.enum(['none', 'clamav']).default('none'),
+  SCAN_HOST: z.string().default('localhost'),
+  SCAN_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
 });
 
 export type Env = z.infer<typeof envSchema>;

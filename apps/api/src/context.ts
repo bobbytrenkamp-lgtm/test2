@@ -5,6 +5,8 @@ import { canUseFeature, roleHasCapability } from '@cre/domain-models';
 import type { AuthenticatedContext, Sql } from '@cre/database';
 import { getEntitlements } from '@cre/database';
 import type { Mailer } from './mailer.js';
+import type { Scanner } from './malware-scanner.js';
+import { InfectedFileError, ScannerUnavailableError } from './malware-scanner.js';
 
 /**
  * Request authorization.
@@ -25,6 +27,7 @@ declare module 'fastify' {
     auth?: AuthenticatedContext;
     db: Sql;
     mailer: Mailer;
+    scanner: Scanner;
   }
 }
 
@@ -58,6 +61,31 @@ export function badRequest(message: string, details?: unknown): HttpError {
 
 export function unprocessable(message: string, details?: unknown): HttpError {
   return new HttpError(422, 'UNPROCESSABLE', message, details);
+}
+
+/**
+ * Scans raw uploaded bytes before anything parses them, translating the
+ * scanner's own error types into the HTTP errors this module's other
+ * helpers produce. An infected file and an unreachable scanner are refused
+ * differently on purpose: the first is the caller's problem (400), the
+ * second is this deployment's (503) — conflating them would let "the
+ * scanner is down" read as "this file is infected" or vice versa.
+ */
+export async function scanUpload(
+  request: FastifyRequest,
+  buffer: Buffer,
+): Promise<{ scanned: boolean }> {
+  try {
+    return await request.scanner.scan(buffer);
+  } catch (error) {
+    if (error instanceof InfectedFileError) {
+      throw new HttpError(400, 'FILE_INFECTED', error.message);
+    }
+    if (error instanceof ScannerUnavailableError) {
+      throw new HttpError(503, 'SCANNER_UNAVAILABLE', error.message);
+    }
+    throw error;
+  }
 }
 
 export interface RequestAuth {

@@ -19,7 +19,7 @@ import {
 } from '@cre/database';
 import { buildReforecast, computeVariance, forecastToBudgetLines } from '@cre/calculation-engine';
 import { analyzeActuals, mapActuals } from '@cre/reporting';
-import { badRequest, forbidden, notFound, requireCapability } from '../context.js';
+import { badRequest, forbidden, notFound, requireCapability, scanUpload } from '../context.js';
 
 /**
  * Budgets, actuals and variance.
@@ -207,8 +207,10 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
     const period = await getBudgetPeriod(request.db, context.organizationId, id);
     if (!period) throw notFound('That budget does not exist.');
 
+    const { scanned } = await scanUpload(request, Buffer.from(body.content, 'utf8'));
+
     // Parsing is local and deterministic. The file is never sent anywhere.
-    return { analysis: analyzeActuals(body.content) };
+    return { analysis: analyzeActuals(body.content), scanned };
   });
 
   app.post('/budgets/:id/import/commit', async (request) => {
@@ -233,6 +235,8 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       );
     }
 
+    const { scanned } = await scanUpload(request, Buffer.from(body.content, 'utf8'));
+
     const analysis = analyzeActuals(body.content);
     const mapped = mapActuals(body.content, analysis, {
       expenseSign: body.expenseSign,
@@ -248,6 +252,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
         months: mapped.months,
         wouldWrite: mapped.entries.length,
         preview: mapped.entries.slice(0, 50),
+        scanned,
       };
     }
 
@@ -266,7 +271,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       },
     });
 
-    return { written, issues: mapped.issues, months: mapped.months };
+    return { written, issues: mapped.issues, months: mapped.months, scanned };
   });
 
   /* ---------------------------------------------------------------------- */

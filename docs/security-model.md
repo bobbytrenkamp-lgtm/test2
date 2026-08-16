@@ -102,10 +102,22 @@ exists; no second factor is enforced.
 
 ## 7. Uploads
 
-Designed, not yet reachable: `documents` carries a checksum, a byte size, an
-opaque storage key and a `scan_status`. **No scanner is wired and no upload
-endpoint exists.** The rent-roll import takes CSV text through the normal JSON
-body, subject to the 5 MB body limit.
+The rent-roll import and the budget actuals import take file content through
+the normal JSON body (CSV as text, a workbook as base64), subject to the 5 MB
+body limit. Both scan the raw bytes before anything parses them, through a
+pluggable `SCAN_DRIVER`: `none` (default) scans nothing and every response
+says `scanned: false`, so this is a visible fact rather than a silent gap;
+`clamav` scans for real through a `clamd` daemon (`docker-compose.yml` runs
+one as a sibling service) and refuses the specific upload — not the whole
+server — both when the file is infected (`400 FILE_INFECTED`) and when the
+scanner was due to run but could not be reached (`503 SCANNER_UNAVAILABLE`),
+because those two situations must never look the same to whoever reads the
+response. Live ClamAV signature detection has not been exercised end to end
+in this environment — see `infrastructure/docker-compose.yml`.
+
+The `documents` table's `scan_status` column and any document-upload endpoint
+beyond these two importers remain designed, not built; see
+`docs/feature-status.md`.
 
 ## 8. Data handling
 
@@ -126,9 +138,12 @@ application role. Recorded in `docs/feature-status.md`.
 ## 10. Verified vs. asserted
 
 **Verified by tests:** isolation, capability enforcement, CSRF, session
-revocation, enumeration resistance, password policy, owner-retention.
+revocation, enumeration resistance, password policy, owner-retention, MFA
+(TOTP against the RFC's own published vectors), malware-scanner driver
+selection and its clean/infected/unreachable HTTP translation, and dependency
+scanning that fails the CI build on a high or critical finding.
 
 **Implemented but untested:** rate limiting, CSP headers, export permissions.
 
-**Not implemented:** MFA, malware scanning, database-level audit immutability,
-dependency scanning that fails the build, penetration testing.
+**Not implemented:** database-level audit immutability, penetration testing,
+live ClamAV signature detection (blocked in this environment — see §7).

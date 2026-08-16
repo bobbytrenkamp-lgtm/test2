@@ -123,8 +123,8 @@ Every external dependency sits behind an interface so it can be replaced:
 | Concern | Today | Replaceable with |
 | --- | --- | --- |
 | Object storage | `STORAGE_DRIVER=local`, opaque keys in `documents` | S3-compatible service |
-| Malware scanning | `scan_status` column, no scanner wired | ClamAV or a hosted scanner |
-| Mail | none; reset and invitation tokens returned in non-production | any SMTP or API provider |
+| Malware scanning | `SCAN_DRIVER=none` (default) scans nothing; `SCAN_DRIVER=clamav` scans both import surfaces through a `clamd` daemon | ClamAV (built in) or a hosted scanner |
+| Mail | `MAIL_DRIVER=console` (default) logs instead of sending; `MAIL_DRIVER=smtp` sends through `nodemailer` | any SMTP or API provider |
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled | any provider, opt-in |
 
 No paid service, API or data source is a dependency. The platform runs entirely

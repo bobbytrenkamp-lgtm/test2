@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1390 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1399 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -107,7 +107,9 @@ Tests       1390 passed (251 engine regression, 31 engine unit, 16 fund,
                          2 the aggregate_portfolio job handler across organizations,
                          7 sensitivity and scenario-batch input validation,
                          7 pending assumption decisions organization-wide,
-                         5 scenario comparison, 5 underwriting package export)
+                         5 scenario comparison, 5 underwriting package export,
+                         4 malware scanner driver selection,
+                         5 malware scanning at the API boundary)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -134,7 +136,7 @@ Drill       21 checks passed (dump, restore, valuations reproduced)
 Benchmark   4 cases inside budget (111ms single tenant, 4.2s at 300 leases)
 Load test   5,000 properties, 200,000 leases; every query inside budget
 Concurrency 200 parallel clients, ~1,000 req/s, p95 200ms, 0 failures
-Licences    345 packages, none requiring payment or a commercial licence
+Licences    347 packages, none requiring payment or a commercial licence
 ```
 
 ---
@@ -363,8 +365,8 @@ are the current state.)
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
 | Dependency scanning in CI | Tested | `pnpm audit --audit-level=high` fails the build on a high or critical finding; moderate findings are logged, not blocked |
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
-| Malware scanning of uploads | Designed | Column exists; no scanner |
-| Upload size and type verification | Partial | Body limit enforced; no upload endpoint yet |
+| Malware scanning of uploads | Tested | Pluggable `SCAN_DRIVER` (`none` default, `clamav` via clamd). Both import surfaces (rent-roll, budget actuals) scan raw bytes before parsing and report `scanned` honestly. Driver selection and the infected/unavailable HTTP translation are tested against a fake scanner; live ClamAV signature detection is not verified in this environment — see `infrastructure/docker-compose.yml` |
+| Upload size and type verification | Functional | Body limit enforced; rent-roll and budget-actuals imports cap content size in their zod schemas and reject a workbook that fails to parse |
 | Database backup and restore | Tested | `pnpm drill:restore`: real dump, real restore, 20 checks including that a stored valuation reproduces. Runs in CI |
 
 ## 7. Operations

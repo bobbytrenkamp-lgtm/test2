@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1390 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1399 tests, plus 231 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -172,7 +172,9 @@ of a space reporting the whole space occupied. Each is described in
 database schema and migrations; authentication, authorization, multi-factor
 authentication, password reset delivery and cross-organization isolation; the
 deterministic import
-parser, CSV and Excel alike; budgets, actuals and variance reporting; version
+parser, CSV and Excel alike; malware scanning of both import surfaces —
+pluggable, defaults to none, and honest in its response about whether a scan
+actually happened; budgets, actuals and variance reporting; version
 comparison and the approval workflow; the vertical slice from sign-in through
 to a traced valuation and a frozen approval. The browser suite reaches the
 assumptions editor, scenarios, versions, reports and the portfolio roll-up,
@@ -182,14 +184,19 @@ screen-reader audit below.
 **Works, not yet proven.** The background worker's claim/retry/reap pipeline
 as a whole (individual job handlers are tested in isolation); sensitivity
 analysis; model cloning; the general reports/exports engine; the rent-roll
-import *write* path (parsing itself is tested).
+import *write* path (parsing itself is tested). Live ClamAV signature
+detection specifically — the scanner's driver selection and its HTTP
+translation of a clean/infected/unreachable result are tested against a fake
+client, but this environment's egress policy blocks the same CDN a `clamd`
+container would need at startup to load real virus definitions, so end-to-end
+detection has never run here.
 
-**Designed only.** Documents and configurable dashboards, malware scanning of
-uploaded files, server-side PDF, import rollback, mention notifications and
-an activity feed, a handful of lease-option types (expansion, purchase,
-ROFR, ROFO), fund-level recallable distributions, the live property-research
-integration, and the optional AI assistant — which is disabled by default and
-adds no paid dependency without approval.
+**Designed only.** Documents and configurable dashboards, server-side PDF,
+import rollback, mention notifications and an activity feed, a handful of
+lease-option types (expansion, purchase, ROFR, ROFO), fund-level recallable
+distributions, the live property-research integration, and the optional AI
+assistant — which is disabled by default and adds no paid dependency without
+approval.
 
 **Written but unverified.** The Docker Compose stack only — the container
 images have never been built, because this environment's egress policy
