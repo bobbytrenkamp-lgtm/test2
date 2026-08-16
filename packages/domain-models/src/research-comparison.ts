@@ -118,12 +118,15 @@ export function buildComparison(input: BuildComparisonInput): ResearchComparison
   const withNumericValue = candidates
     .map((observation) => ({
       observation,
+      // `Number('')` is 0 and `Number(true/false)` is 1/0 — neither is a
+      // usable numeric observation, so both must be excluded explicitly
+      // rather than silently coerced into a real data point.
       value:
-        observation.value === null || observation.value === undefined
-          ? NaN
-          : Number(observation.value),
+        typeof observation.value === 'string' || typeof observation.value === 'number'
+          ? Number(observation.value)
+          : NaN,
     }))
-    .filter((entry) => Number.isFinite(entry.value));
+    .filter((entry) => Number.isFinite(entry.value) && entry.observation.value !== '');
   if (candidates.length > withNumericValue.length) {
     exclusions.push({
       count: candidates.length - withNumericValue.length,

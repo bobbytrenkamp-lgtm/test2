@@ -312,6 +312,40 @@ describe.skipIf(!hasDatabase)('underwriting workflow progress', () => {
     expect(step(steps, 'output').done).toBe(false);
   });
 
+  it('does not regress "review" or "output" once a published model is archived', async () => {
+    // Continues the same model's approval chain (already at analyst_review
+    // from the previous test) through to published, then on to archived --
+    // the terminal state a real model reaches after a full review, not a
+    // state a progress strip should ever walk backward from.
+    for (const to of ['manager_review', 'approved', 'published']) {
+      const transition = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/models/${modelId}/transition`,
+        headers: authed(owner.cookie),
+        payload: { to },
+      });
+      expect(transition.statusCode, to).toBe(200);
+    }
+
+    let steps = await workflow();
+    expect(step(steps, 'review').done).toBe(true);
+    expect(step(steps, 'output').done).toBe(true);
+    expect(step(steps, 'output').detail).toBe('Published');
+
+    const archived = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${modelId}/transition`,
+      headers: authed(owner.cookie),
+      payload: { to: 'archived' },
+    });
+    expect(archived.statusCode).toBe(200);
+
+    steps = await workflow();
+    expect(step(steps, 'review').done).toBe(true);
+    expect(step(steps, 'output').done).toBe(true);
+    expect(step(steps, 'output').detail).toBe('Published');
+  });
+
   it('reports the applied-import count from real import_sessions rows, not a UI flag', async () => {
     let steps = await workflow();
     expect(step(steps, 'imports').done).toBe(false);

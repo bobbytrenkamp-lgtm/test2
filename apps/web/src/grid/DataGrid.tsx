@@ -497,7 +497,7 @@ export function DataGrid<Row>({
 
       {bulkDraft !== null && (
         <form
-          className="row grid-bulk-apply"
+          className="row"
           onSubmit={(event) => {
             event.preventDefault();
             applyToSelection(bulkDraft);

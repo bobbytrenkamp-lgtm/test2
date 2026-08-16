@@ -115,6 +115,24 @@ describe('buildComparison', () => {
     ]);
   });
 
+  it('does not coerce an empty string or a boolean into a real 0/1 data point', () => {
+    // Number('') is 0 and Number(true)/Number(false) are 1/0 — both finite,
+    // so a naive Number(value) filtered only by Number.isFinite would count
+    // a blank or boolean observation as a real comparable rather than
+    // excluding it, silently dragging down the statistics with a value that
+    // was never actually a number.
+    const result = buildComparison(
+      input({
+        observations: [...FIVE_POINTS, observation({ value: '' }), observation({ value: true })],
+      }),
+    );
+    expect(result.coverage.sampleCount).toBe(5);
+    expect(result.stats.min).toBe('2000');
+    expect(result.coverage.exclusions).toEqual([
+      { count: 2, reason: 'Value was missing or not a number.' },
+    ]);
+  });
+
   it('excludes a stale observation but keeps one with no recorded date', () => {
     const stale = observation({ value: '2050', observedAt: '2024-01-01T00:00:00.000Z' });
     const undated = observation({ value: '2075' });

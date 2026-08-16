@@ -155,9 +155,21 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
       id,
       model.property_id,
     );
-    const reviewed = ['analyst_review', 'manager_review', 'approved', 'published'].includes(
-      model.status,
-    );
+    // 'archived' and 'superseded' are only reachable from 'published' (see
+    // the transition table in ReviewTab.tsx's NEXT), so a model in either
+    // state has already been fully reviewed and published — the progress
+    // strip must not regress "Review"/"Output" back to not-done just
+    // because someone archived a model that finished the workflow.
+    const reviewed = [
+      'analyst_review',
+      'manager_review',
+      'approved',
+      'published',
+      'superseded',
+      'archived',
+    ].includes(model.status);
+    const published =
+      model.status === 'published' || model.status === 'superseded' || model.status === 'archived';
 
     const steps = [
       {
@@ -258,8 +270,8 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
         label: 'Output',
         tab: 'reports',
         optional: true,
-        done: model.status === 'published',
-        detail: model.status === 'published' ? 'Published' : 'Not yet published',
+        done: published,
+        detail: published ? 'Published' : 'Not yet published',
       },
     ];
 

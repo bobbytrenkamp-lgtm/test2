@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1373 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1375 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          26 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -79,7 +79,7 @@ Tests       1373 passed (251 engine regression, 31 engine unit, 16 fund,
                          24 PDF-assumption import via the API,
                          20 property-research schema, 10 research interfaces,
                          8 recommendation-to-proposal conversion,
-                         12 the comparable-selection and percentile engine,
+                         13 the comparable-selection and percentile engine,
                          1 application version, 13 entitlements,
                          7 entitlements via the API, 6 organization export,
                          11 the growth curve library and its provenance,
@@ -88,7 +88,7 @@ Tests       1373 passed (251 engine regression, 31 engine unit, 16 fund,
                          23 operating expense numerical integrity at institutional scale,
                          13 the debt facility library and its provenance,
                          6 new underwriting atomic property + model creation,
-                         12 workflow/progress surface,
+                         13 workflow/progress surface,
                          5 debt funded pre-forecast/draw/origination fee/floating DSCR,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
@@ -430,7 +430,7 @@ are the current state.)
 | `cre-property-research` v1 schema and parser | Tested | Observation / comparison / model estimate / recommendation kept as four structurally distinct schemas so a fact cannot masquerade as a recommendation. 20 tests |
 | Universal research request, test1 and test3 contracts | Designed | Typed and tested for internal consistency; neither test1 nor test3 is a live endpoint from this repository, so nothing calls them. 10 tests |
 | Conversion of a recommendation into an existing assumption proposal | Tested | The only integration point: reuses `assumption_proposals` and `sourceKind: 'recommended'` with no new write path. 8 tests |
-| Comparable-selection / percentile engine | Tested | `buildComparison`, a pure function over a caller-supplied observation array, exactly like `assumption-import-analyze.ts` is over a parsed document. Filters by metric, unit type and a recency window, each exclusion recorded with a count and reason; computes min/p25/median/p75/max, subject percentile and premium-to-median by linear interpolation; flags a 1.5×IQR outlier out of the statistics without deleting it from the source array. Does not attempt geographic-distance filtering — `Observation` has no coordinate — so that stays the caller's job, stated on every comparison's own `coverage.limitations` rather than left silent. Still not called by anything live. 12 tests |
+| Comparable-selection / percentile engine | Tested | `buildComparison`, a pure function over a caller-supplied observation array, exactly like `assumption-import-analyze.ts` is over a parsed document. Filters by metric, unit type and a recency window, each exclusion recorded with a count and reason; computes min/p25/median/p75/max, subject percentile and premium-to-median by linear interpolation; flags a 1.5×IQR outlier out of the statistics without deleting it from the source array. Does not attempt geographic-distance filtering — `Observation` has no coordinate — so that stays the caller's job, stated on every comparison's own `coverage.limitations` rather than left silent. Still not called by anything live. 13 tests |
 | Listing/property-URL Claude Skill, live test1/test3 integration, orchestration layer, "Research this property" UI | Not started | See `docs/property-research.md`'s status table for the full breakdown and why each is not yet built |
 
 See `docs/property-research.md` for the full architecture, the boundaries
