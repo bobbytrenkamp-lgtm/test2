@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1399 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1403 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -109,7 +109,8 @@ Tests       1399 passed (251 engine regression, 31 engine unit, 16 fund,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
-                         5 malware scanning at the API boundary)
+                         5 malware scanning at the API boundary,
+                         4 the worker's own tick orchestration)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -376,7 +377,7 @@ are the current state.)
 | Environment validation at startup | Functional | Refuses to start misconfigured |
 | Migration runner with checksums | Tested | Exercised by every integration test |
 | Demonstration seed | Functional | 5 properties, all calculated |
-| Background worker | Functional | Not covered by automated tests |
+| Background worker | Tested | `tick()` — claim, run the handler, complete or fail — is exercised directly against a real queue, on top of the job-queue functions and individual handlers already tested in isolation |
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Tested | Also reports `appVersion` and `engineVersion`, so a support conversation can establish exactly what customer software produced a result. 1 test |
 | Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
