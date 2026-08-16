@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1415 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1420 tests, plus 231 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -180,14 +180,15 @@ and individual handlers; budgets, actuals and variance reporting; model
 cloning — what eleven copied tables and two remapped foreign keys actually
 produce, not just that the endpoint returns 201; sensitivity analysis — a
 grid cell checked against an independent engine run, not just its shape;
+the rent-roll import commit path — tenant dedup across a re-import,
+partial-import-with-errors, saved mapping templates, the audit trail;
 version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
 suite reaches the assumptions editor, scenarios, versions, reports and the
 portfolio roll-up, not only the underwriting path — Chromium only, and not
 a substitute for the screen-reader audit below.
 
-**Works, not yet proven.** The general reports/exports engine; the
-rent-roll import *write* path (parsing itself is tested). Live ClamAV
+**Works, not yet proven.** The general reports/exports engine. Live ClamAV
 signature detection specifically — the scanner's driver selection and its
 HTTP translation of a clean/infected/unreachable result are tested against
 a fake client, but this environment's egress policy blocks the same CDN a

@@ -84,6 +84,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | The malware scanner's driver selection and the clean/infected/unavailable translation, against a fake clamd client | `apps/api/src/malware-scanner.test.ts` | 4 | No |
 | Malware scanning at the API boundary: both import routes scan before parsing, report `scanned` honestly, and refuse an infected or unscannable upload with the right status code | `tests/malware-scanning.test.ts` | 5 | Yes |
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
+| Rent-roll import commit path: tenant dedup by name across a re-import, `skipRowsWithErrors`, `saveMappingAs`, the model-status guard, the audit trail | `tests/rent-roll-import-commit.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
 | Excel Live Model framework | `packages/reporting/src/excel-model/excel-model.test.ts` | 18 | No |
 | The workbook formula evaluator's own `IFERROR` fallback | `packages/reporting/src/excel-model/evaluate.test.ts` | 2 | No |
@@ -126,7 +127,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1415 tests in total.**
+**1420 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -173,7 +174,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1646 across the whole repository.
+**231 browser tests in total**, for 1651 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -496,6 +497,6 @@ that it stopped describing the codebase; corrected here rather than trusted.
 reader (needs a person with JAWS or VoiceOver — see `docs/feature-status.md`).
 
 **Functional but not yet covered by an automated test at the API layer:**
-the general reports/exports engine, and the rent-roll import *write* path
-(parsing itself is tested). The browser suite still runs in Chromium only;
-cross-browser coverage is the next increment, not a claim already made.
+the general reports/exports engine. The browser suite still runs in
+Chromium only; cross-browser coverage is the next increment, not a claim
+already made.
