@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1403 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1411 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -110,7 +110,8 @@ Tests       1403 passed (251 engine regression, 31 engine unit, 16 fund,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
                          5 malware scanning at the API boundary,
-                         4 the worker's own tick orchestration)
+                         4 the worker's own tick orchestration,
+                         8 model cloning)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -285,7 +286,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Assumptions, six collections | Tested | Five of the six are spreadsheet grids sharing the rent roll's primitive and a batched transactional endpoint; growth curves stay a table because a per-year rate list is not a cell. Browser tests change the discount rate *and* an operating expense and require the model to move, so both are proved to reach the engine |
 | Structured record editors | Tested | Operating expenses, market leasing and debt open a sectioned form instead of a JSON blob: only the fields the chosen method reads are shown, every CRE term carries an explanation where it is used, and a summary panel reads the record back — labelled as arithmetic, not a calculation. 29 spec tests, 11 browser tests, and the debt form is in the axe sweep. Capital, other revenue and growth curves have no spec yet and still use the raw record |
 | Returns, valuation, debt schedule, waterfall | Functional | |
-| Sensitivity grids and model cloning | Functional | |
+| Sensitivity grids | Functional | |
+| Model cloning | Tested | `POST /models/:id/clone` copies eleven tables in one transaction and remaps two foreign keys (a lease's own market-leasing profile, and the model's default one) to the clone's own rows of the same code rather than leaving them pointed at the source. 8 API tests cover what actually got copied field-by-field, the remap, that editing the clone never reaches the source, and organization isolation |
 | Validation panel and recovery workings | Functional | |
 | Model health | Tested | Deterministic rules over the stored calculation — expiry concentration on a rolling 24-month window, tenant concentration across signed leases only, exit cap compression, covenant breaches, rollover-driven growth, below-market leases, area reconciliation, debt retirement. No overall score, deliberately: each finding states the threshold it crossed so a reader can disagree with the threshold rather than the tool. 22 engine tests, 8 browser tests, in the axe sweep |
 | Lease timeline | Tested | Occupancy drawn from the calculation rather than from lease dates, so the engine's own rollover and speculative lease-up appear beside signed leases; a gap is modelled downtime and a faded bar is a probability-weighted branch at its weight. Horizon switches between 12 months and the full forecast |
