@@ -57,7 +57,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 33 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 23 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
-| Authorization and isolation | `tests/authorization.test.ts` | 26 | Yes |
+| Authorization and isolation | `tests/authorization.test.ts` | 29 | Yes |
 | Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 14 | Yes |
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
@@ -117,7 +117,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1377 tests in total.**
+**1380 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -164,7 +164,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**228 browser tests in total**, for 1605 across the whole repository.
+**228 browser tests in total**, for 1608 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

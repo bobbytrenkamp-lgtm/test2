@@ -433,6 +433,30 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
       throw badRequest('A lease cannot expire before it commences.');
     }
 
+    // Both foreign keys below are validated against this organization (and,
+    // for the leasing profile, this model) before they are written. Neither
+    // `tenants` nor `market_leasing_profiles` enforces that scope at the
+    // database level — the column is a bare `REFERENCES ... (id)` — so
+    // without this check a client could point a lease at another
+    // organization's tenant or another model's leasing profile, and the
+    // tenant's name (`listLeases` joins `tenants` unconditionally) would
+    // then be readable by anyone who can see this model.
+    const tenantOwned = (await request.db`
+      SELECT id FROM tenants WHERE id = ${body.tenantId} AND organization_id = ${context.organizationId}
+    `) as unknown as unknown[];
+    if (tenantOwned.length === 0) {
+      throw notFound('That tenant does not exist in this organization.');
+    }
+    if (body.marketLeasingProfileId) {
+      const profileOwned = (await request.db`
+        SELECT id FROM market_leasing_profiles
+        WHERE id = ${body.marketLeasingProfileId} AND model_id = ${params.id}
+      `) as unknown as unknown[];
+      if (profileOwned.length === 0) {
+        throw notFound('That market leasing profile does not exist on this model.');
+      }
+    }
+
     let lease;
     try {
       lease = await upsertLease(request.db, {
