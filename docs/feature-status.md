@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1411 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1415 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -111,7 +111,7 @@ Tests       1411 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 malware scanner driver selection,
                          5 malware scanning at the API boundary,
                          4 the worker's own tick orchestration,
-                         8 model cloning)
+                         8 model cloning, 4 sensitivity grid values)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -244,7 +244,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Lease CRUD | Tested | |
 | Assumption collections | Tested | Six collections through one generic handler; row-level optimistic locking covered on every one |
 | Calculate, cash flow, trace | Tested | |
-| Sensitivity (one- and two-way) | Functional | Full engine run per cell |
+| Sensitivity (one- and two-way) | Tested | Full engine run per cell. A grid at the model's own current value reproduces its stored result exactly; year-1 NOI reads identically across every discount-rate cell (it does not depend on the discount rate); a two-way cell is cross-checked against a one-way run holding both assumptions at that same pair |
 | Loan sizing | Tested | `POST /models/:id/debt/size`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. 5 API tests |
 | Straight-line rent | Tested | `GET /models/:id/leases/:leaseId/straight-line-rent`; reads the model's own stored `leaseCashFlows`, restricted to the lease's own signed row and the periods it is actually in effect. 4 API tests |
 | Sales comparison approach | Tested | `POST /models/:id/sales-comparison`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. Every value validated as a decimal string before it reaches the calculator. 5 API tests |
