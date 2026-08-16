@@ -101,7 +101,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Property research: `cre-property-research` v1 schema and parser | `packages/domain-models/src/cre-property-research.test.ts` | 20 | No |
 | Property research: universal request, test1 and test3 contracts | `packages/domain-models/src/research-interfaces.test.ts` | 10 | No |
 | Property research: recommendation to assumption-proposal conversion | `packages/domain-models/src/research-to-proposal.test.ts` | 8 | No |
-| Property research: comparable-selection and percentile engine — every statistic hand-verified, exclusions recorded rather than silent, an outlier flagged out of the statistics without touching the source array | `packages/domain-models/src/research-comparison.test.ts` | 12 | No |
+| Property research: comparable-selection and percentile engine — every statistic hand-verified, exclusions recorded rather than silent, an outlier flagged out of the statistics without touching the source array, an empty string or boolean value never silently coerced into a real 0/1 data point | `packages/domain-models/src/research-comparison.test.ts` | 13 | No |
 | Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
@@ -112,12 +112,12 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Operating expense numerical integrity at institutional scale: large fixed and per-area expenses, multi-year growth, recoverable/variable splits, a multi-billion-dollar acquisition's accounting identities, and scale invariance | `packages/calculation-engine/src/expense-templates-integrity.test.ts` | 23 | No |
 | The organization's debt facility library, its provenance, boundary validation, and template/hand-entered equivalence on a billion-dollar facility | `tests/debt-facility-templates.test.ts` | 13 | Yes |
 | New Underwriting: atomic property + model creation, linkage, audit, rollback on invalid input, organization isolation and capability enforcement | `tests/underwriting.test.ts` | 6 | Yes |
-| Workflow/progress surface: each of the ten steps flips only once its own real rows exist, never on a "visited this tab" flag; a failed calculation run does not count as progress | `tests/underwriting-workflow.test.ts` | 12 | Yes |
+| Workflow/progress surface: each of the ten steps flips only once its own real rows exist, never on a "visited this tab" flag; a failed calculation run does not count as progress; "Review" and "Output" do not regress once a published model is archived | `tests/underwriting-workflow.test.ts` | 13 | Yes |
 | Pending assumption decisions, organization-wide: lists across every model, carries property/model and each proposal's own current value, drops out once decided, organization isolation | `tests/pending-assumption-proposals.test.ts` | 7 | Yes |
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1373 tests in total.**
+**1375 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -164,7 +164,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, accessibility | `e2e/consolidated-review.spec.ts` | 4 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**228 browser tests in total**, for 1601 across the whole repository.
+**228 browser tests in total**, for 1603 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
