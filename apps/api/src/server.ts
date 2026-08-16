@@ -9,6 +9,7 @@ import { createDatabase, recordError, referenceFor, resolveSession, type Sql } f
 import type { Env } from './env.js';
 import { HttpError, SESSION_COOKIE, assertSameOriginIntent } from './context.js';
 import { createMailer, type Mailer } from './mailer.js';
+import { createScanner, type Scanner } from './malware-scanner.js';
 import { APP_VERSION } from './version.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerOrganizationRoutes } from './routes/organizations.js';
@@ -39,6 +40,8 @@ export interface ServerOptions {
   db?: Sql;
   /** Injected in tests to assert on what would have been sent, without a real mailer. */
   mailer?: Mailer;
+  /** Injected in tests so a scan can be asserted on without a real clamd. */
+  scanner?: Scanner;
   logger?: boolean;
 }
 
@@ -77,6 +80,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   });
 
   const mailer = options.mailer ?? createMailer(env, app.log);
+  const scanner = options.scanner ?? (await createScanner(env, app.log));
 
   /*
    * Every route this server exposes, recorded as it is registered.
@@ -160,6 +164,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   app.addHook('onRequest', async (request) => {
     request.db = db;
     request.mailer = mailer;
+    request.scanner = scanner;
   });
 
   // Identity resolution runs for every request; authorization is per route.

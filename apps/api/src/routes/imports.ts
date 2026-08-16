@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getModel, createTenant, listTenants, upsertLease, writeAudit } from '@cre/database';
 import {
@@ -11,7 +11,7 @@ import {
   suggestMapping,
   type ColumnMapping,
 } from '@cre/reporting';
-import { badRequest, notFound, requireCapability } from '../context.js';
+import { badRequest, notFound, requireCapability, scanUpload } from '../context.js';
 
 /**
  * Rent-roll import.
@@ -24,6 +24,7 @@ import { badRequest, notFound, requireCapability } from '../context.js';
  * Uploaded content never leaves this process. Parsing is entirely
  * deterministic; no AI provider is contacted at any point.
  */
+
 export async function registerImportRoutes(app: FastifyInstance): Promise<void> {
   /**
    * The rows of an upload, whichever format it arrived in.
@@ -38,17 +39,27 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
    * does not, so the same sheet is used at every step of the wizard.
    */
   async function rowsFromUpload(
+    request: FastifyRequest,
     filename: string,
     content: string,
     sheetIndex?: number,
-  ): Promise<{ rows: string[][]; sheetNames: string[]; sheetIndex: number }> {
+  ): Promise<{ rows: string[][]; sheetNames: string[]; sheetIndex: number; scanned: boolean }> {
+    // Scanned before anything parses it, on every call — analyse, validate
+    // and commit each resubmit the raw content and each parses it fresh, so
+    // each is a fresh point where unscanned bytes could otherwise reach a
+    // parser.
+    const raw = isWorkbookFilename(filename)
+      ? Buffer.from(content, 'base64')
+      : Buffer.from(content, 'utf8');
+    const { scanned } = await scanUpload(request, raw);
+
     if (!isWorkbookFilename(filename)) {
-      return { rows: parseCsv(content), sheetNames: [], sheetIndex: 0 };
+      return { rows: parseCsv(content), sheetNames: [], sheetIndex: 0, scanned };
     }
 
     let sheets;
     try {
-      sheets = await readWorkbook(Buffer.from(content, 'base64'));
+      sheets = await readWorkbook(raw);
     } catch {
       // A corrupt or password-protected workbook is the caller's problem to fix,
       // and saying so beats a 500 that reads like the server broke.
@@ -66,6 +77,7 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       rows: sheets[chosen]?.rows ?? [],
       sheetNames: sheets.map((sheet) => sheet.name),
       sheetIndex: chosen,
+      scanned,
     };
   }
 
@@ -86,7 +98,7 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound('That model does not exist in this organization.');
 
-    const upload = await rowsFromUpload(body.filename, body.content, body.sheetIndex);
+    const upload = await rowsFromUpload(request, body.filename, body.content, body.sheetIndex);
     const rows = upload.rows;
     if (rows.length === 0) throw badRequest('That file contains no rows.');
 
@@ -121,6 +133,8 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
        */
       sheetNames: upload.sheetNames,
       sheetIndex: upload.sheetIndex,
+      /** Whether this deployment actually scanned the upload for malware. */
+      scanned: upload.scanned,
     };
   });
 
@@ -149,9 +163,8 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const model = await getModel(request.db, context.organizationId, id);
     if (!model) throw notFound();
 
-    const analysis = analyzeSheet(
-      (await rowsFromUpload(body.filename, body.content, body.sheetIndex)).rows,
-    );
+    const upload = await rowsFromUpload(request, body.filename, body.content, body.sheetIndex);
+    const analysis = analyzeSheet(upload.rows);
     const result = mapRows(analysis.dataRows, body.mapping as ColumnMapping, {
       datePreference: body.datePreference,
       defaultRentBasis: body.defaultRentBasis,
@@ -173,6 +186,7 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       issues: result.issues,
       duplicates: result.duplicates,
       preview: result.leases.slice(0, 25),
+      scanned: upload.scanned,
     };
   });
 
@@ -209,9 +223,8 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       throw badRequest(`This model is ${model.status} and cannot be imported into.`);
     }
 
-    const analysis = analyzeSheet(
-      (await rowsFromUpload(body.filename, body.content, body.sheetIndex)).rows,
-    );
+    const upload = await rowsFromUpload(request, body.filename, body.content, body.sheetIndex);
+    const analysis = analyzeSheet(upload.rows);
     const result = mapRows(analysis.dataRows, body.mapping as ColumnMapping, {
       datePreference: body.datePreference,
       defaultRentBasis: body.defaultRentBasis,
@@ -306,6 +319,7 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
       imported,
       skipped: result.leases.length - importable.length,
       warnings: result.issues.filter((issue) => issue.severity === 'warning'),
+      scanned: upload.scanned,
     };
   });
 

@@ -4,11 +4,17 @@
 #   * `docker compose config` parses and validates this file — done, passes.
 #   * The images have still never been built. The environment this was developed
 #     in reaches the Docker daemon but its network policy blocks Docker Hub's
-#     blob CDN, so `node:22-alpine`, `nginx:1.27-alpine` and `postgres:16-alpine`
-#     cannot be pulled. Several defects found by reading these files have been
-#     fixed (see git history), but a review is not a build. Treat the images as
-#     unbuilt until someone runs `docker compose build` on a machine that can
-#     reach the registry.
+#     blob CDN, so `node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`
+#     and `clamav/clamav:1.4_base` cannot be pulled. Several defects found by
+#     reading these files have been fixed (see git history), but a review is
+#     not a build. Treat the images as unbuilt until someone runs
+#     `docker compose build` on a machine that can reach the registry.
+#   * The `clamav` service is additionally unverified in its own right even
+#     past the image pull: this same network policy also blocks
+#     database.clamav.net, which `freshclam` needs to load virus definitions
+#     at container startup (see the comment on the `clamav` service below).
+#     Its wire protocol against the api's `clamscan` client has not been
+#     exercised against a live daemon anywhere in this environment.
 #
 # Local development on a directly installed PostgreSQL 16 is verified, as is the
 # backup and restore drill (`pnpm drill:restore`). See docs/deployment-guide.md.
@@ -40,6 +46,15 @@ services:
       # Development-only value. Generate a real secret for any deployment.
       SESSION_SECRET: local-development-secret-not-for-any-real-deployment
       SESSION_COOKIE_SECURE: 'false'
+      # `clamav` below is a sibling service, not a hard dependency: SCAN_DRIVER
+      # defaults to `none`, so this stack runs with nothing scanned unless you
+      # opt in. To scan uploads, set SCAN_DRIVER=clamav here (and on `worker`,
+      # if it ever handles uploads) and move `clamav` into this service's
+      # `depends_on`. SCAN_HOST/SCAN_PORT already point at the sibling service
+      # by name, so no further change is needed once the driver is switched on.
+      SCAN_DRIVER: 'none'
+      SCAN_HOST: clamav
+      SCAN_PORT: '3310'
     depends_on:
       postgres: { condition: service_healthy }
     ports: ['4000:4000']
@@ -66,5 +81,27 @@ services:
     depends_on: [api]
     ports: ['8080:80']
 
+  # Optional. Free and open source, like everything else this stack runs
+  # itself — no paid scanning API involved. Not in any other service's
+  # `depends_on` by default because SCAN_DRIVER defaults to `none`; see the
+  # comment on `api`'s environment above for how to switch scanning on.
+  # `freshclam` (this image's virus-definition updater) needs to reach
+  # database.clamav.net at startup — a network policy that blocks it will
+  # leave `clamd` running with no definitions loaded, which the api's own
+  # ScannerUnavailableError does not detect (`clamd` is still reachable; it
+  # just never finds anything). That is an operational concern for whoever
+  # runs this service, not something client code can verify from the outside.
+  clamav:
+    image: clamav/clamav:1.4_base
+    ports: ['3310:3310']
+    volumes: ['clamav-data:/var/lib/clamav']
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
 volumes:
   postgres-data:
+  clamav-data:

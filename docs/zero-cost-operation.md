@@ -128,6 +128,7 @@ repository needs a paid plan outright. What to do in that case is set out under
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled by default, not implemented. No provider bundled |
 | Object storage | `STORAGE_DRIVER=local` — writes to a local directory |
 | Email | **Pluggable, free either way.** `MAIL_DRIVER=console` (default) logs the message instead of sending it — no service, no account, no key, and password reset works out of the box in development. `MAIL_DRIVER=smtp` sends through `nodemailer` (MIT-0, no paid API of its own) against a relay the operator names via `SMTP_HOST`; this platform picks and provisions no relay for you, the same way `STORAGE_DRIVER=s3` names a driver without bundling an AWS account |
+| Malware scanning | **Pluggable, free either way.** `SCAN_DRIVER=none` (default) scans nothing — no service, no account, no key, and every import wizard works out of the box. `SCAN_DRIVER=clamav` scans through `clamd` (GPL-2.0, free and open source, no paid tier) via `clamscan` (MIT, zero dependencies); the `docker-compose.yml` `clamav` service is one you'd run yourself, not a hosted product |
 | Monitoring | **Local.** Unhandled server faults are recorded in an `error_events` table and read on the Tasks and jobs screen. No hosted service, no account, no key |
 | Maps | **None.** The geographic dashboard widget is deferred rather than backed by a paid tile provider |
 | Browser testing | **Local Chromium only.** Playwright downloads the browser from its own CDN; no hosted grid, no account, no key |
@@ -181,9 +182,9 @@ against the installed tree and **fails the build** on a paid, commercial or
 strongly copyleft licence. It runs in CI.
 
 ```
-340 packages examined
+347 packages examined
 
-  273  MIT
+  279  MIT
    24  ISC
    19  Apache-2.0
     7  BSD-3-Clause
@@ -195,6 +196,7 @@ strongly copyleft licence. It runs in CI.
     1  CC-BY-4.0
     1  (MIT OR GPL-3.0-or-later)     dual — MIT taken
     1  (MIT AND Zlib)
+    1  MIT-0
     1  UNDECLARED                     see below
 ```
 
@@ -238,8 +240,8 @@ interface, or defer:
 
 | Feature | Decision |
 | --- | --- |
-| Email delivery | **Deferred.** No provider. Tokens returned in non-production so flows are testable |
-| Malware scanning of uploads | **Deferred.** `scan_status` column and a driver seam exist; no scanner wired |
+| Email delivery | **Built free, pluggable for real delivery.** `MAIL_DRIVER=console` (default) logs instead of sending; `MAIL_DRIVER=smtp` sends through `nodemailer` against a relay the operator names. See §3 |
+| Malware scanning of uploads | **Built free, pluggable for real scanning.** `SCAN_DRIVER=none` (default) scans nothing; `SCAN_DRIVER=clamav` scans through a `clamd` daemon via `clamscan`. See §3 |
 | Error monitoring | **Built locally.** A table, not a service: it costs nothing, keeps failure detail in the same database as everything it refers to, and can be replaced later by anything that reads it. Faults are grouped by fingerprint; the store holds no request body, query value, header or session token |
 | Server-side PDF | **Deferred.** Print-ready HTML works through the browser's own print-to-PDF, free |
 | Geographic maps | **Deferred.** No paid tile provider. Allocation is shown as charts and tables instead |

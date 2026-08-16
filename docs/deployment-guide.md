@@ -121,6 +121,8 @@ Validated at startup; the process **refuses to start** if any of these is wrong.
 | `MAIL_FROM` | | The `From` address on outgoing mail. Defaults to a placeholder that no real deployment should keep. |
 | `SMTP_HOST` | when `MAIL_DRIVER=smtp` | **Required and enforced at startup** once `MAIL_DRIVER=smtp` — the process refuses to start without it, the same way a misconfigured `SESSION_COOKIE_SECURE` refuses. This platform bundles no mail relay; point it at one you operate or one you have an account with. |
 | `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | | Standard SMTP connection settings, passed straight to `nodemailer` |
+| `SCAN_DRIVER` | | `none` by default — no upload is scanned, and every import response says so via `scanned: false`. Set `clamav` to scan through a `clamd` daemon (the `docker-compose.yml` `clamav` service, or one you operate). |
+| `SCAN_HOST`, `SCAN_PORT` | when `SCAN_DRIVER=clamav` | Default `localhost:3310`. Unlike `SMTP_HOST`, there is no startup check — a `clamd` this deployment cannot reach fails the specific upload (`503 SCANNER_UNAVAILABLE`) rather than the whole server. |
 
 Secrets belong in the platform's secret manager. `.env` is git-ignored.
 
