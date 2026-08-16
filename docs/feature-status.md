@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 14.0.0 · Last verified 2026-08-13**
+**Engine version 15.0.0 · Last verified 2026-08-16**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the

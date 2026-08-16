@@ -52,6 +52,50 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * an existing model's numbers would change. Stored results record the version
  * that produced them so a saved valuation can always be explained.
  *
+ * ## 15.0.0
+ *
+ * A twelfth audit pass, scoped to the calculation engine itself rather than
+ * the surrounding application. Major because two of its findings change
+ * numbers an existing model would already be reporting.
+ *
+ * **Portfolio-level unlevered/levered IRR and equity multiple no longer
+ * discount from a member's concluded valuation instead of what was actually
+ * paid for it.** `aggregatePortfolio` built its initial outflow from
+ * `dcfValue(result)`, while the property's own `unleveredIrr`/`leveredIrr`
+ * correctly discount from `acquisitionBasis + acquisitionCosts` and the
+ * equity actually funded at close. Buying below or above appraised value is
+ * the ordinary case, not a contrived one, so the two bases routinely
+ * differ — a single 100%-owned member's portfolio IRR should equal its own
+ * property-level IRR exactly, and did not. The property-level basis is now
+ * exposed as two new `ReturnMetrics` fields (`initialInvestment`,
+ * `initialEquity`) and rolled up directly. Two further bugs in the same
+ * cash-flow combination, both changing the same figures: `netDispositionProceeds`
+ * (net of debt payoff — a levered figure) was folded into the "unlevered"
+ * series instead of `grossSaleProceeds` net of `sellingCosts`; and month
+ * zero's raw `leveredCashFlow` (which already carries the loan's own
+ * proceeds) was summed as-is against an `initialEquity` already net of that
+ * same debt, double-counting the debt-funded portion of the purchase.
+ *
+ * **A facility that both capitalizes interest and amortizes no longer
+ * computes a principal figure with no corresponding real amortization
+ * schedule.** Once past the interest-only window, the loop capitalized that
+ * period's interest onto the balance *and* computed a level payment against
+ * the just-inflated balance in the same period, then subtracted the
+ * never-paid interest back out as "principal" — silently misstating
+ * balance, DSCR, LTV and debt yield for every period from there on. A
+ * construction-to-permanent facility is the ordinary shape this combination
+ * models; no existing fixture exercised it before now, which is why this
+ * survived eleven prior audit passes. Capitalization now stops once the
+ * interest-only window ends; amortizing periods are serviced in cash like
+ * any other facility.
+ *
+ * Also removed, as unreachable dead code rather than a numeric defect:
+ * `MULTIPLE_CURRENCIES` validation built its "distinct currencies" set from
+ * a single-element array, which can never exceed size 1 since `ModelInput`
+ * carries exactly one top-level `currency` field. Removing an error code
+ * that could never fire changes no model's output, so this alone would not
+ * have forced the major bump.
+ *
  * ## 14.0.0
  *
  * An eleventh audit pass. Major because its one confirmed engine-level
@@ -710,7 +754,7 @@ import { TraceRecorder, type TraceOptions } from './trace.js';
  * pre-existing regression fixtures moved — they all let whole spaces — but real
  * rent rolls do not, so this is a major bump rather than a minor one.
  */
-export const ENGINE_VERSION = '14.0.0';
+export const ENGINE_VERSION = '15.0.0';
 
 /** Maximum passes of the revenue/expense fixed-point solver. */
 const SOLVER_MAX_PASSES = 12;
