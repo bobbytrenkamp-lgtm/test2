@@ -127,7 +127,7 @@ repository needs a paid plan outright. What to do in that case is set out under
 | Paid-service SDKs (AWS, Stripe, Sentry, OpenAI, Anthropic, Google Cloud, Twilio, SendGrid, Mapbox, Firebase, Supabase, Auth0, Clerk, …) | **None installed** |
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled by default, not implemented. No provider bundled |
 | Object storage | `STORAGE_DRIVER=local` — writes to a local directory |
-| Email | **No mailer.** Reset and invitation tokens are returned in the response outside production |
+| Email | **Pluggable, free either way.** `MAIL_DRIVER=console` (default) logs the message instead of sending it — no service, no account, no key, and password reset works out of the box in development. `MAIL_DRIVER=smtp` sends through `nodemailer` (MIT-0, no paid API of its own) against a relay the operator names via `SMTP_HOST`; this platform picks and provisions no relay for you, the same way `STORAGE_DRIVER=s3` names a driver without bundling an AWS account |
 | Monitoring | **Local.** Unhandled server faults are recorded in an `error_events` table and read on the Tasks and jobs screen. No hosted service, no account, no key |
 | Maps | **None.** The geographic dashboard widget is deferred rather than backed by a paid tile provider |
 | Browser testing | **Local Chromium only.** Playwright downloads the browser from its own CDN; no hosted grid, no account, no key |

@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { buildServer } from '../apps/api/src/server.js';
 import { loadEnv } from '../apps/api/src/env.js';
+import type { Mailer } from '../apps/api/src/mailer.js';
 import {
   closeDatabase,
   createDatabase,
@@ -29,7 +30,7 @@ export interface TestContext {
   close: () => Promise<void>;
 }
 
-export async function createTestContext(): Promise<TestContext> {
+export async function createTestContext(options: { mailer?: Mailer } = {}): Promise<TestContext> {
   if (!BASE_URL)
     throw new Error('TEST_DATABASE_URL or DATABASE_URL must be set to run these tests.');
 
@@ -53,6 +54,7 @@ export async function createTestContext(): Promise<TestContext> {
       ALLOW_SELF_REGISTRATION: 'true',
     }),
     db: sql,
+    mailer: options.mailer,
     logger: process.env.TEST_LOG === '1',
   });
 

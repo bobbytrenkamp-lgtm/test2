@@ -242,9 +242,13 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
    * Password reset request. The response is identical whether or not the
    * address exists, so the endpoint cannot be used to enumerate accounts.
    *
-   * Delivery is deliberately abstracted: no mail provider is bundled. In
-   * development the token is returned so the flow can be exercised end to end;
-   * a deployment configures a mailer and this branch is removed.
+   * Delivery goes through `request.mailer` — `ConsoleMailer` by default,
+   * which logs the message instead of sending it, so this is exercisable
+   * end to end with nothing configured. A deployment sets `MAIL_DRIVER=smtp`
+   * and points it at a real relay to actually deliver the link. The
+   * development-only token echo stays for the same reason it always
+   * existed — exercising the flow without reading server logs — but now
+   * carries the same message the mailer sent, not a separate path around it.
    */
   app.post('/auth/password-reset/request', { config: authLimit }, async (request) => {
     const body = z.object({ email: z.string().email() }).parse(request.body);
@@ -252,6 +256,15 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
     let devToken: string | undefined;
     if (user) {
       const token = await createPasswordResetToken(request.db, user.id);
+      const resetUrl = `${env.WEB_ORIGIN}/reset-password?token=${token}`;
+      await request.mailer.send({
+        to: user.email,
+        subject: 'Reset your password',
+        text:
+          `A password reset was requested for your account. If this was you, ` +
+          `open the link below within the next hour to choose a new password:\n\n${resetUrl}\n\n` +
+          `If you did not request this, no action is needed — the link expires on its own.`,
+      });
       if (env.NODE_ENV !== 'production') devToken = token;
     }
     return {

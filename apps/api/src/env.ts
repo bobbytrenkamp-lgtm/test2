@@ -42,6 +42,25 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./uploads'),
   AI_ASSISTANT_PROVIDER: z.string().default('none'),
+  /**
+   * `console` logs the message instead of sending it — always what runs in
+   * development and test, so the password-reset flow is exercisable without
+   * a mail server. `smtp` sends for real, through `nodemailer` (a free
+   * library, no paid API) against whatever relay `SMTP_HOST` names; picking
+   * and provisioning that relay is an operator decision this platform does
+   * not make for you, the same way `STORAGE_DRIVER: s3` names a driver
+   * without bundling an AWS account.
+   */
+  MAIL_DRIVER: z.enum(['console', 'smtp']).default('console'),
+  MAIL_FROM: z.string().default('CRE Platform <no-reply@localhost>'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   /** Set to "true" to allow open self-registration. */
   ALLOW_SELF_REGISTRATION: z
     .enum(['true', 'false'])
@@ -63,6 +82,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(
       'SESSION_COOKIE_SECURE must be "true" in production so session cookies are only sent over HTTPS.',
     );
+  }
+  if (parsed.data.MAIL_DRIVER === 'smtp' && !parsed.data.SMTP_HOST) {
+    throw new Error('SMTP_HOST is required when MAIL_DRIVER is "smtp".');
   }
   return parsed.data;
 }
