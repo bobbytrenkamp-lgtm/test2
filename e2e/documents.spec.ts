@@ -40,6 +40,15 @@ test.describe('as an analyst', () => {
     const fs = await import('node:fs/promises');
     expect((await fs.readFile(path as string)).toString('utf8')).toBe(contents);
 
+    // Deleting a document asks first, and dismissing the confirmation leaves
+    // it in place — the only defence against an accidental click, since a
+    // deleted document cannot be recovered without re-uploading the original
+    // file.
+    page.once('dialog', (dialog) => void dialog.dismiss());
+    await row.getByRole('button', { name: 'Delete' }).click();
+    await expect(row).toBeVisible();
+
+    page.once('dialog', (dialog) => void dialog.accept());
     await row.getByRole('button', { name: 'Delete' }).click();
     await expect(row).toBeHidden({ timeout: 30_000 });
   });

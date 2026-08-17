@@ -674,6 +674,7 @@ function Collection({
       </p>
 
       <ErrorMessage error={resource.error} />
+      <ErrorMessage error={remove.error} />
       {resource.loading && <Loading label={`Loading ${title.toLowerCase()}`} />}
 
       {resource.data && resource.data.items.length === 0 ? (
@@ -784,14 +785,18 @@ function Collection({
                         <button
                           type="button"
                           className="subtle"
+                          disabled={remove.pending}
                           onClick={async () => {
-                            if (await remove.run(String(row.code))) {
+                            if (
+                              window.confirm(`Delete "${String(row.code)}"?`) &&
+                              (await remove.run(String(row.code)))
+                            ) {
                               resource.reload();
                               onSaved();
                             }
                           }}
                         >
-                          Delete
+                          {remove.pending ? 'Deleting…' : 'Delete'}
                         </button>
                       </td>
                     )}

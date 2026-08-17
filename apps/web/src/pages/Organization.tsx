@@ -600,6 +600,7 @@ function TemplateLibraryCard({
                         <button
                           type="button"
                           className="subtle"
+                          disabled={remove.pending}
                           onClick={async () => {
                             if (
                               window.confirm(`Remove "${name}" from the library?`) &&
@@ -609,7 +610,7 @@ function TemplateLibraryCard({
                             }
                           }}
                         >
-                          Delete
+                          {remove.pending ? 'Removing…' : 'Delete'}
                         </button>
                       </td>
                     </tr>

@@ -435,6 +435,7 @@ export function RentRollTab(): JSX.Element {
           key={editing ?? '__new__'}
           modelId={model.id}
           currency={model.currency}
+          areaUnit={model.area_unit}
           spaces={spaces.data?.spaces ?? []}
           tenants={tenants.data?.tenants ?? []}
           lease={editing ? (leases.data?.leases.find((l) => l.code === editing) ?? null) : null}
@@ -543,6 +544,7 @@ function optionToWire(option: LeaseOptionForm): LeaseOption {
 function LeaseEditor({
   modelId,
   currency,
+  areaUnit,
   spaces,
   tenants,
   lease,
@@ -551,6 +553,7 @@ function LeaseEditor({
 }: {
   modelId: string;
   currency: string;
+  areaUnit: string;
   spaces: Space[];
   tenants: Tenant[];
   lease: Lease | null;
@@ -718,7 +721,7 @@ function LeaseEditor({
           </select>
         </Field>
 
-        <Field label="Area">
+        <Field label={`Area (${areaUnit})`}>
           <input
             required
             inputMode="decimal"

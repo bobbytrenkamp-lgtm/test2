@@ -28,7 +28,7 @@ test('refuses a lease that expires before it commences', async ({ page }) => {
 
   await page.getByLabel('Lease reference').fill('E2E-INVALID-TERM');
   await page.getByLabel('New tenant name').fill('Ardent Survey Company');
-  await page.getByLabel('Area', { exact: true }).fill('4200');
+  await page.getByLabel(/^Area/).fill('4200');
   await page.getByLabel('Commencement').fill('2027-01-01');
   await page.getByLabel('Expiration').fill('2026-06-30');
 
@@ -53,7 +53,7 @@ test('writes a valid lease to the rent roll', async ({ page }) => {
   await page.getByRole('button', { name: 'Add lease' }).click();
   await page.getByLabel('Lease reference').fill(code);
   await page.getByLabel('New tenant name').fill('Ardent Survey Company');
-  await page.getByLabel('Area', { exact: true }).fill('4200');
+  await page.getByLabel(/^Area/).fill('4200');
   await page.getByLabel('Commencement').fill('2027-01-01');
   await page.getByLabel('Expiration').fill('2032-12-31');
   await page.getByLabel(/^Base rent/).fill('38.50');
@@ -108,7 +108,7 @@ test('sorts area as a number, not as text', async ({ page }) => {
   await page.getByRole('button', { name: 'Add lease' }).click();
   await page.getByLabel('Lease reference').fill(code);
   await page.getByLabel('New tenant name').fill('Quill and Pike Notaries');
-  await page.getByLabel('Area', { exact: true }).fill('4200');
+  await page.getByLabel(/^Area/).fill('4200');
   await page.getByLabel('Commencement').fill('2027-01-01');
   await page.getByLabel('Expiration').fill('2030-12-31');
   await page.getByLabel(/^Base rent/).fill('29.00');
@@ -194,7 +194,7 @@ test('adds a renewal option to a lease, and it survives a reload', async ({ page
   await page.getByRole('button', { name: 'Add lease' }).click();
   await page.getByLabel('Lease reference').fill(code);
   await page.getByLabel('New tenant name').fill('Halden Cartage');
-  await page.getByLabel('Area', { exact: true }).fill('3000');
+  await page.getByLabel(/^Area/).fill('3000');
   await page.getByLabel('Commencement').fill('2027-01-01');
   await page.getByLabel('Expiration').fill('2032-12-31');
   await page.getByLabel(/^Base rent/).fill('28.00');
