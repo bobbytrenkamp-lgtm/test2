@@ -11,3 +11,4 @@ export * from './research-interfaces.js';
 export * from './research-to-proposal.js';
 export * from './research-comparison.js';
 export * from './entitlements.js';
+export * from './creos-ids.js';
