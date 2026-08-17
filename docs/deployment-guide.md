@@ -10,33 +10,67 @@ Backup and restore is now **drilled** — `pnpm drill:restore` runs a real dump,
 a real restore, and confirms a stored valuation reproduces from the restored
 data. It runs on every CI build.
 
-The Docker images are **still never built**. The Compose file itself is
-validated (`docker compose config` passes), and several defects found by reading
-the Dockerfiles have been fixed — a lockfile fallback that silently defeated
-`--frozen-lockfile`, a missing workspace manifest that made the frozen install
-fail in the first place, and a missing `.dockerignore` that would have copied
-host-built `node_modules` over the Alpine ones. But **a review is not a build**.
+The Docker images are **still never built end to end**, but materially less of
+this section is guesswork than an earlier revision left it. The Compose file
+itself is validated (`docker compose config` passes), and several defects found
+by reading the Dockerfiles have been fixed — a lockfile fallback that silently
+defeated `--frozen-lockfile`, a missing workspace manifest that made the frozen
+install fail in the first place, and a missing `.dockerignore` that would have
+copied host-built `node_modules` over the Alpine ones. But **a review is not a
+build**, so each claim below is separately verified rather than inferred from
+the others.
 
-The blockage has since been diagnosed exactly, which matters because the earlier
-wording ("the registry is unreachable") sent the wrong signal. The Docker daemon
-runs and the registry API is reachable: `registry-1.docker.io/v2/` answers 401
-as it should unauthenticated, and `auth.docker.io/token` answers 200. What is
-blocked is the **blob CDN** — `production.cloudfront.docker.com` returns 403,
-an egress policy denial from the session's proxy. So manifests resolve and
-layers cannot be fetched, and `docker pull node:22-alpine` fails partway with a
-403 on the layer download.
+**The Docker daemon runs, and every base image this stack needs now pulls.**
+`registry-1.docker.io/v2/` answers 401 as it should unauthenticated and
+`auth.docker.io/token` answers 200, so Docker Hub's registry API was always
+reachable. What is blocked is its **blob CDN** —
+`production.cloudfront.docker.com` returns 403, an egress policy denial from
+this session's proxy — so a plain `docker pull node:22-alpine` fails partway
+through the layer download, not at the manifest. `quay.io` and the AWS ECR
+Public Gallery's own CDN redirect are blocked the same way, which is why
+switching *which* registry serves the manifest does not by itself help.
+`mirror.gcr.io` — Google's public, unauthenticated, read-through cache of
+Docker Hub's images, content-identical to the images it mirrors rather than a
+different build — is not blocked, and `node:22-alpine`, `nginx:1.27-alpine`,
+`postgres:16-alpine` and `clamav/clamav:1.4_base` all pulled from it in full,
+by hand, layers included. The Dockerfiles and Compose file now reference it
+for exactly that reason (see the comment at the top of `Dockerfile.api`);
+anywhere `mirror.gcr.io` is *not* blocked and `docker.io` is, this alone gets a
+build past the `FROM` line. Anywhere neither is blocked, point the `FROM`
+lines back at `docker.io` directly — the content is the same either way.
 
-That is a single host to allow. Anyone with an environment that permits
-`production.cloudfront.docker.com` (or any registry mirror serving the same
-images) should run:
+**`docker compose build` still does not complete here, one step further in.**
+Past the base image, `RUN pnpm install` (both Dockerfiles) and `RUN apk add
+chromium` (`Dockerfile.api`'s runtime stage) both fail — not on what they are
+fetching, but on TLS: this development environment's own network policy
+transparently intercepts outbound HTTPS through a proxy the build container
+does not trust by default, and both `pnpm install` and `apk` refuse a
+certificate chain they cannot verify. Diagnosed by hand, in a throwaway build
+outside the committed Dockerfile, by trusting that proxy's certificate for one
+run: `pnpm install --frozen-lockfile` for the full eight-workspace tree then
+succeeds cleanly, confirming that layer of the Dockerfile is correct. `apk add
+chromium` still fails even with the certificate trusted, for an unrelated
+reason — Alpine's own package CDN, `dl-cdn.alpinelinux.org`, is itself
+blocked by this environment's policy, and every alternate Alpine mirror tried
+was blocked the same way. Trusting this sandbox's own interception proxy is
+deliberately **not** in the committed Dockerfile: that trust is a fact about
+where this was built, not about what the image should trust, and baking it in
+would misrepresent the shipped artifact to misattribute a private, session-
+scoped certificate as something worth trusting. So the build stays genuinely
+unverified end to end in this environment, narrowed from "nothing pulls" to
+"the Alpine Chromium package fetch is the one step confirmed still blocked."
+
+Anyone with an environment that reaches `dl-cdn.alpinelinux.org` (or a working
+Alpine mirror) and does not intercept outbound TLS the way this one does should
+run:
 
 ```bash
 docker compose build && docker compose up
 ```
 
-and report what breaks. Until then the images are **unbuilt, not merely
-untested**, and nothing in this guide about the container path has been
-executed.
+and report what breaks — that is now a small, specific gap rather than an
+unknown one. Until then the images are **unbuilt end to end, though no longer
+untested piece by piece**, and `docker compose up` itself has not been run.
 
 ## Requirements
 

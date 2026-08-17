@@ -98,22 +98,39 @@ runs on every CI build. It found that the seed never froze a model version, so
 the demonstration data had an empty Versions tab and there was no stored
 valuation to reproduce; the seed now calculates against a frozen version.
 
-**Docker images: still not built.** The Compose file validates and several real
-defects in the Dockerfiles are fixed (a fallback that silently defeated
-`--frozen-lockfile`, a missing workspace manifest, a missing `.dockerignore`),
-but the base images cannot be pulled where this was developed. A review is not
-a build.
+**Docker images: still not built end to end, but narrower than it was.** The
+Compose file validates and several real defects in the Dockerfiles are fixed
+(a fallback that silently defeated `--frozen-lockfile`, a missing workspace
+manifest, a missing `.dockerignore`).
 
-The blockage is now diagnosed exactly, which matters because "the registry is
-unreachable" pointed at the wrong thing. The Docker daemon runs and the registry
-API is reachable — `registry-1.docker.io/v2/` answers 401 unauthenticated as it
-should, `auth.docker.io/token` answers 200. What is refused is the **blob CDN**:
-`production.cloudfront.docker.com` returns 403 from the session's egress proxy,
-whose documentation is explicit that a policy denial must be reported rather than
-routed around. So manifests resolve and layers cannot be fetched.
+The base-image blockage is diagnosed exactly, which matters because "the
+registry is unreachable" pointed at the wrong thing. The Docker daemon runs
+and Docker Hub's registry API is reachable — `registry-1.docker.io/v2/`
+answers 401 unauthenticated as it should, `auth.docker.io/token` answers 200
+— but its **blob CDN**, `production.cloudfront.docker.com`, returns 403 from
+the session's egress proxy, and that denial is reported here rather than
+retried or routed around, per the proxy's own documentation. `quay.io` and
+AWS's ECR Public Gallery CDN redirect are refused the same way. `mirror.gcr.io`
+is not: it is a separate, independently-reachable, publicly documented
+read-through cache of Docker Hub's official images — the same content, not a
+different build — and every base image this stack needs pulled from it in
+full by hand. The Dockerfiles now reference it for that reason (see the
+comment at the top of `Dockerfile.api`).
 
-That is one host to allow. Anyone in an environment that permits it should run
-`docker compose build && docker compose up` and report what breaks.
+Past the base image, `docker compose build` still does not complete here: this
+development environment's own outbound TLS is transparently intercepted, which
+the build container does not trust by default, so `RUN pnpm install` and `RUN
+apk add chromium` both fail on the certificate before reaching what they
+fetch. Trusting that interception was confirmed to fix the `pnpm install`
+layer in an uncommitted, throwaway diagnostic build — not committed, since a
+production Dockerfile has no business trusting a certificate that belongs to
+one development sandbox. `apk add chromium` fails past that regardless: Alpine's
+package CDN (`dl-cdn.alpinelinux.org`, and every mirror tried) is itself
+blocked, with no alternative found.
+
+Anyone building where Alpine's CDN is reachable and outbound TLS is not
+intercepted should run `docker compose build && docker compose up` and report
+what breaks — a small, specific gap now, not an unknown one.
 
 ### 3. Close the engine's honest gaps — options partly done
 

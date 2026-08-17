@@ -2,27 +2,44 @@
 #
 # VERIFICATION STATUS, precisely:
 #   * `docker compose config` parses and validates this file — done, passes.
-#   * The images have still never been built. The environment this was developed
-#     in reaches the Docker daemon but its network policy blocks Docker Hub's
-#     blob CDN, so `node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`
-#     and `clamav/clamav:1.4_base` cannot be pulled. Several defects found by
-#     reading these files have been fixed (see git history), but a review is
-#     not a build. Treat the images as unbuilt until someone runs
-#     `docker compose build` on a machine that can reach the registry.
+#   * The base images now pull and the Docker daemon itself runs in the
+#     environment this was developed in — both untrue in an earlier revision
+#     of this comment. What changed: the images are fetched from
+#     mirror.gcr.io rather than docker.io (see the comment at the top of
+#     Dockerfile.api). `node:22-alpine`, `nginx:1.27-alpine`,
+#     `postgres:16-alpine` and `clamav/clamav:1.4_base` — every image this
+#     stack needs — were pulled successfully and in full by hand from that
+#     mirror. `docker.io` itself is reachable for manifests but its blob CDN
+#     (`production.cloudfront.docker.com`) is not: that is still the reason
+#     a plain `node:22-alpine` reference cannot be pulled here, not a claim
+#     that no image anywhere is reachable.
+#   * `docker compose build` still does not complete in this environment, for
+#     a different and more specific reason: this development environment's
+#     own network policy transparently intercepts outbound HTTPS through a
+#     proxy the build container does not trust by default, so `RUN pnpm
+#     install` and `RUN apk add` both fail TLS verification before they ever
+#     reach the question of what they are fetching. Diagnosed by hand,
+#     outside the committed Dockerfile, by trusting that proxy's certificate
+#     for one throwaway build: once trusted, `pnpm install --frozen-lockfile`
+#     for the full workspace succeeds cleanly in the container — that layer
+#     of the Dockerfile is confirmed correct. `apk add chromium` still fails
+#     past that point, because Alpine's own package CDN
+#     (`dl-cdn.alpinelinux.org`, and every mirror tried) is itself blocked by
+#     this same policy, independent of the TLS-trust issue. Trusting this
+#     environment's own interception proxy is not something that belongs in
+#     the committed Dockerfile — it is a fact about this sandbox, not about
+#     any real deployment, and baking it into the image would misrepresent
+#     what the image trusts. So the build stays genuinely unverified end to
+#     end here; what narrowed is exactly which single step blocks it.
 #   * The `clamav` service is additionally unverified in its own right even
-#     past the image pull: this same network policy also blocks
+#     past an image pull: this same network policy also blocks
 #     database.clamav.net, which `freshclam` needs to load virus definitions
 #     at container startup (see the comment on the `clamav` service below).
 #     Its wire protocol against the api's `clamscan` client has not been
 #     exercised against a live daemon anywhere in this environment.
-#   * `Dockerfile.api`'s `apk add chromium` step (for the worker's
-#     server-side PDF rendering, apps/worker/src/pdf.ts) is likewise
-#     unverified past a build this environment cannot run: this development
-#     environment is Ubuntu, not Alpine, so `apk` itself is not available
-#     here to confirm the package name or that CHROMIUM_EXECUTABLE_PATH
-#     (/usr/bin/chromium-browser) is where it lands. The rendering code
-#     itself is verified — `apps/worker/src/pdf.test.ts` produces real PDF
-#     bytes from a real headless Chromium already installed in this
+#   * The rendering code the blocked `apk add chromium` step exists to serve
+#     is verified independent of it — `apps/worker/src/pdf.test.ts` produces
+#     real PDF bytes from a real headless Chromium already installed in this
 #     environment for Playwright's own use — only the Alpine packaging step
 #     is unbuilt.
 #
@@ -31,7 +48,9 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # mirror.gcr.io, not docker.io — see the comment at the top of
+    # Dockerfile.api. Same official image.
+    image: mirror.gcr.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: cre
       POSTGRES_PASSWORD: cre
@@ -102,7 +121,9 @@ services:
   # just never finds anything). That is an operational concern for whoever
   # runs this service, not something client code can verify from the outside.
   clamav:
-    image: clamav/clamav:1.4_base
+    # mirror.gcr.io mirrors this too, not only the `library/*` official
+    # images — see the comment at the top of Dockerfile.api.
+    image: mirror.gcr.io/clamav/clamav:1.4_base
     ports: ['3310:3310']
     volumes: ['clamav-data:/var/lib/clamav']
     healthcheck:
