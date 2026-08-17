@@ -56,7 +56,14 @@ export function Shell(): JSX.Element {
         Skip to main content
       </a>
 
-      <div className="app-brand">CRE Platform</div>
+      <div className="app-brand">
+        <div>
+          CREOS Underwrite
+          <div style={{ fontSize: '0.65em', fontWeight: 400, color: 'var(--text-muted)' }}>
+            Part of CREOS Enterprise
+          </div>
+        </div>
+      </div>
 
       <header className="app-header">
         <div className="row">

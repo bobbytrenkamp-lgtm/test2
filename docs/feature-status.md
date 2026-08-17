@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1467 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1498 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -83,6 +83,7 @@ Tests       1467 passed (251 engine regression, 31 engine unit, 16 fund,
                          8 recommendation-to-proposal conversion,
                          13 the comparable-selection and percentile engine,
                          1 application version, 13 entitlements,
+                         31 the CREOS ID utility,
                          7 entitlements via the API, 6 organization export,
                          11 the growth curve library and its provenance,
                          11 the market leasing profile library and its provenance,
