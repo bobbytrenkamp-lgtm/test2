@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1426 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1431 tests, plus 231 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -183,9 +183,13 @@ grid cell checked against an independent engine run, not just its shape;
 the rent-roll import commit path — tenant dedup across a re-import,
 partial-import-with-errors, saved mapping templates, the audit trail; the
 general reports/exports engine — JSON, CSV, XLSX and print HTML checked
-against each other, not assumed to agree; version comparison and the
-approval workflow; the vertical slice from sign-in through to a traced
-valuation and a frozen approval. The browser suite reaches the assumptions
+against each other, not assumed to agree; server-side PDF rendering — a
+real headless browser producing real PDF bytes, queued through the same
+job pipeline as a scenario batch, exercised end to end by hand through a
+real browser click against real running API, worker and web processes;
+version comparison and the approval workflow; the vertical slice from
+sign-in through to a traced valuation and a frozen approval. The browser
+suite reaches the assumptions
 editor, scenarios, versions, reports and the portfolio roll-up, not only
 the underwriting path — Chromium only, and not a substitute for the
 screen-reader audit below.
@@ -197,11 +201,11 @@ this environment's egress policy blocks the same CDN a `clamd` container
 would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
-**Designed only.** Documents and configurable dashboards, server-side PDF,
-import rollback, mention notifications and an activity feed, a handful of
-lease-option types (expansion, purchase, ROFR, ROFO), fund-level recallable
-distributions, the live property-research integration, and the optional AI
-assistant — which is disabled by default and adds no paid dependency without
+**Designed only.** Documents and configurable dashboards, import rollback,
+mention notifications and an activity feed, a handful of lease-option types
+(expansion, purchase, ROFR, ROFO), fund-level recallable distributions, the
+live property-research integration, and the optional AI assistant — which
+is disabled by default and adds no paid dependency without
 approval.
 
 **Written but unverified.** The Docker Compose stack only — the container

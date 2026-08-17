@@ -15,6 +15,16 @@
 #     at container startup (see the comment on the `clamav` service below).
 #     Its wire protocol against the api's `clamscan` client has not been
 #     exercised against a live daemon anywhere in this environment.
+#   * `Dockerfile.api`'s `apk add chromium` step (for the worker's
+#     server-side PDF rendering, apps/worker/src/pdf.ts) is likewise
+#     unverified past a build this environment cannot run: this development
+#     environment is Ubuntu, not Alpine, so `apk` itself is not available
+#     here to confirm the package name or that CHROMIUM_EXECUTABLE_PATH
+#     (/usr/bin/chromium-browser) is where it lands. The rendering code
+#     itself is verified — `apps/worker/src/pdf.test.ts` produces real PDF
+#     bytes from a real headless Chromium already installed in this
+#     environment for Playwright's own use — only the Alpine packaging step
+#     is unbuilt.
 #
 # Local development on a directly installed PostgreSQL 16 is verified, as is the
 # backup and restore drill (`pnpm drill:restore`). See docs/deployment-guide.md.

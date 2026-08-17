@@ -2,6 +2,7 @@ import {
   buildModelInput,
   getLatestCalculation,
   getModel,
+  getProperty,
   runAndStoreCalculation,
   type JobRow,
   type Sql,
@@ -12,8 +13,9 @@ import {
   calculate,
   type PortfolioMember,
 } from '@cre/calculation-engine';
-import { REPORTS, reportToWorkbook } from '@cre/reporting';
+import { REPORTS, findReport, reportToPrintableHtml, reportToWorkbook } from '@cre/reporting';
 import { decimalString, type ModelInput } from '@cre/domain-models';
+import { renderHtmlToPdf } from './pdf.js';
 
 /**
  * Job handlers.
@@ -99,6 +101,42 @@ export const handlers: Record<string, JobHandler> = {
     );
     const buffer = await reportToWorkbook(tables);
     return { bytes: buffer.byteLength, encoding: 'base64', content: buffer.toString('base64') };
+  },
+
+  /**
+   * Renders one report to PDF via a headless browser — see `pdf.ts` for why
+   * this runs here rather than synchronously in the API request path.
+   */
+  async render_report(sql, job) {
+    const modelId = job.payload.modelId as string;
+    const reportId = job.payload.reportId as string;
+    const organizationId = job.organization_id;
+    if (!organizationId) throw new Error('render_report requires an organization.');
+
+    const report = findReport(reportId);
+    if (!report) throw new Error(`No report with id "${reportId}" exists.`);
+
+    const model = await getModel(sql, organizationId, modelId);
+    if (!model) throw new Error(`Model ${modelId} was not found.`);
+    const property = await getProperty(sql, organizationId, model.property_id);
+    const latest = await getLatestCalculation(sql, modelId);
+    if (!latest)
+      throw new Error('The model has not been calculated, so no report can be produced.');
+
+    const table = report.build(latest.result, {
+      propertyName: property?.name ?? 'Property',
+      modelName: model.name,
+      currency: latest.result.currency,
+      areaUnit: latest.result.areaUnit,
+    });
+
+    const pdf = await renderHtmlToPdf(reportToPrintableHtml(table));
+    return {
+      bytes: pdf.byteLength,
+      encoding: 'base64',
+      content: pdf.toString('base64'),
+      filename: `${report.id}.pdf`,
+    };
   },
 
   /** Recomputes a portfolio roll-up from each member's latest calculation. */

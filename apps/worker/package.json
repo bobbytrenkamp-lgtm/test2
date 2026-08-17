@@ -14,7 +14,8 @@
     "@cre/calculation-engine": "workspace:*",
     "@cre/database": "workspace:*",
     "@cre/domain-models": "workspace:*",
-    "@cre/reporting": "workspace:*"
+    "@cre/reporting": "workspace:*",
+    "playwright-core": "1.56.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

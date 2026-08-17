@@ -78,6 +78,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
 | Model reports and exports: the catalogue, JSON/CSV/XLSX/HTML cross-checked against each other cell by cell, the xlsx-format export:run gate, the bundled property-report workbook | `tests/model-reports.test.ts` | 6 | Yes |
+| Real PDF bytes from a real headless browser | `apps/worker/src/pdf.test.ts` | 1 | No |
+| Server-side PDF rendering end to end: the route enqueues, the worker produces real PDF bytes, the export:run gate, the unknown-report and uncalculated-model refusals | `tests/model-report-pdf.test.ts` | 4 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
@@ -128,7 +130,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1426 tests in total.**
+**1431 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -175,7 +177,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1657 across the whole repository.
+**231 browser tests in total**, for 1662 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -503,3 +505,17 @@ orchestration, the rent-roll import commit path, the reports/exports
 engine — now has a test of its own; see the rows above. The browser suite
 still runs in Chromium only; cross-browser coverage is the next increment,
 not a claim already made.
+
+Server-side PDF rendering's automated coverage stops at the API and worker
+layer (`tests/model-report-pdf.test.ts` calls the worker's `tick()`
+directly, the same way `tests/worker-pipeline.test.ts` does, rather than
+through a running worker process). The end-to-end suite has no worker of
+its own — `playwright.config.ts`'s `webServer` starts only the API and the
+built web app — so a browser click through to a downloaded PDF is not
+exercised by `pnpm test:e2e`. It was exercised once by hand: real API,
+worker and web processes, a real headless browser signed in with a real
+session cookie, a real click on the report screen's PDF button, and a real
+downloaded file starting with the PDF magic bytes. Worth automating if a
+worker is ever added to the end-to-end harness; not a gap this session
+could close by writing a Playwright spec against infrastructure that
+does not exist yet.

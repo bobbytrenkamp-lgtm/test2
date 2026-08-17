@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildModelInput, getLatestCalculation, getModel, getProperty } from '@cre/database';
+import {
+  buildModelInput,
+  enqueueJob,
+  getLatestCalculation,
+  getModel,
+  getProperty,
+} from '@cre/database';
 import { ENGINE_VERSION, assessHealth } from '@cre/calculation-engine';
 import {
   REPORTS,
@@ -92,6 +98,38 @@ export async function registerReportRoutes(app: FastifyInstance): Promise<void> 
       default:
         return { report: table };
     }
+  });
+
+  /**
+   * Renders one report to PDF, via a headless browser in the worker rather
+   * than the request path — see `apps/worker/src/pdf.ts` for why. The
+   * caller polls `GET /jobs/:id`; the finished job's `result` carries the
+   * same `{ bytes, encoding: 'base64', content }` shape `export_workbook`
+   * already returns.
+   */
+  app.post('/models/:id/reports/:reportId/pdf', async (request) => {
+    const context = requireCapability(request, 'export:run');
+    const params = z
+      .object({ id: z.string().uuid(), reportId: z.string().max(60) })
+      .parse(request.params);
+
+    const report = findReport(params.reportId);
+    if (!report) throw notFound('No report with that identifier exists.');
+
+    const model = await getModel(request.db, context.organizationId, params.id);
+    if (!model) throw notFound();
+    const latest = await getLatestCalculation(request.db, params.id);
+    if (!latest) {
+      throw unprocessable('This model has not been calculated yet, so no report can be produced.');
+    }
+
+    const job = await enqueueJob(request.db, {
+      organizationId: context.organizationId,
+      kind: 'render_report',
+      payload: { modelId: params.id, reportId: params.reportId },
+      requestedBy: context.userId,
+    });
+    return { jobId: job.id, status: job.status };
   });
 
   /** A workbook containing every property report for a model. */

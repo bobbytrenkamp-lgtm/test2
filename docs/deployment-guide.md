@@ -123,6 +123,7 @@ Validated at startup; the process **refuses to start** if any of these is wrong.
 | `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` | | Standard SMTP connection settings, passed straight to `nodemailer` |
 | `SCAN_DRIVER` | | `none` by default — no upload is scanned, and every import response says so via `scanned: false`. Set `clamav` to scan through a `clamd` daemon (the `docker-compose.yml` `clamav` service, or one you operate). |
 | `SCAN_HOST`, `SCAN_PORT` | when `SCAN_DRIVER=clamav` | Default `localhost:3310`. Unlike `SMTP_HOST`, there is no startup check — a `clamd` this deployment cannot reach fails the specific upload (`503 SCANNER_UNAVAILABLE`) rather than the whole server. |
+| `CHROMIUM_EXECUTABLE_PATH` | | Read by the worker only, for server-side PDF rendering (`apps/worker/src/pdf.ts`). Unset, `playwright-core` resolves whichever Chromium it already manages itself (the case in local development and this repository's own CI). The production image sets it to `/usr/bin/chromium-browser`, the binary Alpine's own `chromium` package installs, because Playwright's own browser download targets glibc and the image is musl-based. |
 
 Secrets belong in the platform's secret manager. `.env` is git-ignored.
 
