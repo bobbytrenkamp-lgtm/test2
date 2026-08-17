@@ -31,9 +31,12 @@ const KNOWN_TIMESTAMP_VECTORS: Array<[timestamp: number, expectedPrefix: string]
 ];
 
 describe('generateCreosUlid — known timestamp vectors (BUG-005 regression, ported)', () => {
-  it.each(KNOWN_TIMESTAMP_VECTORS)('timestamp %i encodes to prefix %s', (timestamp, expectedPrefix) => {
-    expect(generateCreosUlid(timestamp).slice(0, 10)).toBe(expectedPrefix);
-  });
+  it.each(KNOWN_TIMESTAMP_VECTORS)(
+    'timestamp %i encodes to prefix %s',
+    (timestamp, expectedPrefix) => {
+      expect(generateCreosUlid(timestamp).slice(0, 10)).toBe(expectedPrefix);
+    },
+  );
 
   it('MAX_CREOS_ULID_TIMESTAMP_MS matches 2^48 - 1', () => {
     expect(MAX_CREOS_ULID_TIMESTAMP_MS).toBe(2 ** 48 - 1);
