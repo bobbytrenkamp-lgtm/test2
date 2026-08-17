@@ -14,6 +14,8 @@ export * from './repositories/budgets.js';
 export * from './repositories/assumption-proposals.js';
 export * from './repositories/import-sessions.js';
 export * from './repositories/favourites.js';
+export * from './repositories/notifications.js';
+export * from './repositories/documents.js';
 export * from './repositories/growth-curve-templates.js';
 export * from './repositories/market-leasing-profile-templates.js';
 export * from './repositories/expense-templates.js';

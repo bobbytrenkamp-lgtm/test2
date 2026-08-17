@@ -126,12 +126,13 @@ repository needs a paid plan outright. What to do in that case is set out under
 | Hard-coded external hosts | **None** outside `localhost`, `example.invalid` and documentation links |
 | Paid-service SDKs (AWS, Stripe, Sentry, OpenAI, Anthropic, Google Cloud, Twilio, SendGrid, Mapbox, Firebase, Supabase, Auth0, Clerk, …) | **None installed** |
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled by default, not implemented. No provider bundled |
-| Object storage | `STORAGE_DRIVER=local` — writes to a local directory |
+| Object storage | **Local, free.** `STORAGE_DRIVER=local` (default) writes an uploaded document to a directory on disk — no service, no account, no key. `STORAGE_DRIVER=s3` names the interface a real object store would implement, the same way `MAIL_DRIVER=smtp` names a relay without bundling one, but nothing implements it yet; the server refuses to start with it set rather than accepting the setting and failing the first upload |
 | Email | **Pluggable, free either way.** `MAIL_DRIVER=console` (default) logs the message instead of sending it — no service, no account, no key, and password reset works out of the box in development. `MAIL_DRIVER=smtp` sends through `nodemailer` (MIT-0, no paid API of its own) against a relay the operator names via `SMTP_HOST`; this platform picks and provisions no relay for you, the same way `STORAGE_DRIVER=s3` names a driver without bundling an AWS account |
 | Malware scanning | **Pluggable, free either way.** `SCAN_DRIVER=none` (default) scans nothing — no service, no account, no key, and every import wizard works out of the box. `SCAN_DRIVER=clamav` scans through `clamd` (GPL-2.0, free and open source, no paid tier) via `clamscan` (MIT, zero dependencies); the `docker-compose.yml` `clamav` service is one you'd run yourself, not a hosted product |
 | Monitoring | **Local.** Unhandled server faults are recorded in an `error_events` table and read on the Tasks and jobs screen. No hosted service, no account, no key |
 | Maps | **None.** The geographic dashboard widget is deferred rather than backed by a paid tile provider |
 | Browser testing | **Local Chromium only.** Playwright downloads the browser from its own CDN; no hosted grid, no account, no key |
+| Server-side PDF | **Local, free.** The same headless Chromium the row above already downloads for browser testing (`playwright-core`, Apache-2.0) renders a report's print HTML to PDF in a background job; no hosted rendering service, no account, no key |
 
 Every one of these sits behind an interface (`docs/architecture.md`), so a
 provider can be added later by choice — never by default.
@@ -243,7 +244,7 @@ interface, or defer:
 | Email delivery | **Built free, pluggable for real delivery.** `MAIL_DRIVER=console` (default) logs instead of sending; `MAIL_DRIVER=smtp` sends through `nodemailer` against a relay the operator names. See §3 |
 | Malware scanning of uploads | **Built free, pluggable for real scanning.** `SCAN_DRIVER=none` (default) scans nothing; `SCAN_DRIVER=clamav` scans through a `clamd` daemon via `clamscan`. See §3 |
 | Error monitoring | **Built locally.** A table, not a service: it costs nothing, keeps failure detail in the same database as everything it refers to, and can be replaced later by anything that reads it. Faults are grouped by fingerprint; the store holds no request body, query value, header or session token |
-| Server-side PDF | **Deferred.** Print-ready HTML works through the browser's own print-to-PDF, free |
+| Server-side PDF | **Built free.** A real headless Chromium (`playwright-core`, Apache-2.0), already installed for the end-to-end suite in development and CI; the production image installs one via Alpine's own free `chromium` package. Print-ready HTML through the browser's own print-to-PDF also still works, for a screen the reader is already looking at |
 | Geographic maps | **Deferred.** No paid tile provider. Allocation is shown as charts and tables instead |
 | AI assistant | **Deferred and disabled by default.** Provider-neutral design; nothing bundled |
 | Cloud object storage | **Local driver.** S3-compatible support is an interface, not a dependency |

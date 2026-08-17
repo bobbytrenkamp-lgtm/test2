@@ -10,6 +10,7 @@ import {
   Loading,
   StatusBadge,
 } from '../components.js';
+import { DocumentsCard } from '../components/DocumentsCard.js';
 import {
   formatCurrency,
   formatDate,
@@ -236,6 +237,8 @@ export function PropertyDetailPage(): JSX.Element {
           </div>
         )}
       </div>
+
+      <DocumentsCard propertyId={record.id} />
     </>
   );
 }

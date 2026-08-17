@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 15.0.0 · Last verified 2026-08-16**
+**Engine version 15.0.0 · Last verified 2026-08-17**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1420 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1459 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -109,11 +109,17 @@ Tests       1420 passed (251 engine regression, 31 engine unit, 16 fund,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
-                         5 malware scanning at the API boundary,
+                         8 malware scanning at the API boundary,
                          4 the worker's own tick orchestration,
                          8 model cloning, 4 sensitivity grid values,
-                         5 rent-roll import commit path)
-Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         5 rent-roll import commit path,
+                         6 model reports and exports,
+                         1 real PDF bytes from a real headless browser,
+                         4 server-side PDF rendering end to end,
+                         7 import atomicity and rollback,
+                         5 mention notifications,
+                         6 local object storage, 7 documents)
+Browser     237 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -128,11 +134,12 @@ Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 PDF-assumption import, 2 organization admin,
                          3 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
-                         5 consolidated review screen, 3 underwriting package)
+                         5 consolidated review screen, 3 underwriting package,
+                         3 mention notifications, 3 documents)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (542 kB, 152 kB gzipped)
-Migrations  24 applied against PostgreSQL 16
+Web build   succeeds (548 kB, 153 kB gzipped)
+Migrations  26 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -232,7 +239,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
 | Comments | Tested | Anchored to a model, property or budget period; API and interface |
 | Tasks | Tested | Asset-management work items against a property or model; API and interface |
-| Documents, dashboards | Designed | Tables exist and are migrated; no API |
+| Documents | Tested | Anchored to a property, optionally further to a model within it. `POST /documents` scans before it writes (the same boundary `malware-scanning.test.ts` covers for the two import surfaces), stores real bytes via a pluggable `Storage` (`STORAGE_DRIVER=local` writes to disk; `s3` is refused at startup, same as `MAIL_DRIVER=smtp` with no host — named but not yet implemented). `GET /documents/:id/download` returns exactly what was uploaded |
+| Configurable dashboards | Designed | `dashboards` table (`layout` jsonb) exists and is migrated; no API yet |
 
 ## 3. API
 
@@ -259,7 +267,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Portfolio reports (summary, concentration, expirations) | Tested | Every rate states its own basis in a column |
 | Investor statement and capital account | Tested | Built from the same position the screen shows; states its own limits on its face |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
-| Reports (JSON, CSV, XLSX, print HTML) | Functional | |
+| Reports (JSON, CSV, XLSX, print HTML) | Tested | The route's own claim — "the same report definition serves every format, so JSON, CSV, spreadsheet and print views of a report can never disagree" — is checked directly: each format's own bytes are parsed back into data and compared against the JSON format's, not assumed to agree because they share one `build()` call |
 | Portable JSON export | Functional | Documented, non-proprietary |
 | Rent-roll import (analyse, validate, commit) | Tested | Parsing itself was already Tested; the commit route's own behaviour — tenant dedup by name across a re-import, `skipRowsWithErrors`, `saveMappingAs`, the model-status guard, the audit trail — now is too. Found and fixed in the process: the response's `skipped` count was dead code that could never report anything but zero, silently defeating a warning `SupportTabs.tsx` already displayed when it was nonzero |
 | Audit read and NDJSON export | Tested | |
@@ -302,7 +310,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
 | Comments on a model, property or budget | Tested | Review tab on the model workspace; author-or-approver resolution, mentions restricted to organization members. Four browser tests across two roles |
 | Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
-| Mention notifications, activity feed | Not started | A mention is recorded on the comment and shown in the thread; nobody is told out of band |
+| Mention notifications, activity feed | Tested | One row per person a comment names (`notifications`, migration 0026), a personal feed and unread count at `GET /notifications`, a bell in the header polling every 30s. Gated on `property:read` — the one capability every role holds — since being told you were mentioned is not a privilege tied to what you may edit. Never crosses an organization boundary; a self-mention creates nothing. 5 API tests, 3 browser tests, in the axe sweep |
 | Portfolio roll-up | Functional | |
 | Tenant exposure across a portfolio | Tested | Rolls every property's leading model up by tenant identity rather than by name, so a tenant occupying space in several assets shows its true combined share instead of appearing separately on each one's own rent roll. A rollover branch the engine generated counts as that tenant only when it resolves to a real row in `tenants` — checked by matching against the table itself rather than trusting the branch's `scenario` label, which a nested round of speculative rollover can carry (`renewal`) while still describing no real tenant at all. Distinct from the "Tenant concentration" summary folded into every roll-up: that one is a top-20 glance keyed by name; this is the full breakdown, keyed by id, with every property occupied, lease count, credit profile and earliest expiration. 5 API tests, 5 browser tests, in the axe sweep |
 | Jobs and audit history | Functional | |
@@ -325,9 +333,9 @@ product less capable than the thing it replaced.
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder
 columns and drag-fill handles (reordering is button-driven and keyboard-first),
-configurable dashboard widgets, notifications, geographic maps. (Comments,
-tasks, side-by-side version comparison, and bulk edit as an explicit "apply to
-N selected" action were on this list and have since shipped; the rows above
+configurable dashboard widgets, geographic maps. (Comments, tasks, side-by-side
+version comparison, bulk edit as an explicit "apply to N selected" action, and
+mention notifications were on this list and have since shipped; the rows above
 are the current state.)
 
 ## 5. Reporting and imports
@@ -342,13 +350,13 @@ are the current state.)
 | Status and recovery vocabulary mapping | Tested | |
 | Validation with per-row findings | Tested | Error rows never import |
 | Duplicate detection | Tested | |
-| Transactional import, tenant matching | Functional | |
+| Transactional import, tenant matching | Tested | The commit route now runs the tenant lookup/creation and every lease upsert inside one database transaction (it previously called a per-lease helper that opened and committed its own transaction, so a mid-loop failure left earlier rows standing). A naturally-reachable failure — a negative area, which application-level validation does not catch but the database's own `CHECK` constraint does — proves a partial import writes nothing |
 | Reusable mapping templates | Functional | |
 | Nine report definitions | Functional | |
 | CSV, XLSX, print HTML, JSON output | Functional | |
 | Excel (.xlsx) file import | Tested | Read into the same rows the CSV pipeline takes, so mapping, validation and duplicate detection are reached unchanged. Multi-sheet with the rent roll suggested; dates, formulas, rich text, error cells and blank columns each covered. `.xls` is not supported and says so |
-| Server-side PDF rendering | Deferred | Print HTML works via the browser; needs a headless browser in the worker |
-| Import rollback | Not started | Import is transactional; no undo after commit |
+| Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download) — that packaging step is unverified, same as every other Docker claim in this repository, but the rendering code itself produces a real PDF in this environment's own headless Chromium |
+| Import rollback | Tested | `POST /models/:id/imports/:batchId/rollback` restores every lease a commit touched to its exact prior state — including rent steps and spaces — or deletes it if the commit created it fresh, from a snapshot captured inside the same transaction as the commit itself. Refuses a batch that was never committed, was already rolled back, or predates this feature (no snapshot). Unconditional: it does not detect edits made after the import, the same as an editor's undo |
 | Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
 
 ## 6. Security
@@ -369,8 +377,8 @@ are the current state.)
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
 | Dependency scanning in CI | Tested | `pnpm audit --audit-level=high` fails the build on a high or critical finding; moderate findings are logged, not blocked |
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
-| Malware scanning of uploads | Tested | Pluggable `SCAN_DRIVER` (`none` default, `clamav` via clamd). Both import surfaces (rent-roll, budget actuals) scan raw bytes before parsing and report `scanned` honestly. Driver selection and the infected/unavailable HTTP translation are tested against a fake scanner; live ClamAV signature detection is not verified in this environment — see `infrastructure/docker-compose.yml` |
-| Upload size and type verification | Functional | Body limit enforced; rent-roll and budget-actuals imports cap content size in their zod schemas and reject a workbook that fails to parse |
+| Malware scanning of uploads | Tested | Pluggable `SCAN_DRIVER` (`none` default, `clamav` via clamd). All three upload surfaces — rent-roll import, budget actuals import, and document upload — scan raw bytes before anything is parsed or written to storage, and report `scanned`/`scan_status` honestly. Driver selection and the infected/unavailable HTTP translation are tested against a fake scanner; live ClamAV signature detection is not verified in this environment — see `infrastructure/docker-compose.yml` |
+| Upload size and type verification | Functional | Body limit enforced; rent-roll, budget-actuals and document uploads all cap content size in their zod schemas, well under the server's own `bodyLimit`, and rent-roll/budget imports reject a workbook that fails to parse |
 | Database backup and restore | Tested | `pnpm drill:restore`: real dump, real restore, 20 checks including that a stored valuation reproduces. Runs in CI |
 
 ## 7. Operations

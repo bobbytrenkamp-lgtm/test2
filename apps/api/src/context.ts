@@ -7,6 +7,7 @@ import { getEntitlements } from '@cre/database';
 import type { Mailer } from './mailer.js';
 import type { Scanner } from './malware-scanner.js';
 import { InfectedFileError, ScannerUnavailableError } from './malware-scanner.js';
+import type { Storage } from './storage.js';
 
 /**
  * Request authorization.
@@ -28,6 +29,7 @@ declare module 'fastify' {
     db: Sql;
     mailer: Mailer;
     scanner: Scanner;
+    storage: Storage;
   }
 }
 

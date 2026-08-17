@@ -81,6 +81,21 @@ export function formatMultiple(value: string | null | undefined): string {
   return `${numeric.toFixed(2)}x`;
 }
 
+/** `byte_size` arrives as a string — it is a `bigint` column, kept as text for the same reason money is. */
+export function formatBytes(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes)) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${unit === 0 ? size : size.toFixed(1)} ${units[unit]}`;
+}
+
 /** Formats an ISO date without letting the browser shift it by timezone. */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';

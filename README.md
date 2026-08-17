@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1420 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1459 tests, plus 237 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -181,26 +181,43 @@ cloning — what eleven copied tables and two remapped foreign keys actually
 produce, not just that the endpoint returns 201; sensitivity analysis — a
 grid cell checked against an independent engine run, not just its shape;
 the rent-roll import commit path — tenant dedup across a re-import,
-partial-import-with-errors, saved mapping templates, the audit trail;
-version comparison and the approval workflow; the vertical slice from
+partial-import-with-errors, saved mapping templates, the audit trail; the
+general reports/exports engine — JSON, CSV, XLSX and print HTML checked
+against each other, not assumed to agree; server-side PDF rendering — a
+real headless browser producing real PDF bytes, queued through the same
+job pipeline as a scenario batch, exercised end to end by hand through a
+real browser click against real running API, worker and web processes;
+import rollback — the commit route now runs entirely in one transaction
+(a genuine atomicity bug, fixed alongside rollback itself: the previous
+per-lease write opened and committed its own transaction, so a mid-loop
+failure left earlier rows standing), and a rollback restores or deletes
+exactly what a commit touched, from a snapshot taken in that same
+transaction; mention notifications — a comment's `mentions` array had been
+stored since the very first collaboration migration but never told anyone
+out of band; now each one creates a personal feed row, polled by a bell in
+the header, and never crosses an organization boundary; documents — attached
+to a property and, optionally, further to a model within it, scanned before
+anything is written the same way a rent-roll or budget-actuals upload is,
+stored through a pluggable driver (`STORAGE_DRIVER=local` writes to disk by
+default; `s3` names the interface but is refused at startup, same as
+`MAIL_DRIVER=smtp` with no host, until something implements it); version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
-suite reaches the assumptions editor, scenarios, versions, reports and the
-portfolio roll-up, not only the underwriting path — Chromium only, and not
-a substitute for the screen-reader audit below.
+suite reaches the assumptions
+editor, scenarios, versions, reports and the portfolio roll-up, not only
+the underwriting path — Chromium only, and not a substitute for the
+screen-reader audit below.
 
-**Works, not yet proven.** The general reports/exports engine. Live ClamAV
-signature detection specifically — the scanner's driver selection and its
-HTTP translation of a clean/infected/unreachable result are tested against
-a fake client, but this environment's egress policy blocks the same CDN a
-`clamd` container would need at startup to load real virus definitions, so
+**Works, not yet proven.** Live ClamAV signature detection specifically —
+the scanner's driver selection and its HTTP translation of a
+clean/infected/unreachable result are tested against a fake client, but
+this environment's egress policy blocks the same CDN a `clamd` container
+would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
-**Designed only.** Documents and configurable dashboards, server-side PDF,
-import rollback, mention notifications and an activity feed, a handful of
-lease-option types (expansion, purchase, ROFR, ROFO), fund-level recallable
-distributions, the live property-research integration, and the optional AI
-assistant — which is disabled by default and adds no paid dependency without
-approval.
+**Designed only.** Configurable dashboards, a handful of lease-option types
+(expansion, purchase, ROFR, ROFO), fund-level recallable distributions, the
+live property-research integration, and the optional AI assistant — which
+is disabled by default and adds no paid dependency without approval.
 
 **Written but unverified.** The Docker Compose stack only — the container
 images have never been built, because this environment's egress policy

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { api } from '../api.js';
+import { api, downloadReportPdf } from '../api.js';
 import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from '../components.js';
+import { readAsBase64 } from '../files.js';
 import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
@@ -184,6 +185,14 @@ export function ReportsTab(): JSX.Element {
     reports: Array<{ id: string; title: string; category: string; description: string }>;
   }>('/reports');
   const [selected, setSelected] = useState<string | null>(null);
+  const pdf = useMutation((reportId: string) => downloadReportPdf(model.id, reportId));
+  const [renderingReportId, setRenderingReportId] = useState<string | null>(null);
+
+  async function handleDownloadPdf(reportId: string): Promise<void> {
+    setRenderingReportId(reportId);
+    await pdf.run(reportId);
+    setRenderingReportId(null);
+  }
 
   const preview = useResource<{
     report: {
@@ -259,12 +268,23 @@ export function ReportsTab(): JSX.Element {
                     >
                       Print
                     </a>
+                    {can('export:run') && (
+                      <button
+                        type="button"
+                        className="button subtle"
+                        onClick={() => void handleDownloadPdf(report.id)}
+                        disabled={pdf.pending}
+                      >
+                        {pdf.pending && renderingReportId === report.id ? 'Rendering…' : 'PDF'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <ErrorMessage error={pdf.error} />
 
         {can('export:run') && (
           <div className="row" style={{ marginTop: 12 }}>
@@ -744,23 +764,6 @@ function RecalculateButton({
 }
 
 /** Import a rent roll from a CSV: analyse, map, validate, then commit. */
-/**
- * A file's bytes as base64, without blowing the stack on a large one.
- *
- * `String.fromCharCode(...bytes)` is the usual one-liner and throws on a
- * spreadsheet of any size — the spread becomes one argument per byte. Chunked
- * instead, which is the same result and survives a real rent roll.
- */
-async function readAsBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
 const isWorkbookName = (name: string): boolean => /\.(xlsx|xlsm)$/i.test(name.trim());
 
 export function ImportsTab(): JSX.Element {

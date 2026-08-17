@@ -75,14 +75,21 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
 | Reforecast carry-forward, and the same-property guard on its model | `tests/reforecast.test.ts` | 6 | Yes |
 | Comments and who may resolve them | `tests/collaboration.test.ts` | 10 | Yes |
+| Mention notifications: a mentioned colleague is notified and nobody else, marking one read is idempotent and scoped to its recipient, marking all read, a self-mention creates nothing, never crosses an organization boundary | `tests/notifications.test.ts` | 5 | Yes |
+| Local object storage: real bytes round-trip with the size and checksum actually written, two uploads of identical content get two different keys, delete removes what was written, a storage key that tries to escape the storage root is refused, `STORAGE_DRIVER=s3` is refused at startup as an unimplemented interface | `apps/api/src/storage.test.ts` | 6 | No |
+| Documents: upload and list with who uploaded it, download returns exactly the uploaded bytes, a document scoped to a model still appears in the property-wide list, refuses to scope a document to a model from a different property, a read-only member may list and download but not upload or delete, delete removes both the row and its bytes, never crosses an organization boundary | `tests/documents.test.ts` | 7 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
+| Model reports and exports: the catalogue, JSON/CSV/XLSX/HTML cross-checked against each other cell by cell, the xlsx-format export:run gate, the bundled property-report workbook | `tests/model-reports.test.ts` | 6 | Yes |
+| Real PDF bytes from a real headless browser | `apps/worker/src/pdf.test.ts` | 1 | No |
+| Server-side PDF rendering end to end: the route enqueues, the worker produces real PDF bytes, the export:run gate, the unknown-report and uncalculated-model refusals | `tests/model-report-pdf.test.ts` | 4 | Yes |
+| Import atomicity and rollback: a mid-loop database constraint failure leaves nothing written, rollback deletes a lease the import created fresh, rollback restores an updated lease exactly (rent steps and spaces included), and the refusal paths — double rollback, no snapshot, never committed, nonexistent batch | `tests/rent-roll-import-rollback.test.ts` | 7 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
 | The mailer's driver selection and startup validation | `apps/api/src/mailer.test.ts` | 3 | No |
 | The malware scanner's driver selection and the clean/infected/unavailable translation, against a fake clamd client | `apps/api/src/malware-scanner.test.ts` | 4 | No |
-| Malware scanning at the API boundary: both import routes scan before parsing, report `scanned` honestly, and refuse an infected or unscannable upload with the right status code | `tests/malware-scanning.test.ts` | 5 | Yes |
+| Malware scanning at the API boundary: all three upload routes (rent-roll import, budget actuals import, document upload) scan before anything is parsed or stored, report `scanned`/`scan_status` honestly, and refuse an infected or unscannable upload with the right status code | `tests/malware-scanning.test.ts` | 8 | Yes |
 | Spreadsheet import through the API | `tests/workbook-import.test.ts` | 5 | Yes |
 | Rent-roll import commit path: tenant dedup by name across a re-import, `skipRowsWithErrors`, `saveMappingAs`, the model-status guard, the audit trail | `tests/rent-roll-import-commit.test.ts` | 5 | Yes |
 | Vertical slice, end to end | `tests/vertical-slice.test.ts` | 13 | Yes |
@@ -127,7 +134,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1420 tests in total.**
+**1459 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -173,8 +180,10 @@ built bundle:
 | Scenario comparison on the property page: shows scenarios side by side once a property has more than one model, hides below two, accessibility | `e2e/scenario-comparison.spec.ts` | 3 |
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
+| Mention notifications: the bell shows what was recorded on the comment, opening it navigates and marks it read, accessibility with the panel open | `e2e/notifications.spec.ts` | 3 |
+| Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1651 across the whole repository.
+**237 browser tests in total**, for 1696 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
@@ -496,7 +505,23 @@ that it stopped describing the codebase; corrected here rather than trusted.
 **Genuinely not started:** mutation testing, an audit with a real screen
 reader (needs a person with JAWS or VoiceOver — see `docs/feature-status.md`).
 
-**Functional but not yet covered by an automated test at the API layer:**
-the general reports/exports engine. The browser suite still runs in
-Chromium only; cross-browser coverage is the next increment, not a claim
-already made.
+Every screen this section once listed as Functional-but-not-Tested at the
+API layer — sensitivity grids, model cloning, the worker's own
+orchestration, the rent-roll import commit path, the reports/exports
+engine — now has a test of its own; see the rows above. The browser suite
+still runs in Chromium only; cross-browser coverage is the next increment,
+not a claim already made.
+
+Server-side PDF rendering's automated coverage stops at the API and worker
+layer (`tests/model-report-pdf.test.ts` calls the worker's `tick()`
+directly, the same way `tests/worker-pipeline.test.ts` does, rather than
+through a running worker process). The end-to-end suite has no worker of
+its own — `playwright.config.ts`'s `webServer` starts only the API and the
+built web app — so a browser click through to a downloaded PDF is not
+exercised by `pnpm test:e2e`. It was exercised once by hand: real API,
+worker and web processes, a real headless browser signed in with a real
+session cookie, a real click on the report screen's PDF button, and a real
+downloaded file starting with the PDF magic bytes. Worth automating if a
+worker is ever added to the end-to-end harness; not a gap this session
+could close by writing a Playwright spec against infrastructure that
+does not exist yet.

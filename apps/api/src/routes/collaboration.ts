@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { writeAudit } from '@cre/database';
+import { createMentionNotifications, writeAudit } from '@cre/database';
 import { roleHasCapability } from '@cre/domain-models';
 import { badRequest, forbidden, notFound, queryBoolean, requireCapability } from '../context.js';
 
@@ -20,6 +20,12 @@ import { badRequest, forbidden, notFound, queryBoolean, requireCapability } from
  * did, is append-only, and is written by the platform; a comment records what a
  * person thinks, is written by them, and can be resolved. Conflating the two
  * would make the audit log editable, which is the one thing it must never be.
+ *
+ * A mention creates a notification for each person named (`notifications.ts`
+ * in `@cre/database`, registered as `registerNotificationRoutes` — see
+ * `apps/api/src/routes/notifications.ts` for the personal feed built on top
+ * of it) — the mention no longer only means something to someone who
+ * happens to reopen this thread.
  */
 
 /** What a comment can be attached to, and how to prove the caller may see it. */
@@ -170,6 +176,17 @@ export async function registerCollaborationRoutes(app: FastifyInstance): Promise
       RETURNING *
     `) as unknown as Array<Record<string, unknown>>;
     const comment = rows[0] as Record<string, unknown>;
+
+    if (body.mentions.length > 0) {
+      await createMentionNotifications(request.db, {
+        organizationId,
+        actorId: context.userId,
+        commentId: comment.id as string,
+        entityType: body.entityType,
+        entityId: body.entityId,
+        recipientIds: body.mentions,
+      });
+    }
 
     await writeAudit(request.db, {
       organizationId,

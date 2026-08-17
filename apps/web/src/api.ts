@@ -87,6 +87,63 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
+interface JobRow {
+  status: string;
+  error_message: string | null;
+  result: { content: string; filename: string } | null;
+}
+
+/**
+ * Polls a background job (`GET /jobs/:id`) to completion.
+ *
+ * Rendering a PDF launches a real headless browser server-side, which takes
+ * real wall-clock time — long enough that the API route enqueues it as a job
+ * rather than blocking the request, the same way a scenario batch does. This
+ * is the one place in the client that waits one out; nothing else in this
+ * codebase's web app currently downloads the result of an async job, so
+ * there was no existing poll loop to reuse.
+ */
+async function pollJob(jobId: string, timeoutMs = 30_000): Promise<JobRow['result']> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const { job } = await api.get<{ job: JobRow }>(`/jobs/${jobId}`);
+    if (job.status === 'succeeded') return job.result;
+    if (job.status === 'failed') {
+      throw new ApiError(0, 'RENDER_FAILED', job.error_message ?? 'The job failed.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+  throw new ApiError(
+    0,
+    'RENDER_TIMEOUT',
+    'This is taking longer than expected. Try again shortly.',
+  );
+}
+
+/**
+ * Renders a report to PDF and saves it, waiting on the background job that
+ * does the actual rendering (`apps/worker/src/pdf.ts`).
+ */
+export async function downloadReportPdf(modelId: string, reportId: string): Promise<void> {
+  const { jobId } = await api.post<{ jobId: string; status: string }>(
+    `/models/${modelId}/reports/${reportId}/pdf`,
+  );
+  const result = await pollJob(jobId);
+  if (!result) throw new ApiError(0, 'RENDER_FAILED', 'The job finished with no file attached.');
+
+  const bytes = Uint8Array.from(atob(result.content), (char) => char.charCodeAt(0));
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = result.filename;
+    anchor.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Response shapes                                                            */
 /* -------------------------------------------------------------------------- */
