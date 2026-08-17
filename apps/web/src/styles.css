@@ -20,10 +20,14 @@
   --text-muted: #5b6270;
   --text-inverse: #ffffff;
 
-  /* CREOS brand blue (see test4/src/styles/tokens.css --creos-blue-600/700/100) */
+  /* CREOS brand blue (see test4/src/styles/tokens.css --creos-blue-600/700/100).
+     --accent-soft is lighter than the literal CREOS blue-100 (#dbe6fe) —
+     that token, paired with --accent as foreground text (e.g. .app-nav
+     a[aria-current='page']), measured 4.12:1 with axe-core's color-contrast
+     rule against 4.5:1 required. #eef4fe restores 0 violations. */
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
-  --accent-soft: #dbe6fe;
+  --accent-soft: #eef4fe;
 
   --positive: #0f7a4d;
   --positive-soft: #e2f4ec;
