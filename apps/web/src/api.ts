@@ -2,6 +2,7 @@ import type {
   Capability,
   Diagnostic,
   Entitlements,
+  LeaseOption,
   ModelResult,
   Role,
   TraceEntry,
@@ -232,6 +233,7 @@ export interface Lease {
   rent_steps: Array<{ startDate: string; amount: string; basis: string }>;
   escalation: Record<string, unknown>;
   recovery: Record<string, unknown>;
+  options: LeaseOption[];
   notes: string | null;
   /** Incremented on every write; sent back on save to detect a collision. */
   version: number;

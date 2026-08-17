@@ -100,6 +100,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
+| Lease options through the API: a well-formed option of any of the seven schema-named types is accepted and reads back exactly (including expansion/purchase/ROFR/ROFO, which the engine still declines to simulate but the schema has always allowed), a malformed one is refused | `tests/lease-options.test.ts` | 5 | Yes |
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 23 | No |
@@ -135,7 +136,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1467 tests in total.**
+**1472 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -147,7 +148,7 @@ built bundle:
 | --- | --- | --- |
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
-| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling | `e2e/rent-roll.spec.ts` | 5 |
+| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling, adding/removing a lease option and it surviving a reload, accessibility with an option's fields open | `e2e/rent-roll.spec.ts` | 8 |
 | Spreadsheet editing on the rent roll, including applying one typed value to every selected cell in a column at once | `e2e/rent-roll-grid.spec.ts` | 14 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
@@ -185,7 +186,7 @@ built bundle:
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 
-**241 browser tests in total**, for 1708 across the whole repository.
+**244 browser tests in total**, for 1716 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

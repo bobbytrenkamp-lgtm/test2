@@ -125,6 +125,12 @@ That is one host to allow. Anyone in an environment that permits it should run
   would either double-count area or invent rentable area the property does not
   have. Adding a space reference to `LeaseOption` is the next step there.
   Purchase, ROFR and ROFO bear on disposition, not operating cash flow.
+  **The editor gap is closed separately**: the engine modelled renewal,
+  termination and contraction from the start, but no screen ever offered a
+  field for one — `RentRollTab.tsx`'s "Edit … in full" button had promised
+  an options editor in its own tooltip text since it was written. The write
+  route's `options` field is validated against the real `leaseOptionSchema`
+  now too, in place of an unchecked `z.record(z.unknown())`.
 - ~~**Multiple recovery pools per lease**, reconciliation timing and prior-year
   true-ups.~~ Done. A lease settles any number of pools, each with its own base
   year, cap history and reconciliation, and a tenant can be billed an estimate

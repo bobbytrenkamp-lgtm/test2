@@ -27,6 +27,7 @@ import { ENGINE_VERSION } from '@cre/calculation-engine';
 import {
   decimalString,
   findTransition,
+  leaseOptionSchema,
   leaseStatusEnum,
   modelClassificationEnum,
   rentBasisEnum,
@@ -414,7 +415,7 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
         freeRent: z.array(z.record(z.unknown())).default([]),
         percentageRent: z.record(z.unknown()).default({}),
         recovery: z.record(z.unknown()).default({}),
-        options: z.array(z.record(z.unknown())).default([]),
+        options: z.array(leaseOptionSchema).default([]),
         leasingCosts: z.record(z.unknown()).default({}),
         otherRevenue: z.array(z.record(z.unknown())).default([]),
         marketLeasingProfileId: z.string().uuid().nullish(),
