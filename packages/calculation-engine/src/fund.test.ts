@@ -283,3 +283,83 @@ describe('transparency', () => {
     expect(summary.cashFlows.some((flow) => flow.label === 'residual value')).toBe(false);
   });
 });
+
+describe('recallable distributions', () => {
+  /*
+   * A sole investor, so the netting can be checked in the head.
+   *
+   *   Commitment            10,000,000
+   *   Contribution            6,000,000  on 2026-01-01
+   *   Distribution (recallable) 2,000,000  on 2027-01-01
+   *   Distribution (not recallable) 500,000  on 2027-06-01
+   *   Recall                   800,000  on 2028-01-01
+   *
+   * Gross distributed 2,500,000 less the 800,000 recall is 1,700,000 kept.
+   * Of the 2,000,000 marked recallable, 800,000 has been drawn back, leaving
+   * 1,200,000 of recall right still live. The non-recallable 500,000 was
+   * never exposed to the recall right at all.
+   */
+  function recallFund(recallAmount: string): FundInput {
+    return {
+      investors: [
+        { id: 'ONE', name: 'Sole investor', investorClass: 'lp', commitment: '10000000' },
+      ],
+      transactions: [
+        { investorId: 'ONE', date: '2026-01-01', type: 'contribution', amount: '6000000' },
+        {
+          investorId: 'ONE',
+          date: '2027-01-01',
+          type: 'distribution',
+          amount: '2000000',
+          recallable: true,
+        },
+        { investorId: 'ONE', date: '2027-06-01', type: 'distribution', amount: '500000' },
+        { investorId: 'ONE', date: '2028-01-01', type: 'recall', amount: recallAmount },
+      ],
+      netAssetValue: '0',
+      valuationDate: '2029-01-01',
+    };
+  }
+
+  it('nets a recall against distributed and against the recallable balance', () => {
+    const summary = computeFund(recallFund('800000'));
+    const one = position(summary, 'ONE');
+
+    expect(one.contributed).toBe('6000000');
+    expect(one.unfunded).toBe('4000000');
+    expect(one.recalled).toBe('800000');
+    expect(one.distributed).toBe('1700000');
+    expect(one.recallableOutstanding).toBe('1200000');
+    // distributed plus recalled reconstructs gross distributions.
+    expect(Number(one.distributed) + Number(one.recalled)).toBe(2500000);
+
+    expect(summary.totalRecalled).toBe('800000');
+    expect(summary.totalRecallableOutstanding).toBe('1200000');
+    expect(Number(one.dpi)).toBeCloseTo(1700000 / 6000000, 12);
+  });
+
+  it('leaves unfunded commitment untouched by a recall', () => {
+    // A recall is not fresh calling capacity: this module deliberately does
+    // not restore or expand what can still be called beyond commitment.
+    const summary = computeFund(recallFund('800000'));
+    expect(position(summary, 'ONE').unfunded).toBe('4000000');
+  });
+
+  it('floors both distributed and the recallable balance at zero when a recall exceeds them', () => {
+    // A recall larger than what was ever marked recallable is a data
+    // anomaly, not grounds to report a negative "still live" figure or a
+    // negative "money that stayed out" figure.
+    const summary = computeFund(recallFund('2500000'));
+    const one = position(summary, 'ONE');
+    expect(one.recalled).toBe('2500000');
+    expect(one.recallableOutstanding).toBe('0');
+    expect(one.distributed).toBe('0');
+  });
+
+  it('publishes the recall as its own negative cash flow', () => {
+    const summary = computeFund(recallFund('800000'));
+    const recallFlow = summary.cashFlows.find((flow) => flow.label === 'recall');
+    expect(recallFlow).toBeDefined();
+    expect(Number(recallFlow?.amount)).toBe(-800000);
+  });
+});

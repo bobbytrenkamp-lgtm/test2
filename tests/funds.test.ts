@@ -214,6 +214,81 @@ describe.skipIf(!hasDatabase)('funds', () => {
     expect(after.summary.totalCommitment).toBe('11000000');
   });
 
+  it('nets a recall against distributed without touching unfunded commitment', async () => {
+    // Whether the arithmetic in fund.ts is wired up correctly, not whether the
+    // arithmetic itself is right — that is the engine's own tests. Alder has
+    // 2,000,000 distributed so far in this suite's fixture, none of it marked
+    // recallable; a fresh recallable distribution and a partial recall against
+    // it should net without disturbing anything already recorded.
+    const before = await summary();
+    const alderBefore = before.summary.positions.find(
+      (position) => position.investorCode === 'ALDER',
+    ) as { distributed: string; unfunded: string };
+
+    const distribution = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/funds/${fundId}/transactions`,
+      headers: authed(owner.cookie),
+      payload: {
+        investorCode: 'ALDER',
+        date: '2028-06-01',
+        type: 'distribution',
+        amount: '900000',
+        recallable: true,
+      },
+    });
+    expect(distribution.statusCode).toBe(201);
+    expect(
+      (distribution.json() as { transaction: { recallable: boolean } }).transaction.recallable,
+    ).toBe(true);
+
+    const recall = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/funds/${fundId}/transactions`,
+      headers: authed(owner.cookie),
+      payload: {
+        investorCode: 'ALDER',
+        date: '2028-09-01',
+        type: 'recall',
+        amount: '300000',
+      },
+    });
+    expect(recall.statusCode).toBe(201);
+
+    const after = await summary();
+    const alderAfter = after.summary.positions.find(
+      (position) => position.investorCode === 'ALDER',
+    ) as { distributed: string; unfunded: string; recalled: string; recallableOutstanding: string };
+
+    // 900,000 gross distributed less the 300,000 recall.
+    expect(Number(alderAfter.distributed)).toBe(Number(alderBefore.distributed) + 600000);
+    expect(alderAfter.recalled).toBe('300000');
+    expect(alderAfter.recallableOutstanding).toBe('600000');
+    // A recall is not fresh calling capacity.
+    expect(alderAfter.unfunded).toBe(alderBefore.unfunded);
+  });
+
+  it('ignores a recallable flag sent on anything other than a distribution', async () => {
+    // The column is meaningful only on a distribution; a contribution or a
+    // recall marked "recallable" would be a data anomaly, not a real state.
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/funds/${fundId}/transactions`,
+      headers: authed(owner.cookie),
+      payload: {
+        investorCode: 'BRINE',
+        date: '2028-09-01',
+        type: 'contribution',
+        amount: '10000',
+        recallable: true,
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(
+      (response.json() as { transaction: { recallable: boolean } }).transaction.recallable,
+    ).toBe(false);
+  });
+
   it('keeps one organization’s funds out of another’s', async () => {
     const stranger = await registerActor(ctx.app, 'stranger@example.invalid', 'Stranger');
     await ctx.app.inject({

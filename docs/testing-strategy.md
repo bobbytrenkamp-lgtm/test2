@@ -36,7 +36,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | --- | --- | --- | --- |
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
-| Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 16 | No |
+| Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 20 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
@@ -63,7 +63,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
-| Funds through the API | `tests/funds.test.ts` | 10 | Yes |
+| Funds through the API | `tests/funds.test.ts` | 12 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Job reaper attempt cap | `tests/jobs.test.ts` | 3 | Yes |
 | The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
@@ -80,7 +80,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Documents: upload and list with who uploaded it, download returns exactly the uploaded bytes, a document scoped to a model still appears in the property-wide list, refuses to scope a document to a model from a different property, a read-only member may list and download but not upload or delete, delete removes both the row and its bytes, never crosses an organization boundary | `tests/documents.test.ts` | 7 | Yes |
 | Configurable dashboards: the upsert really replaces rather than duplicating, personal to each member, never crosses an organization boundary even for the same person, resetting returns to nothing saved rather than an empty layout, a malformed layout is refused | `tests/dashboards.test.ts` | 8 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
-| Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
+| Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 11 | Yes |
 | Model reports and exports: the catalogue, JSON/CSV/XLSX/HTML cross-checked against each other cell by cell, the xlsx-format export:run gate, the bundled property-report workbook | `tests/model-reports.test.ts` | 6 | Yes |
 | Real PDF bytes from a real headless browser | `apps/worker/src/pdf.test.ts` | 1 | No |
 | Server-side PDF rendering end to end: the route enqueues, the worker produces real PDF bytes, the export:run gate, the unknown-report and uncalculated-model refusals | `tests/model-report-pdf.test.ts` | 4 | Yes |
@@ -137,7 +137,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1503 tests in total.**
+**1510 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -158,7 +158,7 @@ built bundle:
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
-| Fund positions | `e2e/funds.spec.ts` | 5 |
+| Fund positions | `e2e/funds.spec.ts` | 6 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
@@ -187,7 +187,7 @@ built bundle:
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 
-**244 browser tests in total**, for 1747 across the whole repository.
+**245 browser tests in total**, for 1755 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

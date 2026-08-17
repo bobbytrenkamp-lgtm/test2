@@ -182,11 +182,16 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
       .object({
         investorCode: z.string().min(1).max(60),
         date: isoDate,
-        type: z.enum(['contribution', 'distribution']),
+        type: z.enum(['contribution', 'distribution', 'recall']),
         // Positive only. A signed amount would let a contribution be recorded
         // as a negative that then reads as a distribution, and nothing
         // downstream could tell the difference.
         amount: decimalAmount,
+        // Meaningful only on a distribution: whether the governing document
+        // lets the GP draw this money back later. Silently ignored on any
+        // other type rather than rejected, since a caller building the row
+        // generically may send it unconditionally.
+        recallable: z.boolean().default(false),
         reference: z.string().max(120).nullish(),
         notes: z.string().max(2000).nullish(),
       })
@@ -208,10 +213,11 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
 
     const rows = (await request.db`
       INSERT INTO fund_transactions (
-        fund_id, investor_id, transaction_date, type, amount, reference, notes, created_by
+        fund_id, investor_id, transaction_date, type, amount, recallable, reference, notes, created_by
       ) VALUES (
         ${id}, ${investorId}, ${body.date}, ${body.type}, ${body.amount},
-        ${body.reference ?? null}, ${body.notes ?? null}, ${context.userId}
+        ${body.type === 'distribution' && body.recallable}, ${body.reference ?? null},
+        ${body.notes ?? null}, ${context.userId}
       )
       RETURNING *
     `) as unknown as Array<Record<string, unknown>>;
@@ -336,10 +342,16 @@ async function fundPosition(
   }>;
 
   const transactionRows = (await request.db`
-    SELECT investor_id, to_char(transaction_date, 'YYYY-MM-DD') AS date, type, amount
+    SELECT investor_id, to_char(transaction_date, 'YYYY-MM-DD') AS date, type, amount, recallable
     FROM fund_transactions WHERE fund_id = ${id}
     ORDER BY transaction_date
-  `) as unknown as Array<{ investor_id: string; date: string; type: string; amount: string }>;
+  `) as unknown as Array<{
+    investor_id: string;
+    date: string;
+    type: string;
+    amount: string;
+    recallable: boolean;
+  }>;
 
   /*
    * Residual value from the fund's portfolio, using the same roll-up the
@@ -381,6 +393,7 @@ async function fundPosition(
     date: row.date,
     type: row.type as FundTransaction['type'],
     amount: row.amount,
+    recallable: row.recallable,
   }));
 
   const valuationDate = query.valuationDate ?? new Date().toISOString().slice(0, 10);
