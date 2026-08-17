@@ -5,6 +5,7 @@ import { Loading } from '../components.js';
 import { SignInPage } from './SignIn.js';
 import { CommandPalette } from '../components/CommandPalette.js';
 import { CreateOrganizationForm } from '../components/CreateOrganizationForm.js';
+import { NotificationBell } from '../components/NotificationBell.js';
 import { useResource } from '../hooks.js';
 
 /**
@@ -85,6 +86,7 @@ export function Shell(): JSX.Element {
         </div>
 
         <div className="row">
+          {session.organizationId && <NotificationBell />}
           <NavLink to="/security" style={{ color: 'var(--text-muted)' }}>
             {session.user.name}
           </NavLink>

@@ -222,7 +222,7 @@ currently returns them all, and the file says so.
 **Still to do:** multi-cell edit, fill-down, undo/redo, column hiding, and saved
 views (the `saved_views` table exists and is unused).
 
-### 6. Collaboration (phase 32 of the brief) — comments and tasks done
+### 6. Collaboration (phase 32 of the brief) — comments, tasks and mention notifications done
 
 **Done: comments.** The approval workflow could move a model from review back to
 draft and record that it happened, but not why — so an analyst learned that
@@ -290,9 +290,15 @@ The `/jobs` screen was labelled "Tasks and jobs" and is now "Background jobs":
 with a real task board in the product, calling a queue of calculations "tasks"
 made the navigation lie.
 
-**Still to do:** notifications and an activity feed. A mention is recorded on the
-comment and shown in the thread, but nobody is told out of band, and there is no
-single place to see what changed across an organization.
+**Done: mention notifications.** A comment's `mentions` array was recorded and
+shown in the thread since the first collaboration migration, but nobody was
+told out of band. `notifications` (migration 0026) is one row per person a
+comment names; a bell in the header polls a personal feed and unread count
+(`GET /notifications`), gated on `property:read` — the one capability every
+role holds — since being told you were mentioned is not a privilege tied to
+what you may edit. A general activity feed across everything that changed in
+an organization is still not built; `/audit` already serves that role for
+whoever holds `audit:read`.
 
 ### 7. Portfolio reporting and funds (phase 10) — funds done
 
