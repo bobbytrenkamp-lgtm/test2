@@ -99,5 +99,14 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (parsed.data.MAIL_DRIVER === 'smtp' && !parsed.data.SMTP_HOST) {
     throw new Error('SMTP_HOST is required when MAIL_DRIVER is "smtp".');
   }
+  if (parsed.data.STORAGE_DRIVER === 's3') {
+    // Named as an interface, the same way MAIL_DRIVER names smtp without
+    // bundling a relay — but unlike smtp, nothing implements it yet (see
+    // apps/api/src/storage.ts). Refusing to start says so plainly, rather
+    // than accepting the setting and failing the first upload instead.
+    throw new Error(
+      'STORAGE_DRIVER=s3 has no implementation yet. Set STORAGE_DRIVER=local (the default).',
+    );
+  }
   return parsed.data;
 }

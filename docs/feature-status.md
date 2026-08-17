@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1443 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1459 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -109,7 +109,7 @@ Tests       1443 passed (251 engine regression, 31 engine unit, 16 fund,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
-                         5 malware scanning at the API boundary,
+                         8 malware scanning at the API boundary,
                          4 the worker's own tick orchestration,
                          8 model cloning, 4 sensitivity grid values,
                          5 rent-roll import commit path,
@@ -117,8 +117,9 @@ Tests       1443 passed (251 engine regression, 31 engine unit, 16 fund,
                          1 real PDF bytes from a real headless browser,
                          4 server-side PDF rendering end to end,
                          7 import atomicity and rollback,
-                         5 mention notifications)
-Browser     234 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         5 mention notifications,
+                         6 local object storage, 7 documents)
+Browser     237 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -134,10 +135,10 @@ Browser     234 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          3 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
                          5 consolidated review screen, 3 underwriting package,
-                         3 mention notifications)
+                         3 mention notifications, 3 documents)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (542 kB, 152 kB gzipped)
+Web build   succeeds (548 kB, 153 kB gzipped)
 Migrations  26 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
@@ -238,7 +239,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
 | Comments | Tested | Anchored to a model, property or budget period; API and interface |
 | Tasks | Tested | Asset-management work items against a property or model; API and interface |
-| Documents, dashboards | Designed | Tables exist and are migrated; no API |
+| Documents | Tested | Anchored to a property, optionally further to a model within it. `POST /documents` scans before it writes (the same boundary `malware-scanning.test.ts` covers for the two import surfaces), stores real bytes via a pluggable `Storage` (`STORAGE_DRIVER=local` writes to disk; `s3` is refused at startup, same as `MAIL_DRIVER=smtp` with no host — named but not yet implemented). `GET /documents/:id/download` returns exactly what was uploaded |
+| Configurable dashboards | Designed | `dashboards` table (`layout` jsonb) exists and is migrated; no API yet |
 
 ## 3. API
 
@@ -375,8 +377,8 @@ are the current state.)
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
 | Dependency scanning in CI | Tested | `pnpm audit --audit-level=high` fails the build on a high or critical finding; moderate findings are logged, not blocked |
 | Licence gate in CI | Tested | `scripts/check-licences.mjs` fails the build on a paid, commercial or copyleft licence |
-| Malware scanning of uploads | Tested | Pluggable `SCAN_DRIVER` (`none` default, `clamav` via clamd). Both import surfaces (rent-roll, budget actuals) scan raw bytes before parsing and report `scanned` honestly. Driver selection and the infected/unavailable HTTP translation are tested against a fake scanner; live ClamAV signature detection is not verified in this environment — see `infrastructure/docker-compose.yml` |
-| Upload size and type verification | Functional | Body limit enforced; rent-roll and budget-actuals imports cap content size in their zod schemas and reject a workbook that fails to parse |
+| Malware scanning of uploads | Tested | Pluggable `SCAN_DRIVER` (`none` default, `clamav` via clamd). All three upload surfaces — rent-roll import, budget actuals import, and document upload — scan raw bytes before anything is parsed or written to storage, and report `scanned`/`scan_status` honestly. Driver selection and the infected/unavailable HTTP translation are tested against a fake scanner; live ClamAV signature detection is not verified in this environment — see `infrastructure/docker-compose.yml` |
+| Upload size and type verification | Functional | Body limit enforced; rent-roll, budget-actuals and document uploads all cap content size in their zod schemas, well under the server's own `bodyLimit`, and rent-roll/budget imports reject a workbook that fails to parse |
 | Database backup and restore | Tested | `pnpm drill:restore`: real dump, real restore, 20 checks including that a stored valuation reproduces. Runs in CI |
 
 ## 7. Operations

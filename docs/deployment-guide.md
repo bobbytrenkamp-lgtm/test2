@@ -115,7 +115,7 @@ Validated at startup; the process **refuses to start** if any of these is wrong.
 | `WEB_ORIGIN` | | CORS and CSP origin |
 | `SESSION_COOKIE_SECURE` | | **Must be `true` in production** — enforced |
 | `ALLOW_SELF_REGISTRATION` | | Set `false` to require invitations |
-| `STORAGE_DRIVER`, `STORAGE_LOCAL_DIR` | | Object storage abstraction |
+| `STORAGE_DRIVER`, `STORAGE_LOCAL_DIR` | | `local` by default — uploaded documents (`POST /documents`) are written under `STORAGE_LOCAL_DIR` (`./uploads` by default). `s3` names the interface a real object store would implement, the same way `MAIL_DRIVER=smtp` names a relay this platform does not provision, but nothing implements it yet — **required and enforced at startup**, the same way a missing `SMTP_HOST` is: the process refuses to start with `STORAGE_DRIVER=s3` rather than accepting the setting and failing the first upload. |
 | `AI_ASSISTANT_PROVIDER` | | `none` by default; the assistant is disabled |
 | `MAIL_DRIVER` | | `console` by default — logs the message instead of sending it, which is why password reset works out of the box in development with nothing configured. Set `smtp` to actually deliver mail. |
 | `MAIL_FROM` | | The `From` address on outgoing mail. Defaults to a placeholder that no real deployment should keep. |

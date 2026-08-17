@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1443 tests, plus 234 in the browser.** The regression library holds twenty independently designed
+**1459 tests, plus 237 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -195,7 +195,12 @@ exactly what a commit touched, from a snapshot taken in that same
 transaction; mention notifications — a comment's `mentions` array had been
 stored since the very first collaboration migration but never told anyone
 out of band; now each one creates a personal feed row, polled by a bell in
-the header, and never crosses an organization boundary; version comparison and the approval workflow; the vertical slice from
+the header, and never crosses an organization boundary; documents — attached
+to a property and, optionally, further to a model within it, scanned before
+anything is written the same way a rent-roll or budget-actuals upload is,
+stored through a pluggable driver (`STORAGE_DRIVER=local` writes to disk by
+default; `s3` names the interface but is refused at startup, same as
+`MAIL_DRIVER=smtp` with no host, until something implements it); version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
 suite reaches the assumptions
 editor, scenarios, versions, reports and the portfolio roll-up, not only
@@ -209,11 +214,10 @@ this environment's egress policy blocks the same CDN a `clamd` container
 would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
-**Designed only.** Documents and configurable dashboards, a handful of
-lease-option types (expansion, purchase, ROFR, ROFO), fund-level recallable
-distributions, the live property-research integration, and the optional AI
-assistant — which is disabled by default and adds no paid dependency without
-approval.
+**Designed only.** Configurable dashboards, a handful of lease-option types
+(expansion, purchase, ROFR, ROFO), fund-level recallable distributions, the
+live property-research integration, and the optional AI assistant — which
+is disabled by default and adds no paid dependency without approval.
 
 **Written but unverified.** The Docker Compose stack only — the container
 images have never been built, because this environment's egress policy

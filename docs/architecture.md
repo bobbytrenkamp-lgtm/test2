@@ -125,8 +125,8 @@ Every external dependency sits behind an interface so it can be replaced:
 
 | Concern | Today | Replaceable with |
 | --- | --- | --- |
-| Object storage | `STORAGE_DRIVER=local`, opaque keys in `documents` | S3-compatible service |
-| Malware scanning | `SCAN_DRIVER=none` (default) scans nothing; `SCAN_DRIVER=clamav` scans both import surfaces through a `clamd` daemon | ClamAV (built in) or a hosted scanner |
+| Object storage | `STORAGE_DRIVER=local` (default) writes to disk, behind `POST /documents`; opaque keys in `documents`. `s3` names the interface but is refused at startup — nothing implements it yet | S3-compatible service |
+| Malware scanning | `SCAN_DRIVER=none` (default) scans nothing; `SCAN_DRIVER=clamav` scans all three upload surfaces (rent-roll import, budget actuals import, document upload) through a `clamd` daemon | ClamAV (built in) or a hosted scanner |
 | Mail | `MAIL_DRIVER=console` (default) logs instead of sending; `MAIL_DRIVER=smtp` sends through `nodemailer` | any SMTP or API provider |
 | AI assistant | `AI_ASSISTANT_PROVIDER=none`, disabled | any provider, opt-in |
 
