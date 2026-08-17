@@ -78,6 +78,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Mention notifications: a mentioned colleague is notified and nobody else, marking one read is idempotent and scoped to its recipient, marking all read, a self-mention creates nothing, never crosses an organization boundary | `tests/notifications.test.ts` | 5 | Yes |
 | Local object storage: real bytes round-trip with the size and checksum actually written, two uploads of identical content get two different keys, delete removes what was written, a storage key that tries to escape the storage root is refused, `STORAGE_DRIVER=s3` is refused at startup as an unimplemented interface | `apps/api/src/storage.test.ts` | 6 | No |
 | Documents: upload and list with who uploaded it, download returns exactly the uploaded bytes, a document scoped to a model still appears in the property-wide list, refuses to scope a document to a model from a different property, a read-only member may list and download but not upload or delete, delete removes both the row and its bytes, never crosses an organization boundary | `tests/documents.test.ts` | 7 | Yes |
+| Configurable dashboards: the upsert really replaces rather than duplicating, personal to each member, never crosses an organization boundary even for the same person, resetting returns to nothing saved rather than an empty layout, a malformed layout is refused | `tests/dashboards.test.ts` | 8 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 10 | Yes |
 | Model reports and exports: the catalogue, JSON/CSV/XLSX/HTML cross-checked against each other cell by cell, the xlsx-format export:run gate, the bundled property-report workbook | `tests/model-reports.test.ts` | 6 | Yes |
@@ -134,7 +135,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1459 tests in total.**
+**1467 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -182,8 +183,9 @@ built bundle:
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 | Mention notifications: the bell shows what was recorded on the comment, opening it navigates and marks it read, accessibility with the panel open | `e2e/notifications.spec.ts` | 3 |
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
+| Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 
-**237 browser tests in total**, for 1696 across the whole repository.
+**241 browser tests in total**, for 1708 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
