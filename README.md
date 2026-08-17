@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1472 tests, plus 244 in the browser.** The regression library holds twenty independently designed
+**1510 tests, plus 245 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -207,7 +207,12 @@ lease options — renewal, termination and contraction have run in the engine
 as probability-weighted branches for a while, but no screen ever offered a
 field for one; `leaseOptionSchema` also replaces an unchecked
 `z.record(z.unknown())` at the write route, so an option is validated for
-real rather than accepted as an arbitrary object; version comparison and the approval workflow; the vertical slice from
+real rather than accepted as an arbitrary object; recallable fund
+distributions — a recall nets against what an investor kept and against how
+much recall right is still live, both facts the caller states rather than
+this module inferring; it deliberately does not restore or expand unfunded
+commitment, the one piece that is LPA-specific and stays out of scope;
+version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
 suite reaches the assumptions
 editor, scenarios, versions, reports and the portfolio roll-up, not only
@@ -222,9 +227,10 @@ would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
 **Designed only.** A handful of lease-option types (expansion, purchase,
-ROFR, ROFO), fund-level recallable distributions, the live property-research
-integration, and the optional AI assistant — which is disabled by default
-and adds no paid dependency without approval.
+ROFR, ROFO) and the fund-level waterfall stay documented as not modelled
+rather than approximated; the live property-research integration; and the
+optional AI assistant — which is disabled by default and adds no paid
+dependency without approval.
 
 **Written but unverified.** The Docker Compose stack only — the container
 images have never been built, because this environment's egress policy

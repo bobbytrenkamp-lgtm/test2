@@ -237,7 +237,7 @@ describe.skipIf(!hasDatabase)('portfolio and fund reports', () => {
         `/api/v1/funds/${fundId}/reports/fund-investor-statement`,
       );
       const notes = report.footnotes.join(' ');
-      expect(notes).toContain('Recallable distributions');
+      expect(notes).toContain('does not restore or expand unfunded commitment');
       expect(notes).toContain('carried interest');
       expect(notes).toContain('will differ from one prepared under it');
     });
@@ -250,6 +250,16 @@ describe.skipIf(!hasDatabase)('portfolio and fund reports', () => {
       expect(notes).toContain('DPI is distributions over capital called');
       expect(notes).toContain('not the average of its investors');
       expect(notes).toContain('not annualised from a multiple');
+    });
+
+    it('carries recallable outstanding, netted from what has been recalled', async () => {
+      const { report } = await fetchReport(
+        `/api/v1/funds/${fundId}/reports/fund-investor-statement?valuationDate=2029-01-01`,
+      );
+      expect(report.columns.some((column) => column.key === 'recallableOutstanding')).toBe(true);
+      // Nothing recallable has been recorded in this suite's fixture, so the
+      // column is present and zero rather than absent.
+      expect(report.totals?.recallableOutstanding).toBe('0');
     });
 
     it('publishes the exact flows the return was solved from', async () => {

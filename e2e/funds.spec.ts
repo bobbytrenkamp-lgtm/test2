@@ -86,3 +86,52 @@ test('refuses capital recorded against an investor who is not in the fund', asyn
   expect(options).toContain('Alder State Pension (fictional)');
   expect(options).not.toContain('');
 });
+
+test('records a recallable distribution, then a recall, and nets them on screen', async ({
+  page,
+}) => {
+  // Placed last in this file: it mutates the demonstration fund's capital
+  // record, which the row-count assertions in the earlier tests depend on.
+  await page.goto('/funds');
+  const row = page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: FUND }) });
+  await row.getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByRole('heading', { name: FUND, level: 2 })).toBeVisible();
+
+  const recordForm = page
+    .locator('form')
+    .filter({ has: page.getByRole('heading', { name: 'Record capital' }) });
+
+  async function recordTransaction(
+    type: string,
+    amount: string,
+    date: string,
+    markRecallable: boolean,
+  ): Promise<void> {
+    await recordForm
+      .getByLabel('Investor', { exact: true })
+      .selectOption({ label: 'Alder State Pension (fictional)' });
+    await recordForm.getByLabel('Type').selectOption({ label: type });
+    await recordForm.getByLabel('Date').fill(date);
+    await recordForm.getByLabel(/Amount/).fill(amount);
+    if (markRecallable) {
+      await recordForm.getByRole('checkbox', { name: /governing document/i }).check();
+    }
+    await recordForm.getByRole('button', { name: 'Record' }).click();
+    await expect(recordForm.getByRole('button', { name: 'Record' })).toBeEnabled();
+  }
+
+  await recordTransaction('Distribution', '1000000', '2027-09-30', true);
+  await recordTransaction('Recall', '400000', '2027-12-31', false);
+
+  const recallableTile = page
+    .locator('.metric')
+    .filter({ has: page.getByText('Recallable outstanding', { exact: true }) });
+  // 1,000,000 marked recallable, less the 400,000 recalled.
+  await expect(recallableTile).toContainText('$600.0K');
+
+  const capitalTable = page.getByRole('table', { name: /Capital calls and distributions/ });
+  await expect(
+    capitalTable.getByRole('cell', { name: 'Distribution (recallable)' }).first(),
+  ).toBeVisible();
+  await expect(capitalTable.getByRole('cell', { name: 'Recall' }).first()).toBeVisible();
+});

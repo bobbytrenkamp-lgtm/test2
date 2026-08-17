@@ -53,17 +53,17 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1503 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1510 passed (251 engine regression, 31 engine unit, 20 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
-                         10 funds via the API, 17 optimistic locking,
+                         12 funds via the API, 17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
                          6 reforecast, 10 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 2 password reset, 3 mailer driver selection,
                          5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,
-                         10 portfolio reports, 13 vertical slice,
+                         11 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
                          2 the workbook evaluator's own IFERROR fallback,
                          88 Excel Live Model reconciliation,
@@ -121,7 +121,7 @@ Tests       1503 passed (251 engine regression, 31 engine unit, 16 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     244 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     245 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          8 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -130,7 +130,7 @@ Browser     244 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 assumption provenance, 10 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 6 palette and paste,
-                         5 funds, 2 version comparison, 4 review comments,
+                         6 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
@@ -265,7 +265,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
 | Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
 | Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so on screen |
-| Fund-level waterfall, recallable distributions | Not started | Documented as not modelled in `fund.ts` rather than approximated |
+| Recallable distributions | Tested | A recall nets against `distributed` and against how much recall right is still live on a distribution marked `recallable`; it does not restore or expand unfunded commitment beyond stated commitment, which stays out of scope as the LPA-specific mechanism this module has always refused to guess at. 4 engine tests against hand-derived figures, 2 through the API, 1 in the browser |
+| Fund-level waterfall | Not started | Documented as not modelled in `fund.ts` rather than approximated |
 | Portfolio reports (summary, concentration, expirations) | Tested | Every rate states its own basis in a column |
 | Investor statement and capital account | Tested | Built from the same position the screen shows; states its own limits on its face |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |

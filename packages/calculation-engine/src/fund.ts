@@ -22,12 +22,26 @@ import { safeDivide, toStringOrNull, xirr, type DatedCashFlow } from './metrics.
  * average of its investors' DPIs, which would weight a $1m investor the same as
  * a $100m one.
  *
+ * ## Recallable distributions
+ *
+ * A distribution can be marked `recallable`, and a later `recall` transaction
+ * draws against it. Both are facts the caller states, not inferences this
+ * module makes: whether a given distribution may be recalled, and whether one
+ * actually was, are LPA terms and GP decisions no engine should guess at.
+ *
+ * What the arithmetic itself is deliberately conservative about: a recall
+ * nets against `distributed` (so DPI reflects what an investor actually kept,
+ * not what passed through their hands before being asked back) and against
+ * `recallableOutstanding` (so a report can show how much recall right is
+ * still live) — full stop. It does **not** restore unfunded commitment or
+ * expand how much more can be called beyond the stated commitment. Some LPAs
+ * let a recalled dollar be called again as if it were fresh capital, up to a
+ * cap stated in the agreement; that is exactly the kind of document-specific
+ * mechanism this module has always refused to guess at, and adding a `recall`
+ * type does not change that stance.
+ *
  * ## What this deliberately does not model
  *
- * - **Recallable distributions.** A distribution that restores unfunded
- *   commitment changes what "called" means; the transaction record has no field
- *   saying which distributions are recallable, and inferring it would be
- *   guessing at the LPA.
  * - **Fund-level carried interest and catch-up.** The deal waterfall in
  *   `waterfall.ts` models tiers for a single investment. A fund-level waterfall
  *   settles across the whole portfolio with its own hurdle and clawback, which
@@ -53,9 +67,22 @@ export interface FundTransaction {
   investorId: string;
   /** `YYYY-MM-DD`. */
   date: string;
-  type: 'contribution' | 'distribution';
+  /**
+   * `recall` draws back capital from a distribution already made — money
+   * leaving the investor again, the same direction as a `contribution`, but
+   * kept as its own type so a report can show what was called for a new
+   * investment separately from what was called back.
+   */
+  type: 'contribution' | 'distribution' | 'recall';
   /** Always positive. The direction is decided by `type`, not by a sign. */
   amount: string;
+  /**
+   * Meaningful only on a `distribution`: whether the fund's governing
+   * document lets the GP call this money back later. Not enforced against a
+   * later `recall` — this module states what happened, not what the LPA
+   * permits.
+   */
+  recallable?: boolean;
 }
 
 export interface FundInvestorPosition {
@@ -69,7 +96,20 @@ export interface FundInvestorPosition {
   unfunded: string;
   /** `contributed ÷ commitment`, null when the commitment is zero. */
   percentCalled: string | null;
+  /**
+   * Gross distributions less any recall — what this investor actually kept.
+   * `distributed` plus `recalled` reconstructs gross distributions, so
+   * nothing here is hidden.
+   */
   distributed: string;
+  /** Total drawn back by a `recall` transaction. */
+  recalled: string;
+  /**
+   * The not-yet-recalled portion of distributions marked `recallable`,
+   * floored at zero: how much recall right is still live. Already counted
+   * inside `distributed` — this is a breakdown of it, not an addition to it.
+   */
+  recallableOutstanding: string;
   /** This investor's share of the fund's residual value. */
   netAssetValue: string;
   /** Distributions over contributions — realised return. */
@@ -88,6 +128,8 @@ export interface FundSummary {
   totalContributed: string;
   totalUnfunded: string;
   totalDistributed: string;
+  totalRecalled: string;
+  totalRecallableOutstanding: string;
   netAssetValue: string;
   percentCalled: string | null;
   dpi: string | null;
@@ -143,9 +185,10 @@ function navShares(
 }
 
 /**
- * Investor cash flows, in the sign convention the IRR needs: capital called is
- * money leaving the investor, distributions and residual value are money
- * arriving.
+ * Investor cash flows, in the sign convention the IRR needs: capital called
+ * is money leaving the investor, distributions and residual value are money
+ * arriving. A recall is money leaving the investor again — the same
+ * direction as a contribution, whatever it is called back against.
  */
 function investorFlows(
   transactions: FundTransaction[],
@@ -155,7 +198,9 @@ function investorFlows(
   const flows: DatedCashFlow[] = transactions.map((transaction) => ({
     date: parseDate(transaction.date),
     amount:
-      transaction.type === 'contribution' ? d(transaction.amount).negated() : d(transaction.amount),
+      transaction.type === 'contribution' || transaction.type === 'recall'
+        ? d(transaction.amount).negated()
+        : d(transaction.amount),
   }));
   if (!netAssetValue.isZero()) {
     flows.push({ date: parseDate(valuationDate), amount: netAssetValue });
@@ -178,10 +223,25 @@ export function computeFund(input: FundInput): FundSummary {
     const contributed = transactions
       .filter((transaction) => transaction.type === 'contribution')
       .reduce((sum, transaction) => sum.plus(d(transaction.amount)), ZERO);
-    const distributed = transactions
+    const grossDistributed = transactions
       .filter((transaction) => transaction.type === 'distribution')
       .reduce((sum, transaction) => sum.plus(d(transaction.amount)), ZERO);
-    return { investor, transactions, contributed, distributed };
+    const recallableDistributed = transactions
+      .filter((transaction) => transaction.type === 'distribution' && transaction.recallable)
+      .reduce((sum, transaction) => sum.plus(d(transaction.amount)), ZERO);
+    const recalled = transactions
+      .filter((transaction) => transaction.type === 'recall')
+      .reduce((sum, transaction) => sum.plus(d(transaction.amount)), ZERO);
+    // Floored for the same reason `unfunded` is: a recall the caller records
+    // beyond what was ever marked recallable is a data anomaly, not grounds
+    // to report a negative "still live" figure.
+    const recallableOutstanding = Decimal.max(recallableDistributed.minus(recalled), ZERO);
+    // Floored too: `distributed` means "money that flowed out and stayed
+    // out". A recall exceeding gross distributions cannot happen in a real
+    // fund, and showing a negative figure would read as the fund owing
+    // money for a reason distributed was never meant to carry.
+    const distributed = Decimal.max(grossDistributed.minus(recalled), ZERO);
+    return { investor, transactions, contributed, distributed, recalled, recallableOutstanding };
   });
 
   const shares = navShares(
@@ -206,6 +266,8 @@ export function computeFund(input: FundInput): FundSummary {
       unfunded: Decimal.max(commitment.minus(entry.contributed), ZERO).toString(),
       percentCalled: toStringOrNull(safeDivide(entry.contributed, commitment)),
       distributed: entry.distributed.toString(),
+      recalled: entry.recalled.toString(),
+      recallableOutstanding: entry.recallableOutstanding.toString(),
       netAssetValue: share.toString(),
       dpi: toStringOrNull(safeDivide(entry.distributed, entry.contributed)),
       rvpi: toStringOrNull(safeDivide(share, entry.contributed)),
@@ -217,6 +279,11 @@ export function computeFund(input: FundInput): FundSummary {
   const totalCommitment = drawn.reduce((sum, e) => sum.plus(d(e.investor.commitment)), ZERO);
   const totalContributed = drawn.reduce((sum, e) => sum.plus(e.contributed), ZERO);
   const totalDistributed = drawn.reduce((sum, e) => sum.plus(e.distributed), ZERO);
+  const totalRecalled = drawn.reduce((sum, e) => sum.plus(e.recalled), ZERO);
+  const totalRecallableOutstanding = drawn.reduce(
+    (sum, e) => sum.plus(e.recallableOutstanding),
+    ZERO,
+  );
   const totalUnfunded = positions.reduce((sum, position) => sum.plus(d(position.unfunded)), ZERO);
 
   // Solved from the fund's own flows. Summing the investors' IRRs, or averaging
@@ -230,6 +297,8 @@ export function computeFund(input: FundInput): FundSummary {
     totalContributed: totalContributed.toString(),
     totalUnfunded: totalUnfunded.toString(),
     totalDistributed: totalDistributed.toString(),
+    totalRecalled: totalRecalled.toString(),
+    totalRecallableOutstanding: totalRecallableOutstanding.toString(),
     netAssetValue: netAssetValue.toString(),
     percentCalled: toStringOrNull(safeDivide(totalContributed, totalCommitment)),
     dpi: toStringOrNull(safeDivide(totalDistributed, totalContributed)),
@@ -241,7 +310,7 @@ export function computeFund(input: FundInput): FundSummary {
       ...input.transactions.map((transaction) => ({
         date: transaction.date,
         amount:
-          transaction.type === 'contribution'
+          transaction.type === 'contribution' || transaction.type === 'recall'
             ? d(transaction.amount).negated().toString()
             : d(transaction.amount).toString(),
         label: transaction.type,

@@ -37,6 +37,7 @@ interface TransactionRow {
   transaction_date: string;
   type: string;
   amount: string;
+  recallable: boolean;
   investor_code: string;
   investor_name: string;
   reference: string | null;
@@ -52,6 +53,8 @@ interface Position {
   unfunded: string;
   percentCalled: string | null;
   distributed: string;
+  recalled: string;
+  recallableOutstanding: string;
   netAssetValue: string;
   dpi: string | null;
   rvpi: string | null;
@@ -69,6 +72,8 @@ interface SummaryResponse {
     totalContributed: string;
     totalUnfunded: string;
     totalDistributed: string;
+    totalRecalled: string;
+    totalRecallableOutstanding: string;
     netAssetValue: string;
     percentCalled: string | null;
     dpi: string | null;
@@ -78,6 +83,12 @@ interface SummaryResponse {
     positions: Position[];
     cashFlows: Array<{ date: string; amount: string; label: string }>;
   };
+}
+
+function movementLabel(entry: { type: string; recallable: boolean }): string {
+  if (entry.type === 'contribution') return 'Capital call';
+  if (entry.type === 'recall') return 'Recall';
+  return entry.recallable ? 'Distribution (recallable)' : 'Distribution';
 }
 
 export function FundsPage(): JSX.Element {
@@ -242,6 +253,13 @@ function FundDetail({
                 note={`DPI ${formatMultiple(position.dpi)}`}
               />
               <Metric
+                label="Recallable outstanding"
+                value={formatCurrency(position.totalRecallableOutstanding, currency, {
+                  compact: true,
+                })}
+                note="Recall right still live; already counted inside distributed"
+              />
+              <Metric
                 label="Unrealised value"
                 value={formatCurrency(position.netAssetValue, currency, { compact: true })}
                 note={`RVPI ${formatMultiple(position.rvpi)}`}
@@ -292,6 +310,9 @@ function FundDetail({
                     Distributed
                   </th>
                   <th scope="col" className="numeric">
+                    Recallable outstanding
+                  </th>
+                  <th scope="col" className="numeric">
                     Unrealised
                   </th>
                   <th scope="col" className="numeric">
@@ -314,6 +335,9 @@ function FundDetail({
                     <td className="numeric">{formatCurrency(entry.contributed, currency)}</td>
                     <td className="numeric">{formatCurrency(entry.unfunded, currency)}</td>
                     <td className="numeric">{formatCurrency(entry.distributed, currency)}</td>
+                    <td className="numeric">
+                      {formatCurrency(entry.recallableOutstanding, currency)}
+                    </td>
                     <td className="numeric">{formatCurrency(entry.netAssetValue, currency)}</td>
                     <td className="numeric">{formatMultiple(entry.dpi)}</td>
                     <td className="numeric">{formatMultiple(entry.tvpi)}</td>
@@ -368,8 +392,10 @@ function FundDetail({
                   <tr key={entry.id}>
                     <th scope="row">{formatDate(entry.transaction_date)}</th>
                     <td>{entry.investor_name}</td>
-                    <td>{entry.type === 'contribution' ? 'Capital call' : 'Distribution'}</td>
-                    <td className={`numeric ${entry.type === 'contribution' ? 'negative' : ''}`}>
+                    <td>{movementLabel(entry)}</td>
+                    <td
+                      className={`numeric ${entry.type === 'contribution' || entry.type === 'recall' ? 'negative' : ''}`}
+                    >
                       {formatCurrency(entry.amount, currency)}
                     </td>
                     <td>{entry.reference ?? '—'}</td>
@@ -491,6 +517,7 @@ function TransactionForm({
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [type, setType] = useState('contribution');
   const [amount, setAmount] = useState('');
+  const [recallable, setRecallable] = useState(false);
   const [reference, setReference] = useState('');
 
   const save = useMutation(async () =>
@@ -499,6 +526,7 @@ function TransactionForm({
       date,
       type,
       amount,
+      recallable,
       reference: reference || null,
     }),
   );
@@ -553,6 +581,7 @@ function TransactionForm({
           <select value={type} onChange={(event) => setType(event.target.value)}>
             <option value="contribution">Capital call</option>
             <option value="distribution">Distribution</option>
+            <option value="recall">Recall</option>
           </select>
         </Field>
         <Field label="Date">
@@ -580,7 +609,18 @@ function TransactionForm({
         </Field>
       </div>
 
-      <button type="submit" className="primary" disabled={save.pending}>
+      {type === 'distribution' && (
+        <label className="row" style={{ gap: 6, fontSize: 13, marginTop: 12 }}>
+          <input
+            type="checkbox"
+            checked={recallable}
+            onChange={(event) => setRecallable(event.target.checked)}
+          />
+          The governing document lets the GP draw this back later
+        </label>
+      )}
+
+      <button type="submit" className="primary" style={{ marginTop: 12 }} disabled={save.pending}>
         {save.pending ? 'Recording…' : 'Record'}
       </button>
     </form>

@@ -14,7 +14,7 @@
 | 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
-| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls and recallable distributions are not built, and the statement says so on its face. |
+| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, recallable distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls are not built, and the statement says so on its face. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI; every migration is gated on leaving the previous release able to run; documentation counts are gated too. Machine-checked accessibility. Local error monitoring. Multi-factor authentication. Still missing: a screen-reader audit, the deploy automation itself, and a container build — the images have never been built, and the one host that blocks it is named in `docs/deployment-guide.md`. |
 
@@ -324,11 +324,19 @@ every such fund a TVPI near 1.0, a number that looks like an answer and is not
 one.
 
 Deliberately not modelled, and documented in `fund.ts` rather than approximated:
-recallable distributions (the transaction record has no field saying which are
-recallable, and inferring it would be guessing at the partnership agreement),
 fund-level carried interest and catch-up (the deal waterfall settles one
 investment, a fund waterfall settles across the whole portfolio with its own
 hurdle and clawback), and management fee mechanics.
+
+**Recallable distributions, added later.** A transaction can be marked
+`recallable`, and a later `recall` transaction draws against it — both facts
+the caller states, since whether a distribution may be recalled and whether one
+actually was are LPA terms and GP decisions no engine should guess at. The
+arithmetic nets a recall against `distributed` (so DPI reflects what an
+investor actually kept) and against `recallableOutstanding` (how much recall
+right is still live); it does **not** restore or expand unfunded commitment
+beyond what was stated, which stays out of scope as the LPA-specific mechanism
+this module has always refused to guess at.
 
 The Funds screen carries all of it: the position, the per-investor breakdown,
 the capital record the return was solved from, and forms for adding an investor
@@ -354,7 +362,7 @@ is not — will be misread unless the report says otherwise.
 The investor statement is the one that leaves the building, so it states its own
 limits on its face: where the unrealised value came from, how each multiple is
 built, that the net IRR is solved from dated flows rather than annualised from a
-multiple, and that recallable distributions, fund-level carried interest and
+multiple, how a recall is netted, and that fund-level carried interest and
 management fee mechanics are not modelled. A statement that omits its limits
 invites the reader to assume it has none.
 
