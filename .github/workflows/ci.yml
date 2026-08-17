@@ -87,6 +87,16 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
 
+      # Chromium only. Firefox and WebKit would triple the download and the run
+      # time for coverage the end-to-end suite does not currently claim; see
+      # docs/testing-strategy.md. The browser is a free download from
+      # Playwright's own CDN and no account or key is involved. Installed
+      # before `pnpm test`, not just before the end-to-end suite below,
+      # because the worker's server-side PDF rendering (apps/worker/src/pdf.ts)
+      # launches this same browser and is exercised by a `pnpm test` unit test.
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Apply migrations
         run: pnpm db:migrate
 
@@ -96,13 +106,6 @@ jobs:
 
       - name: Build the web client
         run: pnpm --filter @cre/web run build
-
-      # Chromium only. Firefox and WebKit would triple the download and the run
-      # time for coverage this suite does not currently claim; see
-      # docs/testing-strategy.md. The browser is a free download from
-      # Playwright's own CDN and no account or key is involved.
-      - name: Install Chromium for Playwright
-        run: pnpm exec playwright install --with-deps chromium
 
       # Drives the built bundle in a real browser against a real API and
       # database, and runs the axe accessibility checks. `pnpm test:e2e`

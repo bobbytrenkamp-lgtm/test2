@@ -115,6 +115,9 @@ diagnostics with the annual summary.
 
 Queued when the work is large: `async: true` on a calculation, scenario batches,
 workbook exports and portfolio roll-ups all become jobs the worker consumes.
+A report rendered to PDF is queued unconditionally, not behind a flag —
+launching a browser process always takes long enough to be worth not
+blocking a request on; see `apps/worker/src/pdf.ts`.
 
 ## Storage and external services
 

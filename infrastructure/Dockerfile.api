@@ -28,6 +28,17 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --prod=false
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# The worker's server-side PDF rendering (apps/worker/src/pdf.ts) needs a
+# real Chromium. Playwright's own browser download targets glibc; this image
+# is musl-based (node:22-alpine), so it is skipped in favour of Alpine's own
+# chromium package, built for musl, and CHROMIUM_EXECUTABLE_PATH points
+# playwright-core at it instead of the browser it would otherwise try to
+# manage itself. The API image carries this too, unused, rather than
+# maintaining a second Dockerfile — see the comment at the top of this file
+# on why the two images are kept identical.
+RUN apk add --no-cache chromium
+ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 # Dependencies first, then source. The installed tree is not overwritten by the
 # copies below because .dockerignore keeps host node_modules out of the context.
 COPY --from=deps /app/node_modules ./node_modules

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../api.js';
+import { api, downloadReportPdf } from '../api.js';
 import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from '../components.js';
 import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
@@ -184,6 +184,14 @@ export function ReportsTab(): JSX.Element {
     reports: Array<{ id: string; title: string; category: string; description: string }>;
   }>('/reports');
   const [selected, setSelected] = useState<string | null>(null);
+  const pdf = useMutation((reportId: string) => downloadReportPdf(model.id, reportId));
+  const [renderingReportId, setRenderingReportId] = useState<string | null>(null);
+
+  async function handleDownloadPdf(reportId: string): Promise<void> {
+    setRenderingReportId(reportId);
+    await pdf.run(reportId);
+    setRenderingReportId(null);
+  }
 
   const preview = useResource<{
     report: {
@@ -259,12 +267,23 @@ export function ReportsTab(): JSX.Element {
                     >
                       Print
                     </a>
+                    {can('export:run') && (
+                      <button
+                        type="button"
+                        className="button subtle"
+                        onClick={() => void handleDownloadPdf(report.id)}
+                        disabled={pdf.pending}
+                      >
+                        {pdf.pending && renderingReportId === report.id ? 'Rendering…' : 'PDF'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <ErrorMessage error={pdf.error} />
 
         {can('export:run') && (
           <div className="row" style={{ marginTop: 12 }}>

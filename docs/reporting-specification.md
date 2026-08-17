@@ -76,11 +76,28 @@ the screen show the same numbers from the same run. Every report footnotes the
 engine version and calculation timestamp. Requesting a report for an
 uncalculated model returns 422 with an explanation rather than an empty table.
 
+## Server-side PDF
+
+`POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job. The
+worker (`apps/worker/src/pdf.ts`) launches a real headless Chromium via
+`playwright-core`, renders the same print HTML the `html` format already
+produces, and returns real PDF bytes — polled via the existing
+`GET /jobs/:id`, the same shape `export_workbook` already returns. Gated
+behind `export:run`, same as the `xlsx` format. This closes what used to be
+listed here as deferred: server-side rendering needed a headless browser in
+the worker image, and now has one. The browser's own print-to-PDF (via the
+`html` format) still works and remains the zero-latency option for a screen
+the reader is already looking at.
+
+The production Docker image installs Chromium via Alpine's own `apk chromium`
+package rather than Playwright's glibc-targeted download — unverified past a
+build this environment cannot run, same as every other Docker claim in this
+repository. The rendering code itself is verified: `apps/worker/src/pdf.test.ts`
+produces real PDF bytes in this environment's own headless Chromium, and the
+full pipeline — a click in a real browser through the API, the job queue, the
+worker, and a downloaded file — was exercised by hand against real running
+API, worker and web processes.
+
 ## Not implemented
 
-- **Server-side PDF.** Print HTML works through the browser's own print-to-PDF.
-  True server-side rendering needs a headless browser in the worker image;
-  deferred rather than faked.
-- **Portfolio reports.** Aggregation exists and is exposed in the interface, but
-  no portfolio `ReportDefinition`s have been written.
 - Report configuration, saved layouts, scheduled delivery, branding.

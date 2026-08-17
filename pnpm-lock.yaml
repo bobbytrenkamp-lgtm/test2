@@ -149,6 +149,9 @@ importers:
       '@cre/reporting':
         specifier: workspace:*
         version: link:../../packages/reporting
+      playwright-core:
+        specifier: 1.56.1
+        version: 1.56.1
     devDependencies:
       tsx:
         specifier: ^4.19.2
