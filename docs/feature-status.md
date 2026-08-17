@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 15.0.0 · Last verified 2026-08-16**
+**Engine version 15.0.0 · Last verified 2026-08-17**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1431 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1438 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -115,7 +115,8 @@ Tests       1431 passed (251 engine regression, 31 engine unit, 16 fund,
                          5 rent-roll import commit path,
                          6 model reports and exports,
                          1 real PDF bytes from a real headless browser,
-                         4 server-side PDF rendering end to end)
+                         4 server-side PDF rendering end to end,
+                         7 import atomicity and rollback)
 Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
@@ -135,7 +136,7 @@ Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (542 kB, 152 kB gzipped)
-Migrations  24 applied against PostgreSQL 16
+Migrations  25 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -345,13 +346,13 @@ are the current state.)
 | Status and recovery vocabulary mapping | Tested | |
 | Validation with per-row findings | Tested | Error rows never import |
 | Duplicate detection | Tested | |
-| Transactional import, tenant matching | Functional | |
+| Transactional import, tenant matching | Tested | The commit route now runs the tenant lookup/creation and every lease upsert inside one database transaction (it previously called a per-lease helper that opened and committed its own transaction, so a mid-loop failure left earlier rows standing). A naturally-reachable failure — a negative area, which application-level validation does not catch but the database's own `CHECK` constraint does — proves a partial import writes nothing |
 | Reusable mapping templates | Functional | |
 | Nine report definitions | Functional | |
 | CSV, XLSX, print HTML, JSON output | Functional | |
 | Excel (.xlsx) file import | Tested | Read into the same rows the CSV pipeline takes, so mapping, validation and duplicate detection are reached unchanged. Multi-sheet with the rent roll suggested; dates, formulas, rich text, error cells and blank columns each covered. `.xls` is not supported and says so |
 | Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download) — that packaging step is unverified, same as every other Docker claim in this repository, but the rendering code itself produces a real PDF in this environment's own headless Chromium |
-| Import rollback | Not started | Import is transactional; no undo after commit |
+| Import rollback | Tested | `POST /models/:id/imports/:batchId/rollback` restores every lease a commit touched to its exact prior state — including rent steps and spaces — or deletes it if the commit created it fresh, from a snapshot captured inside the same transaction as the commit itself. Refuses a batch that was never committed, was already rolled back, or predates this feature (no snapshot). Unconditional: it does not detect edits made after the import, the same as an editor's undo |
 | Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
 
 ## 6. Security

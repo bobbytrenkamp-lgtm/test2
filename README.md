@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1431 tests, plus 231 in the browser.** The regression library holds twenty independently designed
+**1438 tests, plus 231 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -187,7 +187,12 @@ against each other, not assumed to agree; server-side PDF rendering — a
 real headless browser producing real PDF bytes, queued through the same
 job pipeline as a scenario batch, exercised end to end by hand through a
 real browser click against real running API, worker and web processes;
-version comparison and the approval workflow; the vertical slice from
+import rollback — the commit route now runs entirely in one transaction
+(a genuine atomicity bug, fixed alongside rollback itself: the previous
+per-lease write opened and committed its own transaction, so a mid-loop
+failure left earlier rows standing), and a rollback restores or deletes
+exactly what a commit touched, from a snapshot taken in that same
+transaction; version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
 suite reaches the assumptions
 editor, scenarios, versions, reports and the portfolio roll-up, not only
@@ -201,7 +206,7 @@ this environment's egress policy blocks the same CDN a `clamd` container
 would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
-**Designed only.** Documents and configurable dashboards, import rollback,
+**Designed only.** Documents and configurable dashboards,
 mention notifications and an activity feed, a handful of lease-option types
 (expansion, purchase, ROFR, ROFO), fund-level recallable distributions, the
 live property-research integration, and the optional AI assistant — which

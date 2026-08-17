@@ -1,6 +1,17 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { getModel, createTenant, listTenants, upsertLease, writeAudit } from '@cre/database';
+import {
+  getModel,
+  createTenant,
+  listLeases,
+  listTenants,
+  toIsoDate,
+  upsertLeaseWithin,
+  writeAudit,
+  type LeaseRow,
+  type Sql,
+  type UpsertLeaseInput,
+} from '@cre/database';
 import {
   analyzeSheet,
   isWorkbookFilename,
@@ -12,6 +23,7 @@ import {
   type ColumnMapping,
 } from '@cre/reporting';
 import { badRequest, notFound, requireCapability, scanUpload } from '../context.js';
+import { assertEditable } from './models.js';
 
 /**
  * Rent-roll import.
@@ -24,6 +36,40 @@ import { badRequest, notFound, requireCapability, scanUpload } from '../context.
  * Uploaded content never leaves this process. Parsing is entirely
  * deterministic; no AI provider is contacted at any point.
  */
+
+/** A `listLeases` row, reshaped into the input `upsertLeaseWithin` needs to recreate it exactly. */
+function toRollbackSnapshot(
+  lease: LeaseRow & {
+    space_codes: string[];
+    rent_steps: Array<{ startDate: string; amount: string; basis: string }>;
+  },
+): UpsertLeaseInput {
+  return {
+    modelId: lease.model_id,
+    code: lease.code,
+    tenantId: lease.tenant_id,
+    status: lease.status,
+    area: lease.area,
+    unitCount: lease.unit_count,
+    spaceIds: lease.space_codes,
+    commencementDate: toIsoDate(lease.commencement_date) as string,
+    rentStartDate: toIsoDate(lease.rent_start_date),
+    expirationDate: toIsoDate(lease.expiration_date) as string,
+    baseRent: lease.base_rent,
+    baseRentBasis: lease.base_rent_basis,
+    escalation: lease.escalation,
+    freeRent: lease.free_rent,
+    percentageRent: lease.percentage_rent,
+    recovery: lease.recovery,
+    options: lease.options,
+    leasingCosts: lease.leasing_costs,
+    otherRevenue: lease.other_revenue,
+    rentSteps: lease.rent_steps,
+    marketLeasingProfileId: lease.market_leasing_profile_id,
+    excludeFromRollover: lease.exclude_from_rollover,
+    notes: lease.notes,
+  };
+}
 
 export async function registerImportRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -249,50 +295,84 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     const importable = result.leases.filter((lease) => !errorRows.has(lease.rowIndex));
     const skipped = errorRows.size;
 
-    // Tenants are matched by name inside the property before a new one is
-    // created, so re-importing an updated rent roll does not duplicate them.
-    const existingTenants = await listTenants(
-      request.db,
-      context.organizationId,
-      model.property_id,
-    );
-    const tenantsByName = new Map(
-      existingTenants.map((tenant) => [tenant.name.trim().toLowerCase(), tenant.id]),
-    );
+    // Written in one transaction rather than one `upsertLease` call per
+    // lease: `upsertLease` opens (and commits) its own transaction per call,
+    // so a loop of them is not actually the single atomic operation this
+    // file's own module comment has always claimed it is — a failure on
+    // lease 6 of 10 previously left leases 1-5 standing. `upsertLeaseWithin`
+    // is the same write against a transaction handle the caller already
+    // holds open, so either every valid lease lands or none does, for real.
+    //
+    // The pre-commit row for every lease code about to be touched is read
+    // inside the same transaction, before anything is written, and kept as
+    // `rollback_snapshot` on the batch: `null` for a code that did not exist
+    // yet (a rollback deletes it), the full previous row otherwise (a
+    // rollback restores it exactly, rent steps and spaces included).
+    const imported = await request.db.begin(async (tx) => {
+      const sql = tx as unknown as Sql;
 
-    let imported = 0;
-    for (const lease of importable) {
-      const key = lease.tenantName.trim().toLowerCase();
-      let tenantId = tenantsByName.get(key);
-      if (!tenantId) {
-        const tenant = await createTenant(request.db, {
-          organizationId: context.organizationId,
-          propertyId: model.property_id,
-          name: lease.tenantName,
+      // Tenants are matched by name inside the property before a new one is
+      // created, so re-importing an updated rent roll does not duplicate them.
+      const existingTenants = await listTenants(sql, context.organizationId, model.property_id);
+      const tenantsByName = new Map(
+        existingTenants.map((tenant) => [tenant.name.trim().toLowerCase(), tenant.id]),
+      );
+      const existingLeasesByCode = new Map(
+        (await listLeases(sql, id)).map((lease) => [lease.code, lease]),
+      );
+
+      let imported = 0;
+      const snapshot: Array<{ code: string; previous: UpsertLeaseInput | null }> = [];
+      for (const lease of importable) {
+        const key = lease.tenantName.trim().toLowerCase();
+        let tenantId = tenantsByName.get(key);
+        if (!tenantId) {
+          const tenant = await createTenant(sql, {
+            organizationId: context.organizationId,
+            propertyId: model.property_id,
+            name: lease.tenantName,
+          });
+          tenantId = tenant.id;
+          tenantsByName.set(key, tenantId);
+        }
+
+        const previousLease = existingLeasesByCode.get(lease.leaseCode);
+        snapshot.push({
+          code: lease.leaseCode,
+          previous: previousLease ? toRollbackSnapshot(previousLease) : null,
         });
-        tenantId = tenant.id;
-        tenantsByName.set(key, tenantId);
+
+        await upsertLeaseWithin(sql, {
+          modelId: id,
+          code: lease.leaseCode,
+          tenantId,
+          status: lease.status,
+          area: lease.area,
+          unitCount: lease.unitCount,
+          spaceIds: [lease.spaceCode],
+          commencementDate: lease.commencementDate,
+          rentStartDate: lease.rentStartDate,
+          expirationDate: lease.expirationDate,
+          baseRent: lease.baseRent,
+          baseRentBasis: lease.baseRentBasis,
+          recovery: { method: lease.recoveryMethod },
+          leasingCosts: lease.tiPerArea ? { tiPerArea: lease.tiPerArea } : {},
+          notes: lease.notes,
+        });
+        imported += 1;
       }
 
-      await upsertLease(request.db, {
-        modelId: id,
-        code: lease.leaseCode,
-        tenantId,
-        status: lease.status,
-        area: lease.area,
-        unitCount: lease.unitCount,
-        spaceIds: [lease.spaceCode],
-        commencementDate: lease.commencementDate,
-        rentStartDate: lease.rentStartDate,
-        expirationDate: lease.expirationDate,
-        baseRent: lease.baseRent,
-        baseRentBasis: lease.baseRentBasis,
-        recovery: { method: lease.recoveryMethod },
-        leasingCosts: lease.tiPerArea ? { tiPerArea: lease.tiPerArea } : {},
-        notes: lease.notes,
-      });
-      imported += 1;
-    }
+      if (body.batchId) {
+        await sql`
+          UPDATE import_batches
+          SET status = 'imported', imported_count = ${imported}, completed_at = now(),
+              rollback_snapshot = ${sql.json(snapshot as never)}
+          WHERE id = ${body.batchId} AND organization_id = ${context.organizationId}
+        `;
+      }
+
+      return imported;
+    });
 
     if (body.saveMappingAs) {
       await request.db`
@@ -300,14 +380,6 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
         VALUES (${context.organizationId}, ${body.saveMappingAs}, 'rent_roll',
                 ${request.db.json(body.mapping as never)}, ${context.userId})
         ON CONFLICT (organization_id, name) DO UPDATE SET mapping = EXCLUDED.mapping
-      `;
-    }
-
-    if (body.batchId) {
-      await request.db`
-        UPDATE import_batches
-        SET status = 'imported', imported_count = ${imported}, completed_at = now()
-        WHERE id = ${body.batchId} AND organization_id = ${context.organizationId}
       `;
     }
 
@@ -331,12 +403,88 @@ export async function registerImportRoutes(app: FastifyInstance): Promise<void> 
     };
   });
 
+  /**
+   * Undoes a commit: deletes a lease the batch created fresh, or restores
+   * the exact previous row (rent steps and spaces included) for a lease the
+   * batch only updated. Unconditional — it does not check whether the lease
+   * has been edited again since the import, the same way an editor's own
+   * "undo" does not ask first. That is a real, accepted cost of an undo
+   * command, not an oversight.
+   */
+  app.post('/models/:id/imports/:batchId/rollback', async (request) => {
+    const context = requireCapability(request, 'import:run');
+    const params = z
+      .object({ id: z.string().uuid(), batchId: z.string().uuid() })
+      .parse(request.params);
+
+    const model = await getModel(request.db, context.organizationId, params.id);
+    if (!model) throw notFound();
+    assertEditable(model.status);
+
+    const batchRows = (await request.db`
+      SELECT id, status, rollback_snapshot, rolled_back_at
+      FROM import_batches
+      WHERE id = ${params.batchId} AND model_id = ${params.id}
+        AND organization_id = ${context.organizationId}
+    `) as unknown as Array<{
+      id: string;
+      status: string;
+      rollback_snapshot: Array<{ code: string; previous: UpsertLeaseInput | null }> | null;
+      rolled_back_at: string | null;
+    }>;
+    const batch = batchRows[0];
+    if (!batch) throw notFound('That import batch does not exist.');
+    if (batch.rolled_back_at) throw badRequest('This batch has already been rolled back.');
+    if (batch.status !== 'imported') {
+      throw badRequest(`This batch is ${batch.status} and cannot be rolled back.`);
+    }
+    if (!batch.rollback_snapshot) {
+      throw badRequest(
+        'This batch was imported before rollback support existed, so there is nothing to restore it from.',
+      );
+    }
+
+    const { restored, deleted } = await request.db.begin(async (tx) => {
+      const sql = tx as unknown as Sql;
+      let restored = 0;
+      let deleted = 0;
+      for (const entry of batch.rollback_snapshot ?? []) {
+        if (entry.previous) {
+          await upsertLeaseWithin(sql, entry.previous);
+          restored += 1;
+        } else {
+          await sql`DELETE FROM leases WHERE model_id = ${params.id} AND code = ${entry.code}`;
+          deleted += 1;
+        }
+      }
+      await sql`
+        UPDATE import_batches SET status = 'rolled_back', rolled_back_at = now()
+        WHERE id = ${params.batchId}
+      `;
+      return { restored, deleted };
+    });
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: 'import.rolled_back',
+      entityType: 'import_batch',
+      entityId: params.batchId,
+      modelId: params.id,
+      propertyId: model.property_id,
+      metadata: { restored, deleted },
+      ipAddress: request.ip,
+    });
+
+    return { restored, deleted };
+  });
+
   app.get('/models/:id/imports', async (request) => {
     const context = requireCapability(request, 'model:read');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const rows = await request.db`
       SELECT id, kind, status, source_filename, header_row, mapping, row_count,
-             imported_count, errors, warnings, created_at, completed_at
+             imported_count, errors, warnings, created_at, completed_at, rolled_back_at
       FROM import_batches
       WHERE model_id = ${id} AND organization_id = ${context.organizationId}
       ORDER BY created_at DESC
