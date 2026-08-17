@@ -121,6 +121,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Property research: comparable-selection and percentile engine — every statistic hand-verified, exclusions recorded rather than silent, an outlier flagged out of the statistics without touching the source array, an empty string or boolean value never silently coerced into a real 0/1 data point | `packages/domain-models/src/research-comparison.test.ts` | 13 | No |
 | Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
+| CREOS universal entity ID utility: spec-compliant ULID generation/validation, ported from CREOS Enterprise's hardened implementation (boundary-only, not yet used by any feature — see `docs/creos-ids.md`) | `packages/domain-models/src/creos-ids.test.ts` | 31 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 6 | Yes |
 | The organization's growth curve library, and traceability when a curve is applied from it | `tests/growth-curve-templates.test.ts` | 11 | Yes |
@@ -134,7 +135,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1459 tests in total.**
+**1490 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -183,7 +184,7 @@ built bundle:
 | Mention notifications: the bell shows what was recorded on the comment, opening it navigates and marks it read, accessibility with the panel open | `e2e/notifications.spec.ts` | 3 |
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 
-**237 browser tests in total**, for 1696 across the whole repository.
+**237 browser tests in total**, for 1727 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
