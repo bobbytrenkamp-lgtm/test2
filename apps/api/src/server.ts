@@ -10,6 +10,7 @@ import type { Env } from './env.js';
 import { HttpError, SESSION_COOKIE, assertSameOriginIntent } from './context.js';
 import { createMailer, type Mailer } from './mailer.js';
 import { createScanner, type Scanner } from './malware-scanner.js';
+import { createStorage, type Storage } from './storage.js';
 import { APP_VERSION } from './version.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerOrganizationRoutes } from './routes/organizations.js';
@@ -30,6 +31,7 @@ import { registerAssumptionProposalRoutes } from './routes/assumption-proposals.
 import { registerAssumptionImportRoutes } from './routes/assumption-import.js';
 import { registerFavouriteRoutes } from './routes/favourites.js';
 import { registerNotificationRoutes } from './routes/notifications.js';
+import { registerDocumentRoutes } from './routes/documents.js';
 import { registerGrowthCurveTemplateRoutes } from './routes/growth-curve-templates.js';
 import { registerMarketLeasingProfileTemplateRoutes } from './routes/market-leasing-profile-templates.js';
 import { registerOperatingExpenseTemplateRoutes } from './routes/expense-templates.js';
@@ -43,6 +45,8 @@ export interface ServerOptions {
   mailer?: Mailer;
   /** Injected in tests so a scan can be asserted on without a real clamd. */
   scanner?: Scanner;
+  /** Injected in tests so uploads land in a throwaway directory. */
+  storage?: Storage;
   logger?: boolean;
 }
 
@@ -82,6 +86,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
   const mailer = options.mailer ?? createMailer(env, app.log);
   const scanner = options.scanner ?? (await createScanner(env, app.log));
+  const storage = options.storage ?? createStorage(env);
 
   /*
    * Every route this server exposes, recorded as it is registered.
@@ -166,6 +171,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     request.db = db;
     request.mailer = mailer;
     request.scanner = scanner;
+    request.storage = storage;
   });
 
   // Identity resolution runs for every request; authorization is per route.
@@ -279,6 +285,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerAssumptionImportRoutes(api);
       await registerFavouriteRoutes(api);
       await registerNotificationRoutes(api);
+      await registerDocumentRoutes(api);
       await registerGrowthCurveTemplateRoutes(api);
       await registerMarketLeasingProfileTemplateRoutes(api);
       await registerOperatingExpenseTemplateRoutes(api);

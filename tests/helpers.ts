@@ -4,6 +4,7 @@ import { buildServer } from '../apps/api/src/server.js';
 import { loadEnv } from '../apps/api/src/env.js';
 import type { Mailer } from '../apps/api/src/mailer.js';
 import type { Scanner } from '../apps/api/src/malware-scanner.js';
+import type { Storage } from '../apps/api/src/storage.js';
 import {
   closeDatabase,
   createDatabase,
@@ -32,7 +33,7 @@ export interface TestContext {
 }
 
 export async function createTestContext(
-  options: { mailer?: Mailer; scanner?: Scanner } = {},
+  options: { mailer?: Mailer; scanner?: Scanner; storage?: Storage } = {},
 ): Promise<TestContext> {
   if (!BASE_URL)
     throw new Error('TEST_DATABASE_URL or DATABASE_URL must be set to run these tests.');
@@ -59,6 +60,7 @@ export async function createTestContext(
     db: sql,
     mailer: options.mailer,
     scanner: options.scanner,
+    storage: options.storage,
     logger: process.env.TEST_LOG === '1',
   });
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, downloadReportPdf } from '../api.js';
 import { DiagnosticList, EmptyState, ErrorMessage, Field, Loading, Metric } from '../components.js';
+import { readAsBase64 } from '../files.js';
 import { formatDateTime, formatNumber, formatPercent, isNegative, titleCase } from '../format.js';
 import { useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
@@ -763,23 +764,6 @@ function RecalculateButton({
 }
 
 /** Import a rent roll from a CSV: analyse, map, validate, then commit. */
-/**
- * A file's bytes as base64, without blowing the stack on a large one.
- *
- * `String.fromCharCode(...bytes)` is the usual one-liner and throws on a
- * spreadsheet of any size — the spread becomes one argument per byte. Chunked
- * instead, which is the same result and survives a real rent roll.
- */
-async function readAsBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
 const isWorkbookName = (name: string): boolean => /\.(xlsx|xlsm)$/i.test(name.trim());
 
 export function ImportsTab(): JSX.Element {
