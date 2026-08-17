@@ -233,10 +233,15 @@ optional AI assistant — which is disabled by default and adds no paid
 dependency without approval.
 
 **Written but unverified.** The Docker Compose stack only — the container
-images have never been built, because this environment's egress policy
-refuses the image-layer CDN. The backup/restore drill is not in this
-category: it runs against a real PostgreSQL instance in CI on every build
-(`pnpm drill:restore`) and has never failed.
+images have never been built end to end. Every base image now pulls in full
+through `mirror.gcr.io`, a content-identical mirror reachable where Docker
+Hub's own blob CDN is not; what still blocks a complete build is this
+environment's own TLS interception and a separate block on Alpine's package
+CDN, both narrower and better understood than "the registry is unreachable"
+was. See `docs/deployment-guide.md` for the exact diagnosis. The
+backup/restore drill is not in this category: it runs against a real
+PostgreSQL instance in CI on every build (`pnpm drill:restore`) and has never
+failed.
 
 Nothing in this repository is marked *production ready*. That designation is
 reserved for features that have also passed an accessibility audit with a

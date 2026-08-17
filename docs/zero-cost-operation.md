@@ -94,7 +94,7 @@ only succeed by spending money.
 | `.devcontainer` / `devcontainer.json` | **Absent** — Codespaces cannot start from this repository, so the free allowance cannot be consumed |
 | GitHub Pages | **Enabled**, publishing one static page from a public repository. Free with no payment method; GitHub asks for usage to be reduced past the soft bandwidth limit rather than charging. See below |
 | Vercel / Netlify / Render / Fly / Railway / Heroku config | **None present** |
-| Deployment workflow | **Pages only.** The application itself is deployed nowhere; its container images have never been built |
+| Deployment workflow | **Pages only.** The application itself is deployed nowhere; its container images have never been built end to end. See `docs/deployment-guide.md` |
 | Purchased domain | **None.** The site is served from `github.io`, which costs nothing |
 
 ### What the Pages workflow publishes, and why it is free
@@ -172,9 +172,16 @@ Everything runs on the developer's machine with no hosted dependency:
 | Calculations, imports, exports | In-process | — |
 | Web client | Vite dev server / static files | MIT |
 
-Container images used by the (unverified) Compose stack are the free official
-`postgres:16-alpine`, `node:22-alpine` and `nginx:1.27-alpine`. Docker Hub
-applies anonymous pull *rate limits*, never charges.
+Container images used by the (still not fully built — see
+`docs/deployment-guide.md`) Compose stack are the free official
+`postgres:16-alpine`, `node:22-alpine`, `nginx:1.27-alpine` and
+`clamav/clamav:1.4_base`. Docker Hub applies anonymous pull *rate limits*,
+never charges. The Dockerfiles pull these from `mirror.gcr.io` rather than
+`docker.io` directly — Google's public, unauthenticated, free read-through
+cache of the same official images, used here because it is reachable where
+Docker Hub's own blob CDN was not in the environment this was developed in.
+No account, key or paid tier is involved either way; see the comment at the
+top of `Dockerfile.api` for the full reasoning.
 
 ## 5. Dependency licences
 

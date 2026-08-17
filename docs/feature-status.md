@@ -28,21 +28,39 @@ block it, and **two of them cannot be closed from a development container**:
    report whether a valuation is *usable* with JAWS or VoiceOver; that needs
    somebody who uses one.
 
-2. **The container images have never been built.** `docker compose config`
-   validates, the Dockerfiles have had real defects fixed by review, and the
-   daemon and registry API are both reachable — but the blob CDN
-   `production.cloudfront.docker.com` is refused by this environment's egress
-   policy, so layers cannot be fetched. A deployment artefact that has never
-   been built is not production ready under any reading. One host to allow.
+2. **The container images have never been built end to end — narrower than it
+   was.** `docker compose config` validates, the Dockerfiles have had real
+   defects fixed by review, and every base image this stack needs
+   (`node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`,
+   `clamav/clamav:1.4_base`) now pulls in full: Docker Hub's own blob CDN
+   (`production.cloudfront.docker.com`) is still refused by this
+   environment's egress policy, same as `quay.io` and AWS's ECR Public
+   Gallery CDN, but `mirror.gcr.io` — Google's public, content-identical
+   read-through cache of the same official images — is not, and the
+   Dockerfiles now pull from it. `docker compose build` still does not
+   complete: this environment's own outbound TLS interception, and a
+   separate block on Alpine's package CDN
+   (`dl-cdn.alpinelinux.org`, every mirror tried), stop `RUN pnpm install`
+   and `RUN apk add chromium` respectively. The former was confirmed correct
+   in a throwaway, uncommitted diagnostic build that trusted this session's
+   own proxy certificate — not something that belongs in the shipped
+   Dockerfile, since it is a fact about where this was built, not about what
+   the image should trust. The latter has no environment-level fix available
+   here. A deployment artefact that has never been built end to end is not
+   production ready under any reading, but the remaining gap is now one
+   specific blocked host category, not an unreachable registry.
 
-3. **The deploy sequence is documented, not scripted**, and cannot be exercised
-   without the images from (2).
+3. **The deploy sequence is documented, not scripted**, and cannot be fully
+   exercised without a completed build from (2) — though `docker compose up`
+   can now be attempted the moment (2) closes, rather than waiting on a
+   registry fix first.
 
 Load testing and the restore drill — the two criteria that *were* in reach —
 both run in CI on every build, along with a concurrency test, a migration
 rollback gate and a documentation-drift gate.
 
-**What would make it production ready:** allow that one host and run
+**What would make it production ready:** build somewhere that reaches Alpine's
+package CDN and does not intercept outbound TLS, then run
 `docker compose build && docker compose up`; have somebody spend an hour with a
 screen reader on the cash-flow grid, the rent roll and the assumptions editor;
 script the deploy sequence in `docs/deployment-guide.md`. Everything else on
@@ -481,10 +499,19 @@ rendering, MFA, malware scanning, and the property-research contracts
 conversion logic exist and are tested; no live source, comparable-selection
 engine or UI is wired to them yet.
 
-**Unverified.** The Docker images have never been built. The Compose file
-validates and several defects found by reading the Dockerfiles are fixed, but
-the base images cannot be pulled where this was developed — the network policy
-blocks Docker Hub's blob CDN — specifically `production.cloudfront.docker.com`, which returns 403 while the registry API itself answers normally. A review is not a build.
+**Unverified.** The Docker images have never been built end to end. The
+Compose file validates and several defects found by reading the Dockerfiles
+are fixed. Every base image now pulls in full — Docker Hub's blob CDN
+(`production.cloudfront.docker.com`) still returns 403 where this was
+developed, but `mirror.gcr.io`, a content-identical read-through cache of the
+same official images, does not, and the Dockerfiles pull from it for that
+reason. What still blocks a complete build here is narrower: this
+environment's own outbound TLS interception (worked around in an uncommitted
+diagnostic build only — trusting it does not belong in the shipped
+Dockerfile) and, past that, Alpine's package CDN
+(`dl-cdn.alpinelinux.org`), which is blocked outright with no mirror found
+that isn't. A review is not a build, and neither is a build that gets three
+layers further than before but still does not finish.
 
 Backup and restore is no longer in this category: `pnpm drill:restore` dumps,
 restores and confirms a stored valuation reproduces from the restored data, and

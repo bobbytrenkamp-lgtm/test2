@@ -3,7 +3,15 @@
 #
 # No `# syntax=` directive: it would pull a BuildKit frontend image on every
 # build, and nothing here needs a feature the built-in frontend lacks.
-FROM node:22-alpine AS base
+#
+# Base image via mirror.gcr.io, not docker.io, because the network policy this
+# was built under allows Google's public read-through cache of Docker Hub's
+# official images but blocks Docker Hub's own blob CDN outright (see
+# docs/deployment-guide.md). It is the same publisher, same image, same
+# content — mirror.gcr.io is a transparent cache, not a different build —
+# so this is a reachability workaround, not a supply-chain change. Point this
+# at `node:22-alpine` directly if building somewhere docker.io is reachable.
+FROM mirror.gcr.io/library/node:22-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
