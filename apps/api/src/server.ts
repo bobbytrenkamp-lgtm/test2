@@ -29,6 +29,7 @@ import { registerBudgetRoutes } from './routes/budgets.js';
 import { registerAssumptionProposalRoutes } from './routes/assumption-proposals.js';
 import { registerAssumptionImportRoutes } from './routes/assumption-import.js';
 import { registerFavouriteRoutes } from './routes/favourites.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 import { registerGrowthCurveTemplateRoutes } from './routes/growth-curve-templates.js';
 import { registerMarketLeasingProfileTemplateRoutes } from './routes/market-leasing-profile-templates.js';
 import { registerOperatingExpenseTemplateRoutes } from './routes/expense-templates.js';
@@ -277,6 +278,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       await registerAssumptionProposalRoutes(api);
       await registerAssumptionImportRoutes(api);
       await registerFavouriteRoutes(api);
+      await registerNotificationRoutes(api);
       await registerGrowthCurveTemplateRoutes(api);
       await registerMarketLeasingProfileTemplateRoutes(api);
       await registerOperatingExpenseTemplateRoutes(api);

@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1438 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1443 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -116,8 +116,9 @@ Tests       1438 passed (251 engine regression, 31 engine unit, 16 fund,
                          6 model reports and exports,
                          1 real PDF bytes from a real headless browser,
                          4 server-side PDF rendering end to end,
-                         7 import atomicity and rollback)
-Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         7 import atomicity and rollback,
+                         5 mention notifications)
+Browser     234 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -132,11 +133,12 @@ Browser     231 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 PDF-assumption import, 2 organization admin,
                          3 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
-                         5 consolidated review screen, 3 underwriting package)
+                         5 consolidated review screen, 3 underwriting package,
+                         3 mention notifications)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (542 kB, 152 kB gzipped)
-Migrations  25 applied against PostgreSQL 16
+Migrations  26 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -306,7 +308,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Versions and approval workflow | Tested | Comparison covered in the browser suite |
 | Comments on a model, property or budget | Tested | Review tab on the model workspace; author-or-approver resolution, mentions restricted to organization members. Four browser tests across two roles |
 | Tasks against a property or model | Tested | Board with assignee, due date and status; overdue decided from the reader's own calendar, not the server's. 12 API tests and 4 browser tests |
-| Mention notifications, activity feed | Not started | A mention is recorded on the comment and shown in the thread; nobody is told out of band |
+| Mention notifications, activity feed | Tested | One row per person a comment names (`notifications`, migration 0026), a personal feed and unread count at `GET /notifications`, a bell in the header polling every 30s. Gated on `property:read` — the one capability every role holds — since being told you were mentioned is not a privilege tied to what you may edit. Never crosses an organization boundary; a self-mention creates nothing. 5 API tests, 3 browser tests, in the axe sweep |
 | Portfolio roll-up | Functional | |
 | Tenant exposure across a portfolio | Tested | Rolls every property's leading model up by tenant identity rather than by name, so a tenant occupying space in several assets shows its true combined share instead of appearing separately on each one's own rent roll. A rollover branch the engine generated counts as that tenant only when it resolves to a real row in `tenants` — checked by matching against the table itself rather than trusting the branch's `scenario` label, which a nested round of speculative rollover can carry (`renewal`) while still describing no real tenant at all. Distinct from the "Tenant concentration" summary folded into every roll-up: that one is a top-20 glance keyed by name; this is the full breakdown, keyed by id, with every property occupied, lease count, credit profile and earliest expiration. 5 API tests, 5 browser tests, in the axe sweep |
 | Jobs and audit history | Functional | |
@@ -329,9 +331,9 @@ product less capable than the thing it replaced.
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder
 columns and drag-fill handles (reordering is button-driven and keyboard-first),
-configurable dashboard widgets, notifications, geographic maps. (Comments,
-tasks, side-by-side version comparison, and bulk edit as an explicit "apply to
-N selected" action were on this list and have since shipped; the rows above
+configurable dashboard widgets, geographic maps. (Comments, tasks, side-by-side
+version comparison, bulk edit as an explicit "apply to N selected" action, and
+mention notifications were on this list and have since shipped; the rows above
 are the current state.)
 
 ## 5. Reporting and imports
