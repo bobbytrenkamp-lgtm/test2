@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { PortfolioSummary, Property } from '../api.js';
+import { api, type PortfolioSummary, type Property } from '../api.js';
 import {
   BarChart,
   EmptyState,
@@ -19,10 +19,54 @@ import {
   formatPercent,
   titleCase,
 } from '../format.js';
-import { useResource } from '../hooks.js';
+import { useMutation, useResource } from '../hooks.js';
 import { describeTarget } from './ProvenanceTab.js';
 import { readRecents, type Recent } from '../recents.js';
 import { useSession } from '../session.js';
+
+/**
+ * The dashboard's widgets, in the order they render by default.
+ *
+ * A widget's own component decides whether it has anything to show
+ * (`PendingDecisions` and `PinnedAndRecent` already return `null` when
+ * empty); `visible` here is a person's own choice to hide a widget
+ * regardless, independent of whether it currently has content.
+ */
+const WIDGETS: Array<{ id: string; label: string }> = [
+  { id: 'pendingDecisions', label: 'Assumption decisions waiting' },
+  { id: 'pinnedAndRecent', label: 'Pinned and recently viewed' },
+  { id: 'metrics', label: 'Key metrics' },
+  { id: 'assetsByType', label: 'Assets by property type' },
+  { id: 'recentProperties', label: 'Recently updated properties' },
+];
+
+interface WidgetLayoutEntry {
+  id: string;
+  visible: boolean;
+}
+
+/**
+ * Fills in a saved layout against the widget registry above: a widget id
+ * this deployment no longer has is dropped, and one introduced since the
+ * layout was last saved is appended, visible by default — so a widget
+ * added in a later release does not silently vanish for someone who
+ * customised their dashboard before it existed.
+ */
+function mergeLayout(saved: WidgetLayoutEntry[] | null | undefined): WidgetLayoutEntry[] {
+  const known = new Set(WIDGETS.map((widget) => widget.id));
+  const seen = new Set<string>();
+  const merged: WidgetLayoutEntry[] = [];
+  for (const entry of saved ?? []) {
+    if (known.has(entry.id) && !seen.has(entry.id)) {
+      merged.push(entry);
+      seen.add(entry.id);
+    }
+  }
+  for (const widget of WIDGETS) {
+    if (!seen.has(widget.id)) merged.push({ id: widget.id, visible: true });
+  }
+  return merged;
+}
 
 /** Organization dashboard. */
 export function DashboardPage(): JSX.Element {
@@ -30,6 +74,13 @@ export function DashboardPage(): JSX.Element {
     '/properties?limit=200',
   );
   const portfolios = useResource<{ portfolios: PortfolioSummary[] }>('/portfolios');
+  const saved = useResource<{ dashboard: { layout: WidgetLayoutEntry[] } | null }>(
+    '/dashboards?scope=organization',
+  );
+  const save = useMutation((layout: WidgetLayoutEntry[]) =>
+    api.put('/dashboards', { scope: 'organization', layout }),
+  );
+  const [customizing, setCustomizing] = useState(false);
 
   if (properties.loading) return <Loading label="Loading dashboard" />;
 
@@ -44,6 +95,33 @@ export function DashboardPage(): JSX.Element {
     0,
   );
 
+  const layout = mergeLayout(saved.data?.dashboard?.layout);
+
+  async function updateLayout(next: WidgetLayoutEntry[]): Promise<void> {
+    saved.setData({ dashboard: { layout: next } });
+    await save.run(next);
+  }
+
+  async function resetLayout(): Promise<void> {
+    await api.delete('/dashboards?scope=organization');
+    saved.setData({ dashboard: null });
+  }
+
+  const renderWidget: Record<string, () => JSX.Element | null> = {
+    pendingDecisions: () => <PendingDecisions />,
+    pinnedAndRecent: () => <PinnedAndRecent />,
+    metrics: () => (
+      <Metrics
+        propertyCount={properties.data?.total ?? rows.length}
+        totalArea={totalArea}
+        totalBasis={totalBasis}
+        portfolioCount={portfolios.data?.portfolios.length ?? 0}
+      />
+    ),
+    assetsByType: () => <AssetsByType byType={byType} />,
+    recentProperties: () => <RecentProperties rows={rows} />,
+  };
+
   return (
     <>
       <div className="page-title">
@@ -51,12 +129,23 @@ export function DashboardPage(): JSX.Element {
           <h1>Dashboard</h1>
           <p>Portfolio and asset overview for the organization you are signed in to.</p>
         </div>
+        <button type="button" onClick={() => setCustomizing((value) => !value)}>
+          {customizing ? 'Done customizing' : 'Customize dashboard'}
+        </button>
       </div>
 
       <ErrorMessage error={properties.error} />
+      <ErrorMessage error={save.error} />
 
-      {rows.length > 0 && <PendingDecisions />}
-      {rows.length > 0 && <PinnedAndRecent />}
+      {customizing && (
+        <DashboardCustomizer
+          layout={layout}
+          widgets={WIDGETS}
+          onChange={updateLayout}
+          onReset={resetLayout}
+          pending={save.pending}
+        />
+      )}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -71,77 +160,187 @@ export function DashboardPage(): JSX.Element {
           portfolio.
         </EmptyState>
       ) : (
-        <>
-          <dl className="metric-grid" style={{ marginBottom: 16 }}>
-            <div className="metric">
-              <dt>Properties</dt>
-              <dd>{properties.data?.total ?? rows.length}</dd>
-            </div>
-            <div className="metric">
-              <dt>Rentable area</dt>
-              <dd>
-                {formatNumber(totalArea, 0)}
-                <div className="metric-note">Across all assets</div>
-              </dd>
-            </div>
-            <div className="metric">
-              <dt>Acquisition basis</dt>
-              <dd>
-                {formatCurrency(totalBasis, 'USD', { compact: true })}
-                <div className="metric-note">Sum of stated purchase prices</div>
-              </dd>
-            </div>
-            <div className="metric">
-              <dt>Portfolios</dt>
-              <dd>{portfolios.data?.portfolios.length ?? 0}</dd>
-            </div>
-          </dl>
-
-          <div className="card">
-            <h2>Assets by property type</h2>
-            <BarChart
-              title="Number of properties by type"
-              labels={[...byType.keys()].map(titleCase)}
-              values={[...byType.values()]}
-              formatValue={(value) => String(Math.round(value))}
-            />
-          </div>
-
-          <div className="card">
-            <h2>Recently updated properties</h2>
-            <div className="table-scroll" tabIndex={0} style={{ maxHeight: 400 }}>
-              <table>
-                <caption className="visually-hidden">Properties</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Property</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Market</th>
-                    <th scope="col" className="numeric">
-                      Area
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 12).map((property) => (
-                    <tr key={property.id}>
-                      <th scope="row">
-                        <Link to={`/properties/${property.id}`}>{property.name}</Link>
-                      </th>
-                      <td>
-                        <StatusBadge status={property.property_type} />
-                      </td>
-                      <td>{property.market ?? '—'}</td>
-                      <td className="numeric">{formatNumber(property.rentable_area, 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
+        layout
+          .filter((entry) => entry.visible)
+          .map((entry) => <div key={entry.id}>{renderWidget[entry.id]?.()}</div>)
       )}
     </>
+  );
+}
+
+function Metrics({
+  propertyCount,
+  totalArea,
+  totalBasis,
+  portfolioCount,
+}: {
+  propertyCount: number;
+  totalArea: number;
+  totalBasis: number;
+  portfolioCount: number;
+}): JSX.Element {
+  return (
+    <dl className="metric-grid" style={{ marginBottom: 16 }}>
+      <div className="metric">
+        <dt>Properties</dt>
+        <dd>{propertyCount}</dd>
+      </div>
+      <div className="metric">
+        <dt>Rentable area</dt>
+        <dd>
+          {formatNumber(totalArea, 0)}
+          <div className="metric-note">Across all assets</div>
+        </dd>
+      </div>
+      <div className="metric">
+        <dt>Acquisition basis</dt>
+        <dd>
+          {formatCurrency(totalBasis, 'USD', { compact: true })}
+          <div className="metric-note">Sum of stated purchase prices</div>
+        </dd>
+      </div>
+      <div className="metric">
+        <dt>Portfolios</dt>
+        <dd>{portfolioCount}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function AssetsByType({ byType }: { byType: Map<string, number> }): JSX.Element {
+  return (
+    <div className="card">
+      <h2>Assets by property type</h2>
+      <BarChart
+        title="Number of properties by type"
+        labels={[...byType.keys()].map(titleCase)}
+        values={[...byType.values()]}
+        formatValue={(value) => String(Math.round(value))}
+      />
+    </div>
+  );
+}
+
+function RecentProperties({ rows }: { rows: Property[] }): JSX.Element {
+  return (
+    <div className="card">
+      <h2>Recently updated properties</h2>
+      <div className="table-scroll" tabIndex={0} style={{ maxHeight: 400 }}>
+        <table>
+          <caption className="visually-hidden">Properties</caption>
+          <thead>
+            <tr>
+              <th scope="col">Property</th>
+              <th scope="col">Type</th>
+              <th scope="col">Market</th>
+              <th scope="col" className="numeric">
+                Area
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 12).map((property) => (
+              <tr key={property.id}>
+                <th scope="row">
+                  <Link to={`/properties/${property.id}`}>{property.name}</Link>
+                </th>
+                <td>
+                  <StatusBadge status={property.property_type} />
+                </td>
+                <td>{property.market ?? '—'}</td>
+                <td className="numeric">{formatNumber(property.rentable_area, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Which widgets show, and in what order — button-driven and keyboard-first,
+ * the same reasoning `docs/feature-status.md` already gives for the grid's
+ * own column reordering, rather than a drag-and-drop library.
+ */
+function DashboardCustomizer({
+  layout,
+  widgets,
+  onChange,
+  onReset,
+  pending,
+}: {
+  layout: WidgetLayoutEntry[];
+  widgets: Array<{ id: string; label: string }>;
+  onChange: (next: WidgetLayoutEntry[]) => void;
+  onReset: () => void;
+  pending: boolean;
+}): JSX.Element {
+  const labels = new Map(widgets.map((widget) => [widget.id, widget.label]));
+
+  function toggle(id: string): void {
+    onChange(
+      layout.map((entry) => (entry.id === id ? { ...entry, visible: !entry.visible } : entry)),
+    );
+  }
+
+  function move(index: number, direction: -1 | 1): void {
+    const target = index + direction;
+    if (target < 0 || target >= layout.length) return;
+    const next = [...layout];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved as WidgetLayoutEntry);
+    onChange(next);
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>Customize dashboard</h2>
+        <div className="spacer" />
+        <button type="button" className="subtle" onClick={onReset} disabled={pending}>
+          Reset to default
+        </button>
+      </div>
+      <ul className="dashboard-customizer-list">
+        {layout.map((entry, index) => {
+          const label = labels.get(entry.id) ?? entry.id;
+          return (
+            <li key={entry.id}>
+              <label className="row" style={{ gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={entry.visible}
+                  onChange={() => toggle(entry.id)}
+                  disabled={pending}
+                />
+                {label}
+              </label>
+              <div className="row" style={{ gap: 4 }}>
+                <button
+                  type="button"
+                  className="subtle"
+                  onClick={() => move(index, -1)}
+                  disabled={pending || index === 0}
+                  aria-label={`Move ${label} up`}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="subtle"
+                  onClick={() => move(index, 1)}
+                  disabled={pending || index === layout.length - 1}
+                  aria-label={`Move ${label} down`}
+                >
+                  ↓
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

@@ -1536,6 +1536,22 @@ details.chart-data > summary {
   gap: 4px;
 }
 
+.dashboard-customizer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dashboard-customizer-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 /* -------------------------------------------------------------------------- */
 /* IC summary                                                                 */
 /* -------------------------------------------------------------------------- */

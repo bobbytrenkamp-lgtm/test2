@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1490 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1498 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -119,8 +119,8 @@ Tests       1490 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 server-side PDF rendering end to end,
                          7 import atomicity and rollback,
                          5 mention notifications,
-                         6 local object storage, 7 documents)
-Browser     237 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         6 local object storage, 7 documents, 8 dashboards)
+Browser     241 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          5 lease editor, search and sort,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -136,11 +136,11 @@ Browser     237 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          3 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
                          5 consolidated review screen, 3 underwriting package,
-                         3 mention notifications, 3 documents)
+                         3 mention notifications, 3 documents, 4 dashboards)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (548 kB, 153 kB gzipped)
-Migrations  26 applied against PostgreSQL 16
+Web build   succeeds (551 kB, 154 kB gzipped)
+Migrations  27 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
 Drill       21 checks passed (dump, restore, valuations reproduced)
@@ -240,8 +240,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
 | Comments | Tested | Anchored to a model, property or budget period; API and interface |
 | Tasks | Tested | Asset-management work items against a property or model; API and interface |
-| Documents | Tested | Anchored to a property, optionally further to a model within it. `POST /documents` scans before it writes (the same boundary `malware-scanning.test.ts` covers for the two import surfaces), stores real bytes via a pluggable `Storage` (`STORAGE_DRIVER=local` writes to disk; `s3` is refused at startup, same as `MAIL_DRIVER=smtp` with no host — named but not yet implemented). `GET /documents/:id/download` returns exactly what was uploaded |
-| Configurable dashboards | Designed | `dashboards` table (`layout` jsonb) exists and is migrated; no API yet |
+| Documents | Tested | Anchored to a property, optionally further to a model within it. `POST /documents` scans before it writes (the same boundary `malware-scanning.test.ts` covers for every upload surface), stores real bytes via a pluggable `Storage` (`STORAGE_DRIVER=local` writes to disk; `s3` is refused at startup, same as `MAIL_DRIVER=smtp` with no host — named but not yet implemented). `GET /documents/:id/download` returns exactly what was uploaded |
+| Configurable dashboards | Tested | One personal, organization-scoped layout per person (`dashboards`, migration 0004, its write path finished by 0027's partial unique index): which of five widgets show and in what order, button-driven and keyboard-first rather than drag-and-drop. `PUT /dashboards` upserts; `DELETE /dashboards` resets to nothing saved, which is not the same as an empty layout. Widget ids are the web app's own concern — the API validates `layout`'s shape, not specific ids, so an older server never rejects a widget a newer client already knows about |
 
 ## 3. API
 
@@ -334,10 +334,10 @@ product less capable than the thing it replaced.
 **Not started in the interface:** named saved views (column layout and density
 persist per model, but cannot yet be named, listed or shared), drag-to-reorder
 columns and drag-fill handles (reordering is button-driven and keyboard-first),
-configurable dashboard widgets, geographic maps. (Comments, tasks, side-by-side
-version comparison, bulk edit as an explicit "apply to N selected" action, and
-mention notifications were on this list and have since shipped; the rows above
-are the current state.)
+geographic maps. (Comments, tasks, side-by-side version comparison, bulk edit
+as an explicit "apply to N selected" action, mention notifications, and
+configurable dashboard widgets were on this list and have since shipped; the
+rows above are the current state.)
 
 ## 5. Reporting and imports
 
