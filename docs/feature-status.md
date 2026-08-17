@@ -53,7 +53,7 @@ the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1498 passed (251 engine regression, 31 engine unit, 16 fund,
+Tests       1503 passed (251 engine regression, 31 engine unit, 16 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          10 funds via the API, 17 optimistic locking,
@@ -119,9 +119,10 @@ Tests       1498 passed (251 engine regression, 31 engine unit, 16 fund,
                          4 server-side PDF rendering end to end,
                          7 import atomicity and rollback,
                          5 mention notifications,
-                         6 local object storage, 7 documents, 8 dashboards)
-Browser     241 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         5 lease editor, search and sort,
+                         6 local object storage, 7 documents, 8 dashboards,
+                         5 lease options through the API)
+Browser     244 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         8 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
@@ -139,7 +140,7 @@ Browser     241 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          3 mention notifications, 3 documents, 4 dashboards)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
-Web build   succeeds (551 kB, 154 kB gzipped)
+Web build   succeeds (556 kB, 155 kB gzipped)
 Migrations  27 applied against PostgreSQL 16
 Seed        5 properties, 1 portfolio, 5 frozen versions, all models
             calculated, an approved FY2026 budget and 6 months of actuals
@@ -167,7 +168,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
 | Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
-| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 fixtures |
+| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record; an option of a type this editor does not offer (expansion, purchase, ROFR, ROFO) is preserved on save rather than dropped |
 | Lease options: expansion, purchase, ROFR, ROFO | Not started | Diagnosed as not modelled, with the reason |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
 | Market leasing precedence | Functional | Lease → space → default; winner recorded in trace |

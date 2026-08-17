@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1467 tests, plus 241 in the browser.** The regression library holds twenty independently designed
+**1472 tests, plus 244 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -172,7 +172,7 @@ of a space reporting the whole space occupied. Each is described in
 database schema and migrations; authentication, authorization, multi-factor
 authentication, password reset delivery and cross-organization isolation; the
 deterministic import
-parser, CSV and Excel alike; malware scanning of both import surfaces —
+parser, CSV and Excel alike; malware scanning of every upload surface —
 pluggable, defaults to none, and honest in its response about whether a scan
 actually happened; the background worker's claim/run/complete-or-fail cycle,
 exercised directly against a real queue on top of the job-queue functions
@@ -203,7 +203,11 @@ default; `s3` names the interface but is refused at startup, same as
 `MAIL_DRIVER=smtp` with no host, until something implements it); configurable
 dashboards — a personal layout per person, button-driven reordering and
 show/hide, reset returning to nothing saved rather than an empty layout;
-version comparison and the approval workflow; the vertical slice from
+lease options — renewal, termination and contraction have run in the engine
+as probability-weighted branches for a while, but no screen ever offered a
+field for one; `leaseOptionSchema` also replaces an unchecked
+`z.record(z.unknown())` at the write route, so an option is validated for
+real rather than accepted as an arbitrary object; version comparison and the approval workflow; the vertical slice from
 sign-in through to a traced valuation and a frozen approval. The browser
 suite reaches the assumptions
 editor, scenarios, versions, reports and the portfolio roll-up, not only

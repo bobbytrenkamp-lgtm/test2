@@ -1,7 +1,9 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { SEED, sessionFile } from './roles.js';
 
 test.use({ storageState: sessionFile('owner') });
+const STANDARD = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 /**
  * The lease editor.
@@ -174,4 +176,82 @@ test('switching the lease editor from one lease straight to another shows the ne
 
   // Read-only check: nothing here is saved.
   await page.getByRole('button', { name: 'Cancel' }).click();
+});
+
+/**
+ * Lease options.
+ *
+ * The engine has simulated renewal, termination and contraction as
+ * probability-weighted branches since the calculation engine's own
+ * `lease-options.ts` was written, and `leases.options` has round-tripped
+ * through the API the whole time — but nothing in this editor ever showed a
+ * field for it, despite the toolbar's own "Edit … in full" button already
+ * promising "options are records rather than single values, so they are
+ * edited here". This closes that gap.
+ */
+test('adds a renewal option to a lease, and it survives a reload', async ({ page }) => {
+  const code = 'E2E-LEASE-OPTION';
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByLabel('Lease reference').fill(code);
+  await page.getByLabel('New tenant name').fill('Halden Cartage');
+  await page.getByLabel('Area', { exact: true }).fill('3000');
+  await page.getByLabel('Commencement').fill('2027-01-01');
+  await page.getByLabel('Expiration').fill('2032-12-31');
+  await page.getByLabel(/^Base rent/).fill('28.00');
+
+  await page.getByRole('button', { name: 'Add an option' }).click();
+  await page.getByLabel('Option 1 exercise date').fill('2031-06-30');
+  await page.getByLabel('Option 1 probability').fill('0.65');
+  await page.getByLabel('Option 1 term added').fill('36');
+
+  await page.getByRole('button', { name: 'Save lease' }).click();
+  await expect(page.getByRole('heading', { name: 'New lease' })).toBeHidden();
+
+  // Reopen the same lease and confirm the option held — the editor's own
+  // report of success is not evidence that anything was actually stored.
+  const card = page.locator('.card', { has: page.getByRole('heading', { name: 'Leases' }) });
+  const grid = page.getByRole('grid', { name: 'Leases on this model' });
+  const row = grid.getByRole('row').filter({ hasText: code });
+  const editButton = card.getByRole('button', { name: new RegExp(`^Edit ${code} in full$`) });
+  // Saving triggers the grid's own reload in the background; a click that
+  // lands on the row just before that reload resolves can have its focus
+  // cleared by the fresh data arriving. Re-clicking until the button is
+  // actually enabled rides out that race rather than assuming one click
+  // landed after the reload settled.
+  await expect(async () => {
+    await row.getByRole('gridcell').first().click();
+    await expect(editButton).toBeEnabled({ timeout: 2000 });
+  }).toPass();
+  await editButton.click();
+
+  await expect(page.getByLabel('Option 1 type')).toHaveValue('renewal');
+  await expect(page.getByLabel('Option 1 exercise date')).toHaveValue('2031-06-30');
+  await expect(page.getByLabel('Option 1 probability')).toHaveValue('0.65');
+  await expect(page.getByLabel('Option 1 term added')).toHaveValue('36');
+});
+
+test('removes an option before saving', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByRole('button', { name: 'Add an option' }).click();
+  await expect(page.getByLabel('Option 1 type')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove option' }).click();
+  await expect(page.getByLabel('Option 1 type')).toBeHidden();
+});
+
+test('is accessible with an option added', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByRole('button', { name: 'Add an option' }).click();
+  // Exercises the renewal-specific fields too, not just the fields common to
+  // every option type.
+  await page.getByLabel('Option 1 renewal rent').selectOption('fixed');
+  await expect(page.getByLabel('Option 1 fixed rent')).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page }).withTags(STANDARD).analyze();
+  const summary = violations.map(
+    (violation) =>
+      `${violation.id} (${violation.impact ?? 'unknown'}): ${violation.help}\n` +
+      violation.nodes.map((node) => `      ${node.target.join(' ')}`).join('\n'),
+  );
+  expect(summary, summary.join('\n')).toEqual([]);
 });

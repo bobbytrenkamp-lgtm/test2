@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { leaseStatusEnum, rentBasisEnum } from '@cre/domain-models';
+import { leaseStatusEnum, rentBasisEnum, type LeaseOption } from '@cre/domain-models';
 import { api, type Lease, type Space, type Tenant } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading } from '../components.js';
 import { formatNumber, titleCase } from '../format.js';
@@ -469,6 +469,75 @@ interface LeaseForm {
   escalationRate: string;
   recoveryMethod: string;
   steps: Array<{ startDate: string; amount: string; basis: string }>;
+  options: LeaseOptionForm[];
+}
+
+/**
+ * The three option types the engine actually simulates
+ * (`packages/calculation-engine/src/lease-options.ts`). Expansion, purchase,
+ * ROFR and ROFO are refused there with a `LEASE_OPTION_NOT_MODELLED`
+ * diagnostic rather than silently ignored, so this editor does not offer
+ * them — but a lease that already carries one (written directly against the
+ * API before this editor existed, or by a future import path) keeps it: see
+ * `otherOptions` below, merged back in unedited on save rather than dropped.
+ */
+const EDITABLE_OPTION_TYPES = ['renewal', 'termination', 'contraction'] as const;
+type EditableOptionType = (typeof EDITABLE_OPTION_TYPES)[number];
+
+const RENT_METHODS: Array<{ value: string; label: string }> = [
+  { value: 'market', label: 'Market rent at exercise' },
+  { value: 'fixed', label: 'Fixed amount' },
+  { value: 'percent_of_market', label: 'Share of market rent' },
+  { value: 'prior_rent', label: 'Same as the rent just before' },
+];
+
+interface LeaseOptionForm {
+  id: string;
+  type: EditableOptionType;
+  exerciseDate: string;
+  probability: string;
+  termMonths: string;
+  rentMethod: string;
+  rentAmount: string;
+  rentBasis: string;
+  cost: string;
+  areaChange: string;
+}
+
+function isEditableOption(
+  option: LeaseOption,
+): option is LeaseOption & { type: EditableOptionType } {
+  return (EDITABLE_OPTION_TYPES as readonly string[]).includes(option.type);
+}
+
+function optionToForm(option: LeaseOption & { type: EditableOptionType }): LeaseOptionForm {
+  return {
+    id: option.id,
+    type: option.type,
+    exerciseDate: option.exerciseDate,
+    probability: option.probability,
+    termMonths: String(option.termMonths ?? 0),
+    rentMethod: option.rentMethod,
+    rentAmount: option.rentAmount ?? '',
+    rentBasis: option.rentBasis ?? '',
+    cost: option.cost,
+    areaChange: option.areaChange,
+  };
+}
+
+function optionToWire(option: LeaseOptionForm): LeaseOption {
+  return {
+    id: option.id,
+    type: option.type,
+    exerciseDate: option.exerciseDate,
+    probability: option.probability || '0',
+    termMonths: Number(option.termMonths) || 0,
+    rentMethod: option.rentMethod as LeaseOption['rentMethod'],
+    rentAmount: option.rentAmount || null,
+    rentBasis: (option.rentBasis || null) as LeaseOption['rentBasis'],
+    cost: option.cost || '0',
+    areaChange: option.areaChange || '0',
+  };
 }
 
 function LeaseEditor({
@@ -503,9 +572,18 @@ function LeaseEditor({
     escalationRate: (lease?.escalation?.rate as string) ?? '0.03',
     recoveryMethod: (lease?.recovery?.method as string) ?? 'triple_net',
     steps: lease?.rent_steps ?? [],
+    options: (lease?.options ?? []).filter(isEditableOption).map(optionToForm),
   }));
   const [dirty, setDirty] = useState(false);
   useUnsavedChangesWarning(dirty);
+
+  // Never edited by this form, and never dropped by it either: an option of
+  // a type this editor does not offer (see EDITABLE_OPTION_TYPES above) is
+  // merged back in unchanged on save.
+  const otherOptions = useMemo(
+    () => (lease?.options ?? []).filter((option) => !isEditableOption(option)),
+    [lease],
+  );
 
   useEffect(() => {
     // Match the lease area to the selected suite unless the user has typed one.
@@ -552,6 +630,7 @@ function LeaseEditor({
           ? { type: 'none' }
           : { type: form.escalationType, rate: form.escalationRate, frequencyMonths: 12 },
       recovery: { method: form.recoveryMethod },
+      options: [...otherOptions, ...form.options.map(optionToWire)],
     });
   });
 
@@ -802,6 +881,209 @@ function LeaseEditor({
           }
         >
           Add a step
+        </button>
+      </fieldset>
+
+      <fieldset style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
+        <legend style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+          Options
+        </legend>
+        <p className="field-hint" style={{ marginTop: 0 }}>
+          Renewal, termination and contraction are simulated as probability-weighted branches at
+          exercise; a lease can carry more than one, evaluated in exercise-date order.
+        </p>
+        {form.options.map((option, index) => {
+          function updateOption(patch: Partial<LeaseOptionForm>): void {
+            const options = [...form.options];
+            options[index] = { ...options[index], ...patch } as LeaseOptionForm;
+            update('options', options);
+          }
+
+          const n = index + 1;
+          return (
+            <div key={option.id} className="card" style={{ marginBottom: 8, padding: 12 }}>
+              <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <Field label={`Option ${n} type`}>
+                  <select
+                    value={option.type}
+                    onChange={(event) =>
+                      updateOption({ type: event.target.value as EditableOptionType })
+                    }
+                  >
+                    {EDITABLE_OPTION_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {titleCase(type)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={`Option ${n} exercise date`} hint="When this option is decided.">
+                  <input
+                    type="date"
+                    value={option.exerciseDate}
+                    onChange={(event) => updateOption({ exerciseDate: event.target.value })}
+                    style={{ maxWidth: 170 }}
+                  />
+                </Field>
+                <Field
+                  label={`Option ${n} probability`}
+                  hint="Chance this option is exercised, 0 to 1."
+                >
+                  <input
+                    inputMode="decimal"
+                    value={option.probability}
+                    onChange={(event) => updateOption({ probability: event.target.value })}
+                    style={{ maxWidth: 100 }}
+                  />
+                </Field>
+              </div>
+
+              {option.type === 'renewal' && (
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                  <Field
+                    label={`Option ${n} term added`}
+                    hint="Months added from the current expiration."
+                  >
+                    <input
+                      inputMode="numeric"
+                      value={option.termMonths}
+                      onChange={(event) => updateOption({ termMonths: event.target.value })}
+                      style={{ maxWidth: 100 }}
+                    />
+                  </Field>
+                  <Field label={`Option ${n} renewal rent`}>
+                    <select
+                      value={option.rentMethod}
+                      onChange={(event) => updateOption({ rentMethod: event.target.value })}
+                    >
+                      {RENT_METHODS.map((method) => (
+                        <option key={method.value} value={method.value}>
+                          {method.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {(option.rentMethod === 'fixed' || option.rentMethod === 'percent_of_market') && (
+                    <Field
+                      label={
+                        option.rentMethod === 'fixed'
+                          ? `Option ${n} fixed rent`
+                          : `Option ${n} share of market rent`
+                      }
+                      hint={
+                        option.rentMethod === 'percent_of_market'
+                          ? 'A fraction, e.g. 0.95 for 95% of market.'
+                          : undefined
+                      }
+                    >
+                      <input
+                        inputMode="decimal"
+                        value={option.rentAmount}
+                        onChange={(event) => updateOption({ rentAmount: event.target.value })}
+                        style={{ maxWidth: 140 }}
+                      />
+                    </Field>
+                  )}
+                  {option.rentMethod === 'fixed' && (
+                    <Field label={`Option ${n} rent basis`}>
+                      <select
+                        value={option.rentBasis || form.baseRentBasis}
+                        onChange={(event) => updateOption({ rentBasis: event.target.value })}
+                      >
+                        {rentBasisEnum.options.map((basis) => (
+                          <option key={basis} value={basis}>
+                            {titleCase(basis)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  <Field label={`Option ${n} TI allowance`}>
+                    <input
+                      inputMode="decimal"
+                      value={option.cost}
+                      onChange={(event) => updateOption({ cost: event.target.value })}
+                      style={{ maxWidth: 120 }}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {option.type === 'termination' && (
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                  <Field
+                    label={`Option ${n} termination fee`}
+                    hint="Positive if the tenant pays it; negative if the landlord does."
+                  >
+                    <input
+                      inputMode="decimal"
+                      value={option.cost}
+                      onChange={(event) => updateOption({ cost: event.target.value })}
+                      style={{ maxWidth: 140 }}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {option.type === 'contraction' && (
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                  <Field label={`Option ${n} area surrendered`}>
+                    <input
+                      inputMode="decimal"
+                      value={option.areaChange}
+                      onChange={(event) => updateOption({ areaChange: event.target.value })}
+                      style={{ maxWidth: 140 }}
+                    />
+                  </Field>
+                  <Field label={`Option ${n} TI allowance`}>
+                    <input
+                      inputMode="decimal"
+                      value={option.cost}
+                      onChange={(event) => updateOption({ cost: event.target.value })}
+                      style={{ maxWidth: 120 }}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              <div className="row end">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() =>
+                    update(
+                      'options',
+                      form.options.filter((_, i) => i !== index),
+                    )
+                  }
+                >
+                  Remove option
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() =>
+            update('options', [
+              ...form.options,
+              {
+                id: crypto.randomUUID(),
+                type: 'renewal',
+                exerciseDate: '',
+                probability: '0.5',
+                termMonths: '60',
+                rentMethod: 'market',
+                rentAmount: '',
+                rentBasis: '',
+                cost: '0',
+                areaChange: '0',
+              },
+            ])
+          }
+        >
+          Add an option
         </button>
       </fieldset>
 
