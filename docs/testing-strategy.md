@@ -80,6 +80,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Model reports and exports: the catalogue, JSON/CSV/XLSX/HTML cross-checked against each other cell by cell, the xlsx-format export:run gate, the bundled property-report workbook | `tests/model-reports.test.ts` | 6 | Yes |
 | Real PDF bytes from a real headless browser | `apps/worker/src/pdf.test.ts` | 1 | No |
 | Server-side PDF rendering end to end: the route enqueues, the worker produces real PDF bytes, the export:run gate, the unknown-report and uncalculated-model refusals | `tests/model-report-pdf.test.ts` | 4 | Yes |
+| Import atomicity and rollback: a mid-loop database constraint failure leaves nothing written, rollback deletes a lease the import created fresh, rollback restores an updated lease exactly (rent steps and spaces included), and the refusal paths — double rollback, no snapshot, never committed, nonexistent batch | `tests/rent-roll-import-rollback.test.ts` | 7 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
@@ -130,7 +131,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1431 tests in total.**
+**1438 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -177,7 +178,7 @@ built bundle:
 | Consolidated Review screen: status, health and comments together, a real two-version comparison rather than a manual pick, the approval workflow moved off Versions rather than duplicated, transition buttons gated by their own required capability, accessibility | `e2e/consolidated-review.spec.ts` | 5 |
 | Underwriting package download from the IC summary screen: a real file download, sits beside Print, accessibility | `e2e/underwriting-package.spec.ts` | 3 |
 
-**231 browser tests in total**, for 1662 across the whole repository.
+**231 browser tests in total**, for 1669 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

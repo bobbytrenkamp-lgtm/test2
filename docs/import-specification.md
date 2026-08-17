@@ -131,10 +131,14 @@ audit entry with the imported and skipped counts.
 
 ## Limitations
 
-- **Only CSV is parsed.** Excel `.xlsx` import is **not implemented**; exceljs is
-  present for writing, not wired for reading. Users must export to CSV first.
-- No rollback after commit. The import is transactional, so it fully applies or
-  fully fails, but there is no undo afterwards.
+- **CSV and Excel `.xlsx` are both parsed.** A workbook is read into the same
+  rows the CSV pipeline takes, with the rent roll sheet suggested when there
+  is more than one. `.xls` (the pre-2007 binary format) is not supported.
+- The commit runs in one transaction — either every valid lease lands or none
+  does — and `POST /models/:id/imports/:batchId/rollback` can undo a commit
+  afterwards: it restores or deletes exactly what that commit touched, from a
+  snapshot taken in the same transaction as the write. It does not detect
+  edits made to a lease after the import, the same as an editor's own undo.
 - One sheet at a time.
 - Rent steps, options and recovery detail are not imported — only the fields
   above.
