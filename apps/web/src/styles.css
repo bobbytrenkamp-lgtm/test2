@@ -20,9 +20,10 @@
   --text-muted: #5b6270;
   --text-inverse: #ffffff;
 
-  --accent: #1d4ed8;
-  --accent-hover: #1e40af;
-  --accent-soft: #e4ecfd;
+  /* CREOS brand blue (see test4/src/styles/tokens.css --creos-blue-600/700/100) */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #dbe6fe;
 
   --positive: #0f7a4d;
   --positive-soft: #e2f4ec;
