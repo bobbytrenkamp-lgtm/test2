@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1510 tests, plus 247 in the browser.** The regression library holds twenty independently designed
+**1510 tests, plus 248 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
