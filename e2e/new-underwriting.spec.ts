@@ -36,8 +36,12 @@ test.describe('as an analyst', () => {
     ).toBeVisible();
 
     // And the model workspace actually resolved the property this same
-    // request created — its name is shown somewhere in the workspace chrome.
-    await expect(page.getByText('E2E Underwriting Tower')).toBeVisible();
+    // request created — its own breadcrumb names it, and links back to it.
+    await expect(
+      page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', {
+        name: 'E2E Underwriting Tower',
+      }),
+    ).toBeVisible();
   });
 
   test('is accessible', async ({ page }) => {

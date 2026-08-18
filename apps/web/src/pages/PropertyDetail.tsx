@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { modelClassificationEnum } from '@cre/domain-models';
 import { api, type Model, type Property, type Space } from '../api.js';
 import {
+  Breadcrumbs,
   EmptyState,
   ErrorMessage,
   Field,
@@ -64,6 +65,9 @@ export function PropertyDetailPage(): JSX.Element {
 
   return (
     <>
+      <Breadcrumbs
+        items={[{ label: 'All properties', to: '/properties' }, { label: record.name }]}
+      />
       <div className="page-title">
         <div>
           <h1>
