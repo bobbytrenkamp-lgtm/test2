@@ -68,7 +68,14 @@ services:
       context: ..
       dockerfile: infrastructure/Dockerfile.api
     environment:
-      NODE_ENV: production
+      # Not `production`: the Dockerfile bakes NODE_ENV=production as the
+      # image's own default for a real deployment, but this stack runs over
+      # plain HTTP with a hardcoded secret, so SESSION_COOKIE_SECURE below is
+      # `false` — a combination the API's own startup validation refuses
+      # under `production`, on purpose, so a real deployment cannot come up
+      # misconfigured. Overriding it here is what makes local development
+      # over HTTP possible without weakening that check for anyone else.
+      NODE_ENV: development
       DATABASE_URL: postgres://cre:cre@postgres:5432/cre_platform
       API_PORT: '4000'
       WEB_ORIGIN: http://localhost:8080
@@ -96,7 +103,8 @@ services:
       context: ..
       dockerfile: infrastructure/Dockerfile.api
     environment:
-      NODE_ENV: production
+      # See the comment on the `api` service's own NODE_ENV above.
+      NODE_ENV: development
       DATABASE_URL: postgres://cre:cre@postgres:5432/cre_platform
       SESSION_SECRET: local-development-secret-not-for-any-real-deployment
     depends_on:
