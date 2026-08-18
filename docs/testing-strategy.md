@@ -162,7 +162,7 @@ built bundle:
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
-| Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 6 |
+| Command palette and spreadsheet paste | `e2e/productivity.spec.ts` | 7 |
 | Sensitivity grids and cloning | `e2e/scenarios.spec.ts` | 3 |
 | Reports, screen against CSV | `e2e/reports.spec.ts` | 2 |
 | Portfolio roll-up arithmetic | `e2e/portfolios.spec.ts` | 3 |
@@ -187,7 +187,7 @@ built bundle:
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 
-**245 browser tests in total**, for 1755 across the whole repository.
+**246 browser tests in total**, for 1756 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
