@@ -159,14 +159,27 @@ test('switching the lease editor from one lease straight to another shows the ne
   await expect(rowMeridian).toBeVisible();
   await expect(rowKestrel).toBeVisible();
 
-  await rowMeridian.getByRole('gridcell').first().click();
-  await card.getByRole('button', { name: /^Edit L-SUITE-1200 in full$/ }).click();
+  const editMeridian = card.getByRole('button', { name: /^Edit L-SUITE-1200 in full$/ });
+  // A row click and the toolbar button's enabled state can land either side
+  // of a moment the grid is still settling — see the identical comment on
+  // the lease-options test below, which found the same race. Retrying the
+  // click until the button is actually enabled rides that out rather than
+  // assuming one click landed after the grid had settled.
+  await expect(async () => {
+    await rowMeridian.getByRole('gridcell').first().click();
+    await expect(editMeridian).toBeEnabled({ timeout: 2000 });
+  }).toPass();
+  await editMeridian.click();
   await expect(page.getByLabel('Lease reference')).toHaveValue('L-SUITE-1200');
 
   // Switches straight to Kestrel's lease without cancelling Meridian's editor
   // first — the exact sequence the bug required.
-  await rowKestrel.getByRole('gridcell').first().click();
-  await card.getByRole('button', { name: /^Edit L-SUITE-1600 in full$/ }).click();
+  const editKestrel = card.getByRole('button', { name: /^Edit L-SUITE-1600 in full$/ });
+  await expect(async () => {
+    await rowKestrel.getByRole('gridcell').first().click();
+    await expect(editKestrel).toBeEnabled({ timeout: 2000 });
+  }).toPass();
+  await editKestrel.click();
 
   // The bug's own failure mode: this would still read L-SUITE-1200, Kestrel's
   // row selected but Meridian's form values still on screen.
