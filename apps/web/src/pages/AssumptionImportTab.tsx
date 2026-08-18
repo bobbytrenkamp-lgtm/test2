@@ -9,6 +9,7 @@ import type {
   ImportItemStatus,
   MissingCollectionRecord,
 } from '@cre/domain-models';
+import { parseCreosHandoffPayload, translateSiteIntelHandoff } from '@cre/domain-models';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Field } from '../components.js';
 import {
@@ -99,6 +100,8 @@ export function AssumptionImportTab(): JSX.Element {
   const [threshold, setThreshold] = useState(0.8);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
   const [beforeReturns, setBeforeReturns] = useState<typeof cashFlow>(null);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const [handoffFilename, setHandoffFilename] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   const analyze = useMutation(async () => {
@@ -275,6 +278,47 @@ export function AssumptionImportTab(): JSX.Element {
             {analyze.pending ? 'Analyzing…' : 'Analyze'}
           </button>
         </div>
+
+        <Field
+          label="Or import a CREOS SiteIntel handoff"
+          hint="A creos-handoff-v1 .json file downloaded from SiteIntel's 'Send to Underwrite' action. Read in the browser, translated to the format above, and analyzed the same deterministic way — nothing here is written until you choose to apply it below."
+        >
+          <input
+            type="file"
+            accept=".json,application/json"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              setHandoffError(null);
+              const raw = await file.text();
+              const parsed = parseCreosHandoffPayload(raw);
+              if (!parsed.ok) {
+                setHandoffError(parsed.error);
+                return;
+              }
+              const translated = translateSiteIntelHandoff(parsed.data);
+              setHandoffFilename(file.name);
+              setPaste(JSON.stringify(translated, null, 2));
+              setAnalysis(null);
+              setApplyResult(null);
+              analyze.clearError();
+            }}
+          />
+        </Field>
+        {handoffFilename && !handoffError && (
+          <p className="field-hint" style={{ marginTop: -8 }}>
+            Loaded {handoffFilename} — every fact from a SiteIntel handoff is informational only
+            (target <code>siteIntel.*</code>): SiteIntel does not supply underwriting inputs like
+            acquisition price, so these will analyze as "Unsupported" rather than
+            new/changed/ready-to-apply. Review them for context; nothing here writes to the model.
+          </p>
+        )}
+        {handoffError && (
+          <div className="message error" role="alert">
+            <strong>{handoffError}</strong>
+          </div>
+        )}
       </div>
 
       {analysis && (

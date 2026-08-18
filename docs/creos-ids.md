@@ -32,7 +32,7 @@ and [`test4/docs/ARCHITECTURE.md`](https://github.com/bobbytrenkamp-lgtm/test4/b
 
 ## Status
 
-**Utility available, not yet used anywhere.**
+**Utility available; consumed by the Phase 5 SiteIntel handoff importer.**
 `packages/domain-models/src/creos-ids.ts` (Phase 4) implements the
 generator/validator side of this scheme as Zod-branded IDs
 (`CreosPropertyId`, `CreosDealId`, `CreosMarketId`, `CreosReportId`) — a
@@ -42,10 +42,18 @@ re-checks the same known-timestamp vectors test4 verified independently
 against the ULID spec, 31/31 passing). This repository's own
 identifiers (property IDs, underwriting/model IDs — see
 `docs/domain-model.md`, `packages/database`'s schema) remain the sole
-source of truth for everything this app does internally — nothing
-calls `generateCreosUlid()` from application code yet, no migration
-ran, no existing ID was touched or replaced. The utility exists so a
-future SiteIntel/MarketSignal -> Underwrite handoff (Phase 5/6 of
-`test4/docs/INTEGRATION_ROADMAP.md`, still not scheduled) has a ready,
-tested building block for tagging a record with a real CREOS ID at
-that boundary.
+source of truth for everything this app does internally — no migration
+ran, no existing ID was touched or replaced.
+
+As of Phase 5 (`test4/docs/INTEGRATION_ROADMAP.md`), the unbranded
+`CreosUlidSchema` from this file is used by
+`packages/domain-models/src/creos-handoff-import.ts` to validate the
+`handoffId`/`assumptionId`/`propertyId` fields of an incoming
+`creos-handoff-v1` payload — the first real consumer of this utility.
+See that file's header comment and `docs/claude-assumption-import.md`
+for how a SiteIntel handoff reaches this app: a `.json` file downloaded
+from SiteIntel's "Send to Underwrite" action, imported via
+`AssumptionImportTab.tsx`'s file picker, translated into a
+`cre-assumption-import` v1 document, and reviewed through the exact
+same deterministic analyze/accept-by-hand path any other import uses —
+nothing is written automatically.
