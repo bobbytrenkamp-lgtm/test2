@@ -167,6 +167,66 @@ describe('a staged draw dated outside the forecast', () => {
  * begins — the common, not contrived, shape of a construction loan — so the
  * fee silently never charged for the life of any such facility.
  */
+/**
+ * Exit and unused-commitment fees.
+ *
+ * `computeDebt` has charged both since the schema first offered them —
+ * `unusedFeePercent` accrues monthly on the undrawn commitment for every
+ * active period, `exitFeePercent` is charged once, on the ending balance, at
+ * maturity or sale payoff — but only `originationFeePercent` was ever set in
+ * a fixture. Neither basis is derived from an interest calculation, so both
+ * are checkable by hand independent of the facility's rate.
+ */
+describe('exit and unused-commitment fees', () => {
+  it('accrues the unused fee on the undrawn balance every period, and charges the exit fee once at payoff', () => {
+    const model = extendModel(baseModel(), {
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      debt: [
+        {
+          id: 'D-FEES',
+          name: 'Revolver',
+          type: 'revolver',
+          commitment: '1000000',
+          initialFunding: '600000',
+          fundingDate: '2026-01-01',
+          rateType: 'fixed',
+          fixedRate: '0.05',
+          interestOnlyMonths: 999,
+          amortizationMonths: 0,
+          termMonths: 12,
+          exitFeePercent: '0.02',
+          unusedFeePercent: '0.01',
+        },
+      ],
+    });
+
+    const result = calculate(model);
+    const rows = result.debtSchedules[0]?.rows ?? [];
+
+    // Hand-derived, independent of the facility's rate: the balance never
+    // moves off the $600,000 drawn at closing (interest-only, no further
+    // draws, no amortization), so the undrawn commitment is a flat $400,000
+    // for all 12 active periods. 1% annual on $400,000 is $4,000/year, and a
+    // full year of periods is exactly that — $333.33.../month x 12 months.
+    const unusedFeeOnly = rows.slice(0, 11).reduce((acc, row) => acc + Number(row.fees), 0);
+    expect(unusedFeeOnly).toBeCloseTo(3_666.6667, 2);
+
+    // The facility matures in period 11 (month 12), still carrying its full
+    // $600,000 balance, so the exit fee is 2% of $600,000 = $12,000, charged
+    // in the same period as that period's own unused-fee accrual.
+    expect(Number(rows[11]?.fees)).toBeCloseTo(333.3333 + 12_000, 2);
+    expect(rows[11]?.endingBalance).toBe('0');
+
+    const totalFees = rows.reduce((acc, row) => acc + Number(row.fees), 0);
+    expect(totalFees).toBeCloseTo(4_000 + 12_000, 2);
+  });
+});
+
 describe('an origination fee on a facility whose first draw is dated after closing', () => {
   it('is charged at closing, not lost because no draw landed in the closing month', () => {
     const model = extendModel(baseModel(), {

@@ -41,12 +41,12 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
 | Budget variance and reforecast | `packages/calculation-engine/src/variance.test.ts` | 25 | No |
-| A debt facility funded before the forecast, a draw outside it, a delayed-draw origination fee, a floating-rate DSCR covenant across a rate step, and a facility that capitalizes interest through a window then amortizes | `packages/calculation-engine/src/debt.test.ts` | 6 | No |
+| A debt facility funded before the forecast, a draw outside it, a delayed-draw origination fee, exit and unused-commitment fees, a floating-rate DSCR covenant across a rate step, and a facility that capitalizes interest through a window then amortizes | `packages/calculation-engine/src/debt.test.ts` | 7 | No |
 | Loan sizing: the level-payment inverse, and each covenant constraint alone, combined and tied | `packages/calculation-engine/src/debt-sizing.test.ts` | 12 | No |
 | Straight-line rent: an escalation spread evenly, a rounding residual, a free-rent period, and the always-zero ending balance | `packages/calculation-engine/src/straight-line-rent.test.ts` | 6 | No |
 | Sales comparison approach: per-comp adjustment and weighting, equal and unequal weighted-average and median reconciliation, and non-positive/empty input rejection | `packages/calculation-engine/src/sales-comparison.test.ts` | 8 | No |
 | Cost approach: per-improvement depreciation, entrepreneurial profit, depreciation clamped to [0, 1] both above and below, land with no improvements, and negative-value rejection | `packages/calculation-engine/src/cost-approach.test.ts` | 8 | No |
-| Equity distributions stop at the sale date, zero-sum contribution shares (capital calls and the residual fallback), and two partners sharing an id | `packages/calculation-engine/src/waterfall.test.ts` | 11 | No |
+| Equity distributions stop at the sale date, sponsor fees (acquisition, asset management and disposition bases), zero-sum contribution shares (capital calls and the residual fallback), and two partners sharing an id | `packages/calculation-engine/src/waterfall.test.ts` | 14 | No |
 | Metrics that annualise a forecast shorter than 12 months | `packages/calculation-engine/src/short-forecast.test.ts` | 4 | No |
 | Portfolio year-1 NOI, weighted exit cap rate, value-weighted ratios on boundary members, and unlevered/levered IRR discounted from the same basis the property itself used | `packages/calculation-engine/src/portfolio.test.ts` | 4 | No |
 | A cash trap open through the sale date, and a multi-facility cure period | `packages/calculation-engine/src/cash-trap.test.ts` | 3 | No |
@@ -54,6 +54,10 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | A renewal option at the forecast horizon, a termination fee, and rollover after a nonzero-cost termination | `packages/calculation-engine/src/lease-options.test.ts` | 4 | No |
 | A zero-baseline recovery cap, overlapping recovery pools, and a revenue-basis expense's recoverable split | `packages/calculation-engine/src/recoveries.test.ts` | 3 | No |
 | Duplicate entity ids, a dangling growth-curve reference, and a duplicate growth-curve year | `packages/calculation-engine/src/validation.test.ts` | 9 | No |
+| Escalation floors and caps, on both a fixed-percent rate and a negative (deflationary) one | `packages/calculation-engine/src/rent-schedule.test.ts` | 3 | No |
+| Market leasing profile precedence: lease over space over the model default, and the no-profile-at-all warning | `packages/calculation-engine/src/market-leasing-precedence.test.ts` | 4 | No |
+| The full return metric set with no debt facility: debt yield and both DSCR figures null (nothing to derive them from), loan-to-value and loan-to-cost a real zero (a $0 loan against a valued property) | `packages/calculation-engine/src/returns.test.ts` | 2 | No |
+| Capital: the four recurring methods combined, a one-time cost and a date-windowed recurring cost together, and an out-of-order date pair refused with a diagnostic | `packages/calculation-engine/src/capital.test.ts` | 5 | No |
 | Rent-roll import parsing | `packages/reporting/src/rent-roll-import.test.ts` | 34 | No |
 | Trial-balance import parsing | `packages/reporting/src/actuals-import.test.ts` | 23 | No |
 | Workbook reading, against real .xlsx bytes | `packages/reporting/src/workbook-import.test.ts` | 12 | No |
@@ -65,11 +69,11 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 12 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
-| Job reaper attempt cap | `tests/jobs.test.ts` | 3 | Yes |
+| Job reaper attempt cap, and `failJob` itself: requeues with backoff under the attempt limit, moves to failed once it is reached | `tests/jobs.test.ts` | 5 | Yes |
 | The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
 | The worker's own orchestration: `tick()` claims, runs and completes or fails a real job — empty queue, success, a handler that throws, and an unregistered job kind | `tests/worker-pipeline.test.ts` | 4 | Yes |
 | Model cloning: eleven copied tables field-by-field, the lease and model-default market-leasing-profile foreign keys remapped to the clone's own rows, editing the clone never reaching the source, and organization isolation | `tests/model-cloning.test.ts` | 8 | Yes |
-| Sensitivity and scenario-batch input validation | `tests/scenario-sensitivity.test.ts` | 7 | Yes |
+| Sensitivity and scenario-batch input validation, and the batch handler's success path: every scenario runs to completion and two scenarios produce results that actually differ | `tests/scenario-sensitivity.test.ts` | 8 | Yes |
 | Sensitivity grid values, checked against independent engine runs: reproduces the model's own stored result at its current value, year-1 NOI is identical across every discount-rate cell, and a two-way cell is cross-checked against a one-way run at the same pair | `tests/model-sensitivity.test.ts` | 4 | Yes |
 | Version comparison through the API | `tests/version-compare.test.ts` | 7 | Yes |
 | Error monitoring, its redaction and its organization isolation | `tests/error-monitoring.test.ts` | 20 | Yes |
@@ -87,6 +91,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Import atomicity and rollback: a mid-loop database constraint failure leaves nothing written, rollback deletes a lease the import created fresh, rollback restores an updated lease exactly (rent steps and spaces included), and the refusal paths — double rollback, no snapshot, never committed, nonexistent batch | `tests/rent-roll-import-rollback.test.ts` | 7 | Yes |
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
+| Rate limiting: the tighter 10/min auth-route override actually refuses an 11th attempt, and does not leak onto an ordinary route | `tests/rate-limiting.test.ts` | 2 | Yes |
 | Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
 | The mailer's driver selection and startup validation | `apps/api/src/mailer.test.ts` | 3 | No |
 | The malware scanner's driver selection and the clean/infected/unavailable translation, against a fake clamd client | `apps/api/src/malware-scanner.test.ts` | 4 | No |
@@ -137,7 +142,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1510 tests in total.**
+**1533 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -189,7 +194,7 @@ built bundle:
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
 
-**255 browser tests in total**, for 1765 across the whole repository.
+**255 browser tests in total**, for 1788 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

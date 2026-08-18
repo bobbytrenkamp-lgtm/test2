@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1510 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1533 passed (251 engine regression, 31 engine unit, 20 fund,
                          13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          12 funds via the API, 17 optimistic locking,
@@ -105,21 +105,26 @@ Tests       1510 passed (251 engine regression, 31 engine unit, 20 fund,
                          13 the debt facility library and its provenance,
                          6 new underwriting atomic property + model creation,
                          13 workflow/progress surface,
-                         6 debt funded pre-forecast/draw/origination fee/floating DSCR/capitalize-then-amortize,
+                         7 debt funded pre-forecast/draw/origination fee/exit and unused-commitment fees/floating DSCR/capitalize-then-amortize,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
                          8 sales comparison approach, 5 sales comparison via the API,
                          8 cost approach, 6 cost approach via the API,
-                         11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
+                         14 waterfall sale truncation, sponsor fees, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 4 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
                          9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
                          4 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
-                         3 job reaper attempt cap,
+                         3 escalation floors and caps,
+                         4 market leasing profile precedence,
+                         2 the full return metric set with no debt facility,
+                         5 capital's four recurring methods, one-time and date-windowed costs,
+                         2 rate limiting,
+                         5 job reaper attempt cap and failJob backoff/exhaustion,
                          2 the aggregate_portfolio job handler across organizations,
-                         7 sensitivity and scenario-batch input validation,
+                         8 sensitivity/scenario-batch validation and the batch handler's success path,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
@@ -177,7 +182,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Custom fiscal years | Tested | Labelled by the year they end in |
 | Rent steps with mid-month effect | Tested | Segmented billing |
 | Escalations: fixed %, fixed amount, index, market reset | Tested | Step resets the escalation clock |
-| Escalation floors and caps | Functional | Implemented; no dedicated fixture |
+| Escalation floors and caps | Tested | A fixed-percent rate clamped by a cap, and a negative (deflationary) rate clamped by a floor; 3 engine tests |
 | Free rent, partial and fractional months | Tested | |
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
 | Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
@@ -185,7 +190,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record |
 | Lease options: expansion, purchase, ROFR, ROFO | Functional | Never reach the cash flow — the engine still refuses each with `LEASE_OPTION_NOT_MODELLED` — but the lease editor now offers a second, disclosure-only section for exactly these four types, asking only the fields each one actually means something by (an area for expansion, a price for purchase, dates and likelihood for all four), so a right an import or the API attaches to a lease is no longer invisible on this screen. A disclosed right with a nonzero likelihood still surfaces the engine's own diagnostic on the Validation tab |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
-| Market leasing precedence | Functional | Lease → space → default; winner recorded in trace |
+| Market leasing precedence | Tested | Lease → space → default; winner recorded in trace. 4 engine tests, including the no-profile-at-all warning |
 | Operating expenses, all 6 methods | Tested | |
 | Occupancy-variable expenses | Tested | |
 | Revenue/expense fixed-point solver | Functional | 12 passes, 0.005 tolerance; non-convergence diagnosed |
@@ -195,11 +200,11 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Gross-up, admin fees, caps and floors | Tested | Cumulative and non-cumulative |
 | Recovery detail rows | Tested | Full workings surfaced, per pool, including the estimate and the true-up |
 | Vacancy netting (no double deduction) | Tested | Asserted across every fixture |
-| Capital, all methods | Functional | |
+| Capital, all methods | Tested | The four recurring methods (`fixed_annual`, `per_area_per_year` — against the space list's own total area, not the property's stated `rentableArea`, reconciled elsewhere by an `AREA_MISMATCH` diagnostic when they disagree — `per_unit_per_year`, `custom_monthly_schedule`) summed to a hand-derived total; a one-time cost landing only in its own period; a date-windowed recurring cost charged only inside its window; an out-of-order date pair refused with `CAPITAL_DATES_OUT_OF_ORDER`. 5 engine tests |
 | Debt: fixed and floating, IO, amortisation | Tested | Closed-form schedule check |
 | Rate floors and caps | Tested | |
 | Capitalised interest | Functional | Used in the development fixture |
-| Fees: origination, exit, unused | Functional | Origination tested |
+| Fees: origination, exit, unused | Tested | Origination charged once at closing regardless of draw timing; unused fee accrues monthly on the undrawn commitment for every active period; exit fee charged once, on the ending balance, at maturity or sale payoff. 1 engine test for exit/unused, hand-derived independent of the facility's rate |
 | Covenant testing (DSCR, LTV, LTC, debt yield) | Tested | |
 | Loan sizing (max amount by DSCR, LTV, LTC, debt yield) | Tested | Standalone calculator: the largest loan the smallest of the supplied constraints allows, and which one binds. Not folded into the period schedule, whose own DSCR test is circular by construction (computed from a facility's own already-modelled debt service). 12 hand-derived engine tests |
 | Cash-management triggers on breach | Tested | Surplus withheld from equity while breached, released on cure; NOI and unlevered cash flow unchanged. Cash sweep is not modelled |
@@ -210,9 +215,9 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Sales comparison approach | Tested | Standalone calculator: each comparable's price per unit, adjusted for market conditions, location, physical characteristics and condition/quality, reconciled to one indicated value by weighted average or median. Independent of the income-approach valuations above, per appraisal practice — not blended into `calculate()`'s own output. 8 hand-derived engine tests |
 | Cost approach | Tested | Standalone calculator: land value plus each improvement's replacement cost new, less physical/functional/external depreciation (clamped to [0, 1]), plus entrepreneurial profit. The third leg of the appraisal triangle alongside the income and sales-comparison approaches above. 8 hand-derived engine tests |
 | IRR, XIRR, NPV, equity multiple | Tested | Bisection; null when no sign change |
-| Full return metric set | Functional | Null, never zero, when inputs are missing |
+| Full return metric set | Tested | Null, never zero, when inputs are missing — and a real zero, not null, when a figure is genuinely zero rather than missing: with no debt facility, debt yield and both DSCR figures are null (nothing to derive them from), while loan-to-value and loan-to-cost report an accurate 0% (a $0 loan against a valued property). 2 engine tests |
 | LP/GP waterfall | Tested | Preferred, ROC, catch-up, promote |
-| Sponsor fees | Functional | Acquisition, asset management, disposition only |
+| Sponsor fees | Tested | Acquisition (raises the equity called at close, rather than reducing a distribution), asset management (out of every period's cash flow before the sale) and disposition (out only in the sale month). 3 engine tests, hand-derived |
 | Development and refinance fee bases | Tested | Development fee on capital expenditure as incurred; refinance fee on debt drawn after the first funding period. Fixture 20 |
 | Portfolio aggregation | Tested | Rates rebuilt, IRR from combined flows |
 | Calculation traces | Tested | Rent, recoveries, terminal value, DCF |
@@ -251,7 +256,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Side-by-side version comparison | Tested | What was edited and what it did; both versions recalculated under one engine so an engine change is never mistaken for an edit |
 | Calculation runs and traces | Tested | |
 | Audit log | Tested | Append-only by convention; no DB-level grant yet |
-| Jobs | Functional | Claim, complete, fail with backoff, reap stalled |
+| Jobs | Tested | Claim, complete, fail with backoff, reap stalled. `failJob` itself: requeues with an exponential backoff under the attempt limit, moves to `failed` once it is reached — previously only exercised indirectly through the reaper's own, separately-tested cap |
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
 | Comments | Tested | Anchored to a model, property or budget period; API and interface |
 | Tasks | Tested | Asset-management work items against a property or model; API and interface |
@@ -274,7 +279,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Straight-line rent | Tested | `GET /models/:id/leases/:leaseId/straight-line-rent`; reads the model's own stored `leaseCashFlows`, restricted to the lease's own signed row and the periods it is actually in effect. 4 API tests |
 | Sales comparison approach | Tested | `POST /models/:id/sales-comparison`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. Every value validated as a decimal string before it reaches the calculator. 5 API tests |
 | Cost approach | Tested | `POST /models/:id/cost-approach`; no engine pass or stored calculation required. Every value validated as a decimal string before it reaches the calculator. 6 API tests |
-| Scenario batch | Functional | Queued to the worker |
+| Scenario batch | Tested | Queued to the worker; the handler's success path runs every scenario to completion and produces results that actually differ between scenarios, not only the input-validation refusals |
 | Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
 | Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
@@ -291,7 +296,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Capability checks on every protected route | Tested | 23 tests |
 | Cross-organization isolation | Tested | 10 dedicated tests |
 | CSRF header requirement | Tested | |
-| Rate limiting | Functional | Global 600/min; 10/min on auth |
+| Rate limiting | Tested | Global 600/min; 10/min on auth. An 11th login attempt in a minute is actually refused with 429, and the tighter limit does not leak onto an ordinary route. 2 tests |
 | Generated API surface | Tested | `docs/api-surface.md` is printed from the router's own table, so it cannot drift. Not an OpenAPI document: request and response schemas live inside handlers rather than on the route definitions, and a spec with empty schemas would look like a contract and describe nothing |
 | PDF-assumption import: target dictionary, analyzer, apply | Tested | `GET /assumption-import/targets` serialises the same writable-target registry the assumption-proposal decision route consults; `POST /assumption-import/analyze` parses and compares a pasted `cre-assumption-import` document against the model with zero writes; `POST /assumption-import/apply` re-analyzes server-side and applies the selected targets atomically as already-accepted proposals, through the same write path a person's edit or a posted proposal uses. See `docs/claude-assumption-import.md` |
 
@@ -388,7 +393,7 @@ rows above are the current state.)
 | Content security policy, security headers | Functional | via helmet |
 | Input validation on every route | Tested | zod |
 | SQL injection prevention | Functional | Parameterised throughout |
-| Rate limiting | Functional | |
+| Rate limiting | Tested | See section 3's row for the tests |
 | Error messages that leak nothing | Functional | Internals logged, never returned |
 | Secrets outside source control | Functional | `.env` git-ignored, validated at startup |
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |

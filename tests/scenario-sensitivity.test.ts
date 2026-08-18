@@ -68,6 +68,34 @@ describe.skipIf(!hasDatabase)('sensitivity and scenario-batch input validation',
       },
     });
     modelId = (model.json() as { model: { id: string } }).model.id;
+
+    // A lease, so the model actually generates NOI. Without one, every
+    // scenario's cash flow is a flat, all-zero series after the initial
+    // outflow and no override — not even acquisition price — changes any
+    // result, which is fine for the validation tests above but useless for
+    // proving two scenarios actually produce different numbers.
+    const tenant = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/tenants',
+      headers: authed(owner.cookie),
+      payload: { name: 'Sensitivity Tenant' },
+    });
+    const tenantId = (tenant.json() as { tenant: { id: string } }).tenant.id;
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/models/${modelId}/leases/L1`,
+      headers: authed(owner.cookie),
+      payload: {
+        tenantId,
+        status: 'occupied',
+        area: '50000',
+        spaceIds: [],
+        commencementDate: '2026-01-01',
+        expirationDate: '2031-12-31',
+        baseRent: '20.00',
+        baseRentBasis: 'per_area_per_year',
+      },
+    });
   }, 60_000);
 
   afterAll(async () => {
@@ -186,6 +214,50 @@ describe.skipIf(!hasDatabase)('sensitivity and scenario-batch input validation',
       await expect(runBatch([{ variable: 'saleMonth', value: '-3' }])).rejects.toThrow(
         /positive whole number/,
       );
+    });
+
+    it('runs every scenario in the batch and returns results that actually differ between them', async () => {
+      // Every prior test in this describe block only ever proves the handler
+      // rejects a bad payload — the success path, actually completing two
+      // scenarios and producing two different results, was never run.
+      const enqueued = await enqueueJob(ctx.sql, {
+        organizationId,
+        kind: 'run_scenario_batch',
+        payload: {
+          modelId,
+          scenarios: [
+            // A lower exit cap rate raises the sale price and therefore the
+            // return; a higher one lowers it. The two are not expected to
+            // land on any particular number — only to disagree with each
+            // other, which is what proves the override actually reached the
+            // engine rather than both scenarios silently running the base
+            // case twice.
+            { name: 'Tighter exit', overrides: [{ variable: 'terminalCapRate', value: '0.06' }] },
+            { name: 'Wider exit', overrides: [{ variable: 'terminalCapRate', value: '0.09' }] },
+          ],
+        },
+      });
+      await ctx.sql`
+        UPDATE jobs SET status = 'running', locked_at = now(), locked_by = 'test-worker',
+          attempts = attempts + 1
+        WHERE id = ${enqueued.id}
+      `;
+      const claimed = await getJob(ctx.sql, enqueued.id);
+      const result = (await handlers.run_scenario_batch(ctx.sql, claimed!)) as {
+        engineVersion: string;
+        scenarios: Array<{ name: string; unleveredIrr: string | null; errorCount: number }>;
+      };
+
+      expect(result.scenarios).toHaveLength(2);
+      expect(result.engineVersion).toBeTruthy();
+      for (const scenario of result.scenarios) {
+        expect(scenario.errorCount).toBe(0);
+        expect(scenario.unleveredIrr).not.toBeNull();
+      }
+
+      const tighter = result.scenarios.find((s) => s.name === 'Tighter exit');
+      const wider = result.scenarios.find((s) => s.name === 'Wider exit');
+      expect(Number(tighter?.unleveredIrr)).toBeGreaterThan(Number(wider?.unleveredIrr));
     });
   });
 });
