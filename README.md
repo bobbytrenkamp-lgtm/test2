@@ -123,7 +123,7 @@ DATABASE_URL=postgres://… pnpm test          # + authorization + vertical slic
 pnpm test:e2e                                # Chromium, on the built bundle
 ```
 
-**1510 tests, plus 252 in the browser.** The regression library holds twenty independently designed
+**1510 tests, plus 255 in the browser.** The regression library holds twenty independently designed
 fictional properties whose expected values were derived by hand or recomputed by
 a different method than the engine uses — **never** by running the engine and
 copying its output, which would make the tests agree with the engine by
@@ -207,7 +207,12 @@ lease options — renewal, termination and contraction have run in the engine
 as probability-weighted branches for a while, but no screen ever offered a
 field for one; `leaseOptionSchema` also replaces an unchecked
 `z.record(z.unknown())` at the write route, so an option is validated for
-real rather than accepted as an arbitrary object; recallable fund
+real rather than accepted as an arbitrary object; expansion, purchase, ROFR
+and ROFO options — the four types the engine still refuses to simulate — get
+their own disclosure-only section on the same editor, asking only the field
+each type actually means something by, so a right the API or an import
+attaches to a lease is no longer invisible on screen even though it still
+never reaches the cash flow; recallable fund
 distributions — a recall nets against what an investor kept and against how
 much recall right is still live, both facts the caller states rather than
 this module inferring; it deliberately does not restore or expand unfunded
@@ -226,8 +231,7 @@ this environment's egress policy blocks the same CDN a `clamd` container
 would need at startup to load real virus definitions, so
 end-to-end detection has never run here.
 
-**Designed only.** A handful of lease-option types (expansion, purchase,
-ROFR, ROFO) and the fund-level waterfall stay documented as not modelled
+**Designed only.** The fund-level waterfall stays documented as not modelled
 rather than approximated; the live property-research integration; and the
 optional AI assistant — which is disabled by default and adds no paid
 dependency without approval.

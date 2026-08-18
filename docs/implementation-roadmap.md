@@ -148,6 +148,20 @@ what breaks — a small, specific gap now, not an unknown one.
   an options editor in its own tooltip text since it was written. The write
   route's `options` field is validated against the real `leaseOptionSchema`
   now too, in place of an unchecked `z.record(z.unknown())`.
+  ~~**Purchase, ROFR, ROFO and expansion as disclosure fields.**~~ Done. The
+  engine still refuses all four with `LEASE_OPTION_NOT_MODELLED` — that has
+  not changed, and expansion still needs the space reference described above
+  before it can be honoured for real. What was missing was narrower: a lease
+  carrying one of these four, written directly against the API or by a future
+  import path, was invisible on the lease editor — `otherOptions` merged it
+  back in unedited on save, but no screen ever showed it existed. The editor
+  now offers a second, disclosure-only section for exactly these four types,
+  asking only the fields each one actually means something by (an area for
+  expansion, a price for purchase, dates and a likelihood for all four) rather
+  than reusing the renewal-shaped form those fields do not fit. A disclosed
+  right with a nonzero likelihood still raises the existing
+  `LEASE_OPTION_NOT_MODELLED` diagnostic on the Validation tab, so recording
+  one is never mistaken for making it affect the forecast.
 - ~~**Multiple recovery pools per lease**, reconciliation timing and prior-year
   true-ups.~~ Done. A lease settles any number of pools, each with its own base
   year, cap history and reconciliation, and a tenant can be billed an estimate
