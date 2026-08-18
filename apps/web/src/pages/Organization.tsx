@@ -189,7 +189,7 @@ export function OrganizationPage(): JSX.Element {
                             disabled={remove.pending}
                             onClick={async () => {
                               if (
-                                window.confirm(`Remove ${member.name} from this organization?`) &&
+                                window.confirm(`Remove "${member.name}" from this organization?`) &&
                                 (await remove.run(member.user_id))
                               ) {
                                 members.reload();

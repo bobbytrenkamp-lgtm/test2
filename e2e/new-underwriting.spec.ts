@@ -36,8 +36,34 @@ test.describe('as an analyst', () => {
     ).toBeVisible();
 
     // And the model workspace actually resolved the property this same
-    // request created — its name is shown somewhere in the workspace chrome.
-    await expect(page.getByText('E2E Underwriting Tower')).toBeVisible();
+    // request created — its own breadcrumb names it, and links back to it.
+    await expect(
+      page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', {
+        name: 'E2E Underwriting Tower',
+      }),
+    ).toBeVisible();
+  });
+
+  test('names what is missing next to the field itself, rather than a generic browser popup', async ({
+    page,
+  }) => {
+    await page.goto('/underwriting/new');
+    await expect(page.getByRole('heading', { name: 'New underwriting' })).toBeVisible();
+
+    // Name starts empty; every other required field already carries a
+    // default. Submitting as-is should refuse with a message tied to the
+    // one field that needs it, not the browser's own "Please fill out this
+    // field" bubble, which names nothing and reads nothing out to a screen
+    // reader beyond the field's own label.
+    await page.getByRole('button', { name: 'Start underwriting' }).click();
+
+    await expect(page.getByText('Name is required.')).toBeVisible();
+    // Still on the form: a client-side refusal, not a server round trip.
+    await expect(page.getByRole('heading', { name: 'New underwriting' })).toBeVisible();
+
+    await page.getByLabel('Name', { exact: true }).fill('E2E Validation Feedback Tower');
+    await page.getByRole('button', { name: 'Start underwriting' }).click();
+    await expect(page).toHaveURL(/\/models\/[0-9a-f-]+\/assumptions/);
   });
 
   test('is accessible', async ({ page }) => {

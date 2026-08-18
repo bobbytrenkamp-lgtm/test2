@@ -240,6 +240,37 @@ input[inputmode='decimal'] {
   letter-spacing: -0.01em;
 }
 
+.breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.breadcrumbs li {
+  display: flex;
+  align-items: center;
+}
+.breadcrumbs li:not(:last-child)::after {
+  content: '/';
+  margin: 0 var(--space-2);
+  color: var(--border-strong);
+}
+.breadcrumbs a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.breadcrumbs a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.breadcrumbs span[aria-current='page'] {
+  color: var(--text);
+}
+
 .page-title {
   display: flex;
   align-items: baseline;
@@ -835,6 +866,14 @@ details.chart-data > summary {
   border: 1px solid var(--border);
   border-radius: 3px;
   padding: 1px 4px;
+}
+
+.command-hint kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 2px;
 }
 
 /* Notifications ----------------------------------------------------------- */

@@ -76,6 +76,15 @@ test.describe('command palette', () => {
     await expect(page.getByText(/Nothing matches/)).toBeVisible();
   });
 
+  test('has a visible hint in the header, since the shortcut is otherwise undiscoverable', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+    await page.getByRole('button', { name: 'Search properties and models' }).click();
+    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+  });
+
   test('is accessible', async ({ page }) => {
     await openPalette(page);
 

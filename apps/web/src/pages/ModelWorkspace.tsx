@@ -9,7 +9,14 @@ import {
   type WorkflowResponse,
   type WorkflowStep,
 } from '../api.js';
-import { EmptyState, ErrorMessage, FavouriteButton, Loading, StatusBadge } from '../components.js';
+import {
+  Breadcrumbs,
+  EmptyState,
+  ErrorMessage,
+  FavouriteButton,
+  Loading,
+  StatusBadge,
+} from '../components.js';
 import { formatDate, titleCase } from '../format.js';
 import { useMutation, useResource, useShortcut } from '../hooks.js';
 import { recordRecent } from '../recents.js';
@@ -147,6 +154,13 @@ export function ModelWorkspace(): JSX.Element {
 
   return (
     <>
+      <Breadcrumbs
+        items={[
+          { label: 'All properties', to: '/properties' },
+          ...(property ? [{ label: property.name, to: `/properties/${property.id}` }] : []),
+          { label: model.name },
+        ]}
+      />
       <div className="page-title">
         <div>
           <h1>

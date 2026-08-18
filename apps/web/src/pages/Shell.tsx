@@ -93,6 +93,25 @@ export function Shell(): JSX.Element {
         </div>
 
         <div className="row">
+          {session.organizationId && (
+            <button
+              type="button"
+              className="subtle command-hint"
+              // The palette itself owns its open state and listens for this
+              // same keystroke (useShortcut('k', ...) in CommandPalette.tsx);
+              // dispatching it here rather than lifting that state up keeps
+              // this button a pure discoverability aid for a shortcut that
+              // otherwise has no on-screen hint anywhere in the app.
+              onClick={() =>
+                window.dispatchEvent(
+                  new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }),
+                )
+              }
+              aria-label="Search properties and models"
+            >
+              Search <kbd>⌘K</kbd>
+            </button>
+          )}
           {session.organizationId && <NotificationBell />}
           <NavLink to="/security" style={{ color: 'var(--text-muted)' }}>
             {session.user.name}

@@ -176,3 +176,61 @@ jobs:
       # doc-count mismatch is the less interesting of the two.
       - name: Documentation matches the code
         run: node scripts/check-docs.mjs
+
+  # A separate job, deliberately: it needs none of the pnpm install, browser
+  # download or database seed above, and shares no state with `verify` — the
+  # stack it brings up needs the host's port 5432 for its own PostgreSQL
+  # container, which would collide with the `verify` job's service container
+  # if this ran alongside it in the same job. See docs/deployment-guide.md for
+  # the long version of what this proves and why it was never run before: the
+  # images had only ever been reviewed, not built. Docker itself is
+  # pre-installed on this runner; no paid registry, image scanner or
+  # deployment target is involved.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # `mirror.gcr.io` rather than `docker.io` in the Dockerfiles and compose
+      # file — see the comment at the top of infrastructure/Dockerfile.api.
+      # GitHub-hosted runners are not egress-restricted the way this
+      # repository was developed, so `docker.io` itself is very likely
+      # reachable here too; the mirror is kept because it costs nothing to
+      # keep and removes one more thing that could flake.
+      - name: Build the images
+        run: docker compose -f infrastructure/docker-compose.yml build
+
+      - name: Validate the compose file
+        run: docker compose -f infrastructure/docker-compose.yml config -q
+
+      - name: Bring up the stack
+        run: docker compose -f infrastructure/docker-compose.yml up -d postgres api worker web
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Drives the real, built images over HTTP: registers a user, builds a
+      # property and a model, calculates it, and confirms the worker
+      # container's Alpine-packaged Chromium — apk add chromium, not
+      # Playwright's own managed browser — renders a real PDF. Nothing else
+      # in this repository has ever exercised that specific packaging step;
+      # apps/worker/src/pdf.test.ts proves the rendering code itself works,
+      # against the browser this same runner already manages for Playwright,
+      # not the one apk installs.
+      - name: Docker smoke test
+        run: pnpm docker:smoke-test
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f infrastructure/docker-compose.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infrastructure/docker-compose.yml down -v

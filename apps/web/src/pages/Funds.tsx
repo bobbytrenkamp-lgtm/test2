@@ -437,8 +437,19 @@ function InvestorForm({
     }),
   );
 
+  const [showProblems, setShowProblems] = useState(false);
+  const problems = {
+    code: code.trim() ? undefined : 'Investor reference is required.',
+    name: name.trim() ? undefined : 'Name is required.',
+    commitment: commitment.trim() ? undefined : 'Commitment is required.',
+  };
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (Object.values(problems).some(Boolean)) {
+      setShowProblems(true);
+      return;
+    }
     if (await save.run()) {
       setCode('');
       setName('');
@@ -448,7 +459,7 @@ function InvestorForm({
   }
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} noValidate>
       <h2>Add or update an investor</h2>
       {save.error?.status === 409 ? (
         <div className="message error" role="alert">
@@ -463,21 +474,15 @@ function InvestorForm({
       )}
 
       <div className="form-grid">
-        <Field label="Investor reference" hint="Stable identifier used in reports.">
-          <input
-            required
-            maxLength={60}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-          />
+        <Field
+          label="Investor reference"
+          hint="Stable identifier used in reports."
+          {...(showProblems && problems.code ? { error: problems.code } : {})}
+        >
+          <input maxLength={60} value={code} onChange={(event) => setCode(event.target.value)} />
         </Field>
-        <Field label="Name">
-          <input
-            required
-            maxLength={200}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
+        <Field label="Name" {...(showProblems && problems.name ? { error: problems.name } : {})}>
+          <input maxLength={200} value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
         <Field label="Class">
           <select value={investorClass} onChange={(event) => setInvestorClass(event.target.value)}>
@@ -485,9 +490,12 @@ function InvestorForm({
             <option value="gp">General partner</option>
           </select>
         </Field>
-        <Field label="Commitment" hint="Total capital committed, in the fund's currency.">
+        <Field
+          label="Commitment"
+          hint="Total capital committed, in the fund's currency."
+          {...(showProblems && problems.commitment ? { error: problems.commitment } : {})}
+        >
           <input
-            required
             inputMode="decimal"
             value={commitment}
             onChange={(event) => setCommitment(event.target.value)}
@@ -531,8 +539,19 @@ function TransactionForm({
     }),
   );
 
+  const [showProblems, setShowProblems] = useState(false);
+  const problems = {
+    investorCode: investorCode ? undefined : 'Choose an investor.',
+    date: date ? undefined : 'Date is required.',
+    amount: amount.trim() ? undefined : 'Amount is required.',
+  };
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (Object.values(problems).some(Boolean)) {
+      setShowProblems(true);
+      return;
+    }
     if (await save.run()) {
       setAmount('');
       setReference('');
@@ -554,7 +573,7 @@ function TransactionForm({
   }
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} noValidate>
       <h2>Record capital</h2>
       <p className="field-hint" style={{ marginTop: 0 }}>
         Amounts are always positive. Whether money is going out or coming back is decided by the
@@ -563,12 +582,11 @@ function TransactionForm({
       <ErrorMessage error={save.error} />
 
       <div className="form-grid">
-        <Field label="Investor">
-          <select
-            required
-            value={investorCode}
-            onChange={(event) => setInvestorCode(event.target.value)}
-          >
+        <Field
+          label="Investor"
+          {...(showProblems && problems.investorCode ? { error: problems.investorCode } : {})}
+        >
+          <select value={investorCode} onChange={(event) => setInvestorCode(event.target.value)}>
             <option value="">Choose an investor</option>
             {investors.map((investor) => (
               <option key={investor.id} value={investor.code}>
@@ -584,17 +602,14 @@ function TransactionForm({
             <option value="recall">Recall</option>
           </select>
         </Field>
-        <Field label="Date">
-          <input
-            required
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-          />
+        <Field label="Date" {...(showProblems && problems.date ? { error: problems.date } : {})}>
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         </Field>
-        <Field label={`Amount (${currency})`}>
+        <Field
+          label={`Amount (${currency})`}
+          {...(showProblems && problems.amount ? { error: problems.amount } : {})}
+        >
           <input
-            required
             inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}

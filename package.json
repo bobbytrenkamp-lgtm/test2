@@ -32,7 +32,8 @@
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:docs": "node scripts/check-docs.mjs",
     "api:inventory": "tsx scripts/api-inventory.ts",
-    "build:demo": "tsx scripts/build-demo.ts"
+    "build:demo": "tsx scripts/build-demo.ts",
+    "docker:smoke-test": "tsx scripts/docker-smoke-test.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.10.2",
