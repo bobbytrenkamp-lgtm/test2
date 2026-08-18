@@ -158,7 +158,7 @@ built bundle:
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
-| Fund positions | `e2e/funds.spec.ts` | 6 |
+| Fund positions | `e2e/funds.spec.ts` | 7 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
@@ -176,7 +176,7 @@ built bundle:
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
-| New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility | `e2e/new-underwriting.spec.ts` | 3 |
+| New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility, names a missing required field instead of a browser popup | `e2e/new-underwriting.spec.ts` | 4 |
 | Workflow/progress surface: all ten steps render on a real model, reflect real state, and are accessible | `e2e/workflow-progress.spec.ts` | 2 |
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 | Pending decisions on the dashboard: shows and links to a pending proposal, gives two proposals on the same model names a rotor can tell apart, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 4 |
@@ -187,8 +187,9 @@ built bundle:
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
+| New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
 
-**248 browser tests in total**, for 1758 across the whole repository.
+**252 browser tests in total**, for 1762 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

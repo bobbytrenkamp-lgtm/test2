@@ -81,8 +81,21 @@ export function NewUnderwritingPage(): JSX.Element {
     }),
   );
 
+  const [showProblems, setShowProblems] = useState(false);
+  const problems = {
+    name: form.name.trim() ? undefined : 'Name is required.',
+    modelName: form.modelName.trim() ? undefined : 'Model name is required.',
+    valuationDate: form.valuationDate ? undefined : 'Valuation date is required.',
+    forecastStartDate: form.forecastStartDate ? undefined : 'Forecast start is required.',
+    forecastMonths: form.forecastMonths.trim() ? undefined : 'Forecast months is required.',
+  };
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (Object.values(problems).some(Boolean)) {
+      setShowProblems(true);
+      return;
+    }
     const result = await create.run();
     if (result) navigate(`/models/${result.model.id}/assumptions`);
   }
@@ -108,14 +121,13 @@ export function NewUnderwritingPage(): JSX.Element {
         </div>
       </div>
 
-      <form className="card" onSubmit={submit}>
+      <form className="card" onSubmit={submit} noValidate>
         <ErrorMessage error={create.error} />
 
         <h2 style={{ marginTop: 0 }}>The property</h2>
         <div className="form-grid">
-          <Field label="Name">
+          <Field label="Name" {...(showProblems && problems.name ? { error: problems.name } : {})}>
             <input
-              required
               maxLength={200}
               value={form.name}
               onChange={(event) => set('name', event.target.value)}
@@ -163,9 +175,11 @@ export function NewUnderwritingPage(): JSX.Element {
 
         <h2>The first model</h2>
         <div className="form-grid">
-          <Field label="Model name">
+          <Field
+            label="Model name"
+            {...(showProblems && problems.modelName ? { error: problems.modelName } : {})}
+          >
             <input
-              required
               maxLength={200}
               value={form.modelName}
               onChange={(event) => set('modelName', event.target.value)}
@@ -183,18 +197,25 @@ export function NewUnderwritingPage(): JSX.Element {
               ))}
             </select>
           </Field>
-          <Field label="Valuation date">
+          <Field
+            label="Valuation date"
+            {...(showProblems && problems.valuationDate ? { error: problems.valuationDate } : {})}
+          >
             <input
               type="date"
-              required
               value={form.valuationDate}
               onChange={(event) => set('valuationDate', event.target.value)}
             />
           </Field>
-          <Field label="Forecast start" hint="Coerced to the first of the month.">
+          <Field
+            label="Forecast start"
+            hint="Coerced to the first of the month."
+            {...(showProblems && problems.forecastStartDate
+              ? { error: problems.forecastStartDate }
+              : {})}
+          >
             <input
               type="date"
-              required
               value={form.forecastStartDate}
               onChange={(event) => set('forecastStartDate', event.target.value)}
             />
@@ -202,10 +223,10 @@ export function NewUnderwritingPage(): JSX.Element {
           <Field
             label="Forecast months"
             hint="Run at least 12 months past the sale so a forward NOI is available."
+            {...(showProblems && problems.forecastMonths ? { error: problems.forecastMonths } : {})}
           >
             <input
               inputMode="numeric"
-              required
               value={form.forecastMonths}
               onChange={(event) => set('forecastMonths', event.target.value)}
             />
