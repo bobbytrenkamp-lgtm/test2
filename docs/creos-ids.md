@@ -32,7 +32,7 @@ and [`test4/docs/ARCHITECTURE.md`](https://github.com/bobbytrenkamp-lgtm/test4/b
 
 ## Status
 
-**Utility available; consumed by the Phase 5 SiteIntel handoff importer.**
+**Utility available; consumed by the Phase 5/6 CREOS handoff importer.**
 `packages/domain-models/src/creos-ids.ts` (Phase 4) implements the
 generator/validator side of this scheme as Zod-branded IDs
 (`CreosPropertyId`, `CreosDealId`, `CreosMarketId`, `CreosReportId`) — a
@@ -51,9 +51,13 @@ As of Phase 5 (`test4/docs/INTEGRATION_ROADMAP.md`), the unbranded
 `handoffId`/`assumptionId`/`propertyId` fields of an incoming
 `creos-handoff-v1` payload — the first real consumer of this utility.
 See that file's header comment and `docs/claude-assumption-import.md`
-for how a SiteIntel handoff reaches this app: a `.json` file downloaded
-from SiteIntel's "Send to Underwrite" action, imported via
-`AssumptionImportTab.tsx`'s file picker, translated into a
-`cre-assumption-import` v1 document, and reviewed through the exact
-same deterministic analyze/accept-by-hand path any other import uses —
-nothing is written automatically.
+for how a handoff reaches this app: a `.json` file downloaded from
+SiteIntel's or (as of Phase 6) MarketSignal's "Send to Underwrite"
+action, imported via `AssumptionImportTab.tsx`'s file picker, translated
+into a `cre-assumption-import` v1 document (`translateCreosHandoff`,
+generalized in Phase 6 to route a handoff's facts differently depending
+on `sourceModule` — a MarketSignal forecast can name a real underwriting
+target where a SiteIntel fact never can, see that function's own module
+doc), and reviewed through the exact same deterministic analyze/
+accept-by-hand path any other import uses — nothing is written
+automatically.

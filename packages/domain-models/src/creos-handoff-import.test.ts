@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateCreosUlid } from './creos-ids.js';
 import {
   parseCreosHandoffPayload,
-  translateSiteIntelHandoff,
+  translateCreosHandoff,
   CreosHandoffV1Schema,
 } from './creos-handoff-import.js';
 import { creAssumptionImportSchema } from './cre-assumption-import.js';
@@ -193,10 +193,10 @@ describe('CreosHandoffV1Schema', () => {
   });
 });
 
-describe('translateSiteIntelHandoff', () => {
+describe('translateCreosHandoff', () => {
   const parsed = parseCreosHandoffPayload(JSON.stringify(fixtureHandoff()));
   if (!parsed.ok) throw new Error('fixture must parse');
-  const translated = translateSiteIntelHandoff(parsed.data);
+  const translated = translateCreosHandoff(parsed.data);
 
   it('produces a valid cre-assumption-import v1 document', () => {
     expect(() => creAssumptionImportSchema.parse(translated)).not.toThrow();
@@ -275,14 +275,14 @@ describe('translateSiteIntelHandoff', () => {
   });
 
   it('is a pure function: translating the same handoff twice produces the same targets and values', () => {
-    const again = translateSiteIntelHandoff(parsed.data);
+    const again = translateCreosHandoff(parsed.data);
     expect(again.assumptions.map((a) => [a.target, a.value])).toEqual(
       translated.assumptions.map((a) => [a.target, a.value]),
     );
   });
 });
 
-describe('translateSiteIntelHandoff — property with no name and no state observation', () => {
+describe('translateCreosHandoff — property with no name and no state observation', () => {
   it('never fabricates a property name or state; both are null rather than guessed', () => {
     const parsed = parseCreosHandoffPayload(
       JSON.stringify(
@@ -295,8 +295,173 @@ describe('translateSiteIntelHandoff — property with no name and no state obser
       ),
     );
     if (!parsed.ok) throw new Error('fixture must parse');
-    const translated = translateSiteIntelHandoff(parsed.data);
+    const translated = translateCreosHandoff(parsed.data);
     expect(translated.property.state).toBeNull();
     expect(translated.assumptions).toEqual([]);
   });
+});
+
+/** A minimal, realistic creos-handoff-v1 payload matching what test3's
+ * src/test3/creos_handoff.py actually produces for a single assumption
+ * run (see that repo, Phase 6). */
+function fixtureMarketSignalHandoff(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schemaVersion: 'creos-handoff-v1',
+    handoffId: generateCreosUlid(),
+    createdAt: '2026-08-19T12:00:00.000Z',
+    sourceModule: 'marketsignal',
+    targetModule: 'underwrite',
+    sourceApplicationVersion: 'test3-marketsignal',
+    property: {
+      identity: { propertyId: generateCreosUlid(), propertyName: 'Riverside Industrial Portfolio' },
+      classification: { propertyType: 'industrial' },
+    },
+    observations: [],
+    assumptions: [
+      {
+        assumptionId: generateCreosUlid(),
+        name: 'Vacancy',
+        category: 'vacancy',
+        unit: 'decimal_fraction',
+        valueType: 'number',
+        value: 0.08,
+        sourceType: 'modeled',
+        sourceModule: 'marketsignal',
+        status: 'proposed',
+        confidence: 'medium',
+        methodology: 'MarketSignal candidate recommendation (method: hierarchical_fallback).',
+        createdAt: '2026-08-19T12:00:00.000Z',
+        updatedAt: '2026-08-19T12:00:00.000Z',
+      },
+      {
+        assumptionId: generateCreosUlid(),
+        name: 'Market rent growth',
+        category: 'market_rent_growth',
+        unit: 'decimal_fraction',
+        valueType: 'number',
+        value: 0.03,
+        sourceType: 'modeled',
+        sourceModule: 'marketsignal',
+        status: 'proposed',
+        confidence: 'low',
+        createdAt: '2026-08-19T12:00:00.000Z',
+        updatedAt: '2026-08-19T12:00:00.000Z',
+      },
+    ],
+    provenance: [],
+    sources: [],
+    ...overrides,
+  };
+}
+
+describe('translateCreosHandoff — Phase 6 MarketSignal handoff', () => {
+  const parsed = parseCreosHandoffPayload(JSON.stringify(fixtureMarketSignalHandoff()));
+  if (!parsed.ok) throw new Error('fixture must parse');
+  const translated = translateCreosHandoff(parsed.data);
+
+  it('produces a valid cre-assumption-import v1 document', () => {
+    expect(() => creAssumptionImportSchema.parse(translated)).not.toThrow();
+  });
+
+  it('labels the source as CREOS MarketSignal, not SiteIntel', () => {
+    expect(translated.source.system).toBe('CREOS MarketSignal');
+  });
+
+  it('reads from assumptions[], not observations[] (MarketSignal populates the former)', () => {
+    expect(translated.assumptions).toHaveLength(2);
+  });
+
+  it('routes vacancy to the real vacancy.generalVacancyRate target', () => {
+    expect(translated.assumptions.map((a) => a.target)).toContain('vacancy.generalVacancyRate');
+    const item = translated.assumptions.find((a) => a.target === 'vacancy.generalVacancyRate');
+    expect(item?.value).toBe(0.08);
+  });
+
+  it('routes an assumption type with no direct target (market_rent_growth) to the informational marketSignal.* namespace', () => {
+    expect(translated.assumptions.map((a) => a.target)).toContain(
+      'marketSignal.market_rent_growth',
+    );
+  });
+
+  it('every direct-target assumption still analyzes as new/changed (a real, applicable target), never silently pre-decided', () => {
+    const analysis = analyzeImport(creAssumptionImportSchema.parse(translated), fixtureModel());
+    const vacancyItem = analysis.items.find((item) => item.target === 'vacancy.generalVacancyRate');
+    expect(vacancyItem).toBeDefined();
+    expect(['new', 'changed']).toContain(vacancyItem?.status);
+  });
+
+  it('an informational MarketSignal fact still analyzes as unsupported, same as a SiteIntel fact', () => {
+    const analysis = analyzeImport(creAssumptionImportSchema.parse(translated), fixtureModel());
+    const item = analysis.items.find((entry) => entry.target === 'marketSignal.market_rent_growth');
+    expect(item?.status).toBe('unsupported');
+  });
+});
+
+describe('translateCreosHandoff — MarketSignal direct-target coverage (all 3)', () => {
+  it.each([
+    ['vacancy', 'vacancy.generalVacancyRate'],
+    ['exit_cap_rate', 'valuation.terminalCapRate'],
+    ['discount_rate', 'valuation.discountRate'],
+  ])('routes category "%s" to real target "%s"', (category, expectedTarget) => {
+    const doc = fixtureMarketSignalHandoff({
+      assumptions: [
+        {
+          assumptionId: generateCreosUlid(),
+          name: 'Test assumption',
+          category,
+          valueType: 'number',
+          value: 0.07,
+          sourceType: 'modeled',
+          sourceModule: 'marketsignal',
+          status: 'proposed',
+          createdAt: '2026-08-19T12:00:00.000Z',
+          updatedAt: '2026-08-19T12:00:00.000Z',
+        },
+      ],
+    });
+    const parsed = parseCreosHandoffPayload(JSON.stringify(doc));
+    if (!parsed.ok) throw new Error('fixture must parse');
+    const translated = translateCreosHandoff(parsed.data);
+    expect(translated.assumptions[0]?.target).toBe(expectedTarget);
+  });
+
+  it.each([
+    'market_rent',
+    'renewal_probability',
+    'downtime',
+    'tenant_improvements',
+    'leasing_commissions',
+    'expense_growth',
+    'property_tax_growth',
+    'insurance_growth',
+    'debt_interest_rate',
+    'construction_cost_growth',
+    'lease_up_pace',
+  ])(
+    'routes category "%s" (no direct target) to the informational namespace, never a guessed real path',
+    (category) => {
+      const doc = fixtureMarketSignalHandoff({
+        assumptions: [
+          {
+            assumptionId: generateCreosUlid(),
+            name: 'Test assumption',
+            category,
+            valueType: 'number',
+            value: 1,
+            sourceType: 'modeled',
+            sourceModule: 'marketsignal',
+            status: 'proposed',
+            createdAt: '2026-08-19T12:00:00.000Z',
+            updatedAt: '2026-08-19T12:00:00.000Z',
+          },
+        ],
+      });
+      const parsed = parseCreosHandoffPayload(JSON.stringify(doc));
+      if (!parsed.ok) throw new Error('fixture must parse');
+      const translated = translateCreosHandoff(parsed.data);
+      expect(translated.assumptions[0]?.target).toBe(`marketSignal.${category}`);
+    },
+  );
 });

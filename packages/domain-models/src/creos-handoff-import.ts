@@ -7,8 +7,8 @@ import type {
 } from './cre-assumption-import.js';
 
 /**
- * `creos-handoff-v1` (Phase 5: SiteIntel -> Underwrite handoff, receiving
- * side).
+ * `creos-handoff-v1` (Phase 5: SiteIntel -> Underwrite; Phase 6:
+ * MarketSignal -> Underwrite — receiving side for both).
  *
  * The authoritative schema for this contract lives in the CREOS Enterprise
  * repository (`src/domain/handoff.ts`, `property.ts`, `assumption.ts`) — no
@@ -16,43 +16,57 @@ import type {
  * so this file ports the validation rules this app actually needs to check
  * by hand, the same pattern already established for `creos-ids.ts`. This is
  * NOT a full reimplementation of that repository's schema (no referential-
- * integrity check across `sources[]`/`provenance[]`, since Phase 5's
- * SiteIntel producer — see that repo's `js/parcel/handoff.js` — never
- * populates those arrays); it validates exactly the surface this module
- * reads, and fails closed (rejects, does not guess) on anything it doesn't
- * recognize, matching this project's own governance conventions.
+ * integrity check across `sources[]`/`provenance[]`, since neither producer
+ * this app has seen so far — test1's `js/parcel/handoff.js`, test3's
+ * `src/test3/creos_handoff.py` — populates those arrays); it validates
+ * exactly the surface this module reads, and fails closed (rejects, does
+ * not guess) on anything it doesn't recognize, matching this project's own
+ * governance conventions.
  *
  * ## What this module does NOT do
  *
- * It does not write anything anywhere. `translateSiteIntelHandoff` is a
- * pure function producing a `cre-assumption-import` v1 document (see
+ * It does not write anything anywhere. `translateCreosHandoff` is a pure
+ * function producing a `cre-assumption-import` v1 document (see
  * `cre-assumption-import.ts`) — from there, the translated document goes
  * through the exact same `analyzeImport` / accept-by-hand path any other
- * import does. A SiteIntel observation reaches `assumption_proposals` only
- * if an analyst explicitly accepts it there, same as a person-posted
- * proposal or a Claude Skill's PDF extraction.
+ * import does. A handoff fact reaches `assumption_proposals` only if an
+ * analyst explicitly accepts it there, same as a person-posted proposal or
+ * a Claude Skill's PDF extraction.
  *
- * ## Why every SiteIntel fact lands as "unsupported", not "new"/"changed"
+ * ## One translator, two source modules, two different outcomes
  *
- * SiteIntel's `observed` block (see that repo's
- * `js/parcel/site-intelligence.js` — `toUnderwritingInputs()`) is
- * deliberately never underwriting *inputs*: assessed value is explicitly
- * not a purchase price, a prior sale is explicitly not a future one, and
- * SiteIntel refuses outright to supply `acquisition_price` (see that
- * repository's `assumptions_required` block, which this translator never
- * reads — it is nulls-with-reasons by design and this app has no
- * corresponding field to put a fabricated value in regardless). None of
- * `assumption-targets.ts`'s real targets (`valuation.*`, `vacancy.*`, the
- * various collections) describe a zoning code, a tax-assessed value, or a
- * parcel's acreage — there is no model field these facts could correctly
- * overwrite. So every `siteIntel.*` target this module produces resolves
- * to `status: 'unsupported'` in the analyzer, which is the *correct*
- * outcome, not a gap to route around: `assumption-proposals.ts`'s own
- * module doc says a proposal whose target this release cannot locate
- * "is still shown to the analyst... silently dropping it would be the
- * worst of the options." That is exactly SiteIntel's situation here —
- * these are informational context for a human decision, never something
- * this app should offer to auto-apply.
+ * `translateCreosHandoff` dispatches on `handoff.sourceModule` and combines
+ * whichever of `observations[]`/`assumptions[]` that source populates
+ * (SiteIntel sends raw facts as `observations[]`; MarketSignal sends
+ * modeled recommendations as `assumptions[]` — see each producer's own
+ * source for why). What differs is target routing:
+ *
+ * - **SiteIntel** (Phase 5): every fact is deliberately routed to an
+ *   informational `siteIntel.<category>.<field>` namespace, never a real
+ *   target. Its `observed` block (`js/parcel/site-intelligence.js`'s
+ *   `toUnderwritingInputs()`) is never underwriting *input* — assessed
+ *   value is explicitly not a purchase price, a prior sale is explicitly
+ *   not a future one, and SiteIntel refuses outright to supply
+ *   `acquisition_price`. None of `assumption-targets.ts`'s real targets
+ *   describe a zoning code or a parcel's acreage — there is no model field
+ *   these facts could correctly overwrite.
+ * - **MarketSignal** (Phase 6): its `ASSUMPTION_CATALOG`
+ *   (`src/test3/assumptions/catalog.py`) genuinely does target real
+ *   underwriting fields for 3 of its 15 assumption types — a market's
+ *   vacancy/exit-cap/discount-rate forecast really can inform
+ *   `vacancy.generalVacancyRate` / `valuation.terminalCapRate` /
+ *   `valuation.discountRate`, and `MARKET_SIGNAL_DIRECT_TARGETS` below
+ *   routes exactly those three there directly. The other 12 (rent growth,
+ *   leasing-profile fields, debt rate, ...) need a model-specific
+ *   collection row `<code>` MarketSignal cannot know at export time
+ *   (`growthCurves.<code>.field`, `marketLeasing.<code>.marketRent`, ...) —
+ *   sending an uncoded, partially-resolved path would misrepresent it as
+ *   real when it isn't, so those twelve fall back to the same
+ *   `marketSignal.<category>` informational namespace SiteIntel's facts
+ *   use. A direct target still arrives `status: 'proposed'` like every
+ *   cross-module assumption — routing it to a real target changes whether
+ *   an analyst *can* apply it with one click, never whether they have to
+ *   decide first.
  */
 
 const CONFIDENCE_LEVELS = ['low', 'medium', 'high', 'verified'] as const;
@@ -172,7 +186,7 @@ export function parseCreosHandoffPayload(raw: string): ParsedHandoff | RejectedH
     return {
       ok: false,
       error:
-        'The selected file is not valid JSON. It should be the .json file SiteIntel downloaded, unmodified.',
+        'The selected file is not valid JSON. It should be the .json handoff file downloaded from SiteIntel or MarketSignal, unmodified.',
     };
   }
 
@@ -216,6 +230,23 @@ const CONFIDENCE_TO_FRACTION: Record<(typeof CONFIDENCE_LEVELS)[number], number>
   verified: 0.95,
 };
 
+/**
+ * The only three of MarketSignal's 15 catalog assumption types
+ * (`src/test3/assumptions/catalog.py`'s `ASSUMPTION_CATALOG`) that name a
+ * real, model-level (no collection `<code>` needed) underwriting target.
+ * See this file's module doc for why the other twelve stay informational.
+ */
+const MARKET_SIGNAL_DIRECT_TARGETS: Record<string, string> = {
+  vacancy: 'vacancy.generalVacancyRate',
+  exit_cap_rate: 'valuation.terminalCapRate',
+  discount_rate: 'valuation.discountRate',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  siteintel: 'CREOS SiteIntel',
+  marketsignal: 'CREOS MarketSignal',
+};
+
 function slug(name: string): string {
   const cleaned = name
     .replace(/[^A-Za-z0-9]+/g, ' ')
@@ -249,13 +280,30 @@ function mapValueType(
   }
 }
 
-function translateAssumption(item: CreosHandoffAssumption): ImportFieldAssumption {
+function targetFor(sourceModule: string, item: CreosHandoffAssumption): string {
+  if (sourceModule === 'marketsignal') {
+    return MARKET_SIGNAL_DIRECT_TARGETS[item.category] ?? `marketSignal.${item.category}`;
+  }
+  if (sourceModule === 'siteintel') {
+    return `siteIntel.${item.category}.${slug(item.name)}`;
+  }
+  // Defensive fallback for a source module this file hasn't reasoned about
+  // yet — namespaced and informational, never a guessed real target. Only
+  // siteintel/marketsignal above have had their target mappings actually
+  // worked out and tested.
+  return `${sourceModule}.${item.category}.${slug(item.name)}`;
+}
+
+function translateAssumption(
+  sourceModule: string,
+  item: CreosHandoffAssumption,
+): ImportFieldAssumption {
   const extraction: { method: ExtractionMethod; derivation: string | null } = {
     method: 'explicit',
     derivation: null,
   };
   return {
-    target: `siteIntel.${item.category}.${slug(item.name)}`,
+    target: targetFor(sourceModule, item),
     value: item.value,
     valueType: mapValueType(item.valueType),
     unit: item.unit ?? null,
@@ -268,27 +316,32 @@ function translateAssumption(item: CreosHandoffAssumption): ImportFieldAssumptio
 }
 
 /**
- * Pure translation: a validated `creos-handoff-v1` document into a
- * `cre-assumption-import` v1 document, so it can flow through the exact
- * same parse -> analyze -> accept-by-hand pipeline any other import does
- * (see this file's module doc for why that is the right amount of new
- * machinery — none — rather than a second review surface).
+ * Pure translation: a validated `creos-handoff-v1` document (from either
+ * SiteIntel or MarketSignal — see this file's module doc for how target
+ * routing differs between them) into a `cre-assumption-import` v1
+ * document, so it can flow through the exact same parse -> analyze ->
+ * accept-by-hand pipeline any other import does (see this file's module
+ * doc for why that is the right amount of new machinery — none — rather
+ * than a second review surface).
  */
-export function translateSiteIntelHandoff(handoff: CreosHandoffV1): CreAssumptionImport {
+export function translateCreosHandoff(handoff: CreosHandoffV1): CreAssumptionImport {
   const propertyName = handoff.property?.identity?.propertyName ?? null;
   const stateObservation = handoff.observations.find((o) => o.name === 'State');
   const documentDate = handoff.createdAt.slice(0, 10);
+  const sourceLabel =
+    SOURCE_LABELS[handoff.sourceModule] ?? `CREOS handoff (${handoff.sourceModule})`;
+  const items = [...handoff.observations, ...handoff.assumptions];
 
   return {
     format: 'cre-assumption-import',
     version: 1,
     source: {
       kind: 'imported',
-      system: 'CREOS SiteIntel',
+      system: sourceLabel,
       skill: null,
       documentName: propertyName
-        ? `SiteIntel handoff: ${propertyName}`
-        : `SiteIntel handoff ${handoff.handoffId.slice(-8)}`,
+        ? `${sourceLabel} handoff: ${propertyName}`
+        : `${sourceLabel} handoff ${handoff.handoffId.slice(-8)}`,
       documentDate,
       extractedAt: handoff.createdAt,
     },
@@ -298,7 +351,7 @@ export function translateSiteIntelHandoff(handoff: CreosHandoffV1): CreAssumptio
       market: handoff.property?.market?.submarket ?? null,
       state: typeof stateObservation?.value === 'string' ? stateObservation.value : null,
     },
-    assumptions: handoff.observations.map(translateAssumption),
+    assumptions: items.map((item) => translateAssumption(handoff.sourceModule, item)),
     records: [],
   };
 }

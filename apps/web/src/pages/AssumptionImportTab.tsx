@@ -9,7 +9,7 @@ import type {
   ImportItemStatus,
   MissingCollectionRecord,
 } from '@cre/domain-models';
-import { parseCreosHandoffPayload, translateSiteIntelHandoff } from '@cre/domain-models';
+import { parseCreosHandoffPayload, translateCreosHandoff } from '@cre/domain-models';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Field } from '../components.js';
 import {
@@ -102,6 +102,7 @@ export function AssumptionImportTab(): JSX.Element {
   const [beforeReturns, setBeforeReturns] = useState<typeof cashFlow>(null);
   const [handoffError, setHandoffError] = useState<string | null>(null);
   const [handoffFilename, setHandoffFilename] = useState<string | null>(null);
+  const [handoffSourceModule, setHandoffSourceModule] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   const analyze = useMutation(async () => {
@@ -280,8 +281,8 @@ export function AssumptionImportTab(): JSX.Element {
         </div>
 
         <Field
-          label="Or import a CREOS SiteIntel handoff"
-          hint="A creos-handoff-v1 .json file downloaded from SiteIntel's 'Send to Underwrite' action. Read in the browser, translated to the format above, and analyzed the same deterministic way — nothing here is written until you choose to apply it below."
+          label="Or import a CREOS handoff"
+          hint="A creos-handoff-v1 .json file downloaded from SiteIntel's or MarketSignal's 'Send to Underwrite' action. Read in the browser, translated to the format above, and analyzed the same deterministic way — nothing here is written until you choose to apply it below."
         >
           <input
             type="file"
@@ -297,8 +298,9 @@ export function AssumptionImportTab(): JSX.Element {
                 setHandoffError(parsed.error);
                 return;
               }
-              const translated = translateSiteIntelHandoff(parsed.data);
+              const translated = translateCreosHandoff(parsed.data);
               setHandoffFilename(file.name);
+              setHandoffSourceModule(parsed.data.sourceModule);
               setPaste(JSON.stringify(translated, null, 2));
               setAnalysis(null);
               setApplyResult(null);
@@ -308,10 +310,22 @@ export function AssumptionImportTab(): JSX.Element {
         </Field>
         {handoffFilename && !handoffError && (
           <p className="field-hint" style={{ marginTop: -8 }}>
-            Loaded {handoffFilename} — every fact from a SiteIntel handoff is informational only
-            (target <code>siteIntel.*</code>): SiteIntel does not supply underwriting inputs like
-            acquisition price, so these will analyze as "Unsupported" rather than
-            new/changed/ready-to-apply. Review them for context; nothing here writes to the model.
+            {handoffSourceModule === 'marketsignal' ? (
+              <>
+                Loaded {handoffFilename} — MarketSignal's vacancy, exit cap rate, and discount rate
+                forecasts map onto real model targets and can analyze as ready to apply; every other
+                fact (target <code>marketSignal.*</code>) is informational only. Review each one on
+                its own merits; nothing here writes to the model until you apply it below.
+              </>
+            ) : (
+              <>
+                Loaded {handoffFilename} — every fact from a SiteIntel handoff is informational only
+                (target <code>siteIntel.*</code>): SiteIntel does not supply underwriting inputs
+                like acquisition price, so these will analyze as "Unsupported" rather than
+                new/changed/ready-to-apply. Review them for context; nothing here writes to the
+                model.
+              </>
+            )}
           </p>
         )}
         {handoffError && (
