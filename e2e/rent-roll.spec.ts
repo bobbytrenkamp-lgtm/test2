@@ -268,3 +268,73 @@ test('is accessible with an option added', async ({ page }) => {
   );
   expect(summary, summary.join('\n')).toEqual([]);
 });
+
+/**
+ * Purchase, ROFR, ROFO and expansion: rights the engine deliberately refuses
+ * to simulate (`NOT_MODELLED` in `lease-options.ts`), recorded here for
+ * reference only. Before this editor existed, one of these arriving through
+ * the API — an import, or a future integration — was invisible on this
+ * screen entirely: `otherOptions` merged it back unedited on save, but
+ * nothing ever showed it to the person editing the lease.
+ */
+test('records a purchase option as a disclosure, and it survives a reload', async ({ page }) => {
+  const code = 'E2E-LEASE-PURCHASE';
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByLabel('Lease reference').fill(code);
+  await page.getByLabel('New tenant name').fill('Fenwick Cold Storage');
+  await page.getByLabel(/^Area/).fill('4200');
+  await page.getByLabel('Commencement').fill('2027-01-01');
+  await page.getByLabel('Expiration').fill('2036-12-31');
+  await page.getByLabel(/^Base rent/).fill('19.50');
+
+  await page.getByRole('button', { name: 'Add a right' }).click();
+  await expect(page.getByLabel('Right 1 type')).toHaveValue('purchase');
+  await page.getByLabel('Right 1 date').fill('2033-01-01');
+  await page.getByLabel('Right 1 stated price').fill('9500000');
+
+  await page.getByRole('button', { name: 'Save lease' }).click();
+  await expect(page.getByRole('heading', { name: 'New lease' })).toBeHidden();
+
+  const card = page.locator('.card', { has: page.getByRole('heading', { name: 'Leases' }) });
+  const grid = page.getByRole('grid', { name: 'Leases on this model' });
+  const row = grid.getByRole('row').filter({ hasText: code });
+  const editButton = card.getByRole('button', { name: new RegExp(`^Edit ${code} in full$`) });
+  await expect(async () => {
+    await row.getByRole('gridcell').first().click();
+    await expect(editButton).toBeEnabled({ timeout: 2000 });
+  }).toPass();
+  await editButton.click();
+
+  await expect(page.getByLabel('Right 1 type')).toHaveValue('purchase');
+  await expect(page.getByLabel('Right 1 date')).toHaveValue('2033-01-01');
+  await expect(page.getByLabel('Right 1 stated price')).toHaveValue('9500000');
+  // Never offered as one of the engine's own option types, which is the
+  // whole point: a purchase option cannot be mistaken for a renewal here.
+  await expect(page.getByLabel('Option 1 type')).toBeHidden();
+});
+
+test('removes a disclosed right before saving', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByRole('button', { name: 'Add a right' }).click();
+  await expect(page.getByLabel('Right 1 type')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove right' }).click();
+  await expect(page.getByLabel('Right 1 type')).toBeHidden();
+});
+
+test('is accessible with a disclosed right added', async ({ page }) => {
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByRole('button', { name: 'Add a right' }).click();
+  // Exercises the expansion-specific field too, not just the fields common
+  // to every disclosed type.
+  await page.getByLabel('Right 1 type').selectOption('expansion');
+  await expect(page.getByLabel('Right 1 area wanted')).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page }).withTags(STANDARD).analyze();
+  const summary = violations.map(
+    (violation) =>
+      `${violation.id} (${violation.impact ?? 'unknown'}): ${violation.help}\n` +
+      violation.nodes.map((node) => `      ${node.target.join(' ')}`).join('\n'),
+  );
+  expect(summary, summary.join('\n')).toEqual([]);
+});

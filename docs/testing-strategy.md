@@ -149,7 +149,7 @@ built bundle:
 | --- | --- | --- |
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
-| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling, adding/removing a lease option and it surviving a reload, accessibility with an option's fields open | `e2e/rent-roll.spec.ts` | 8 |
+| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling, adding/removing a lease option and it surviving a reload, accessibility with an option's fields open, recording a purchase/ROFR/ROFO/expansion right as a disclosure and it surviving a reload | `e2e/rent-roll.spec.ts` | 11 |
 | Spreadsheet editing on the rent roll, including applying one typed value to every selected cell in a column at once | `e2e/rent-roll-grid.spec.ts` | 14 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
@@ -189,7 +189,7 @@ built bundle:
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
 
-**252 browser tests in total**, for 1762 across the whole repository.
+**255 browser tests in total**, for 1765 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

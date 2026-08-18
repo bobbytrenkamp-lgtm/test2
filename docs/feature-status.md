@@ -139,8 +139,8 @@ Tests       1510 passed (251 engine regression, 31 engine unit, 20 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     252 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         8 lease editor, search and sort, options,
+Browser     255 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         11 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
@@ -187,8 +187,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
 | Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
-| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record; an option of a type this editor does not offer (expansion, purchase, ROFR, ROFO) is preserved on save rather than dropped |
-| Lease options: expansion, purchase, ROFR, ROFO | Not started | Diagnosed as not modelled, with the reason |
+| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record |
+| Lease options: expansion, purchase, ROFR, ROFO | Functional | Never reach the cash flow — the engine still refuses each with `LEASE_OPTION_NOT_MODELLED` — but the lease editor now offers a second, disclosure-only section for exactly these four types, asking only the fields each one actually means something by (an area for expansion, a price for purchase, dates and likelihood for all four), so a right an import or the API attaches to a lease is no longer invisible on this screen. A disclosed right with a nonzero likelihood still surfaces the engine's own diagnostic on the Validation tab |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
 | Market leasing precedence | Functional | Lease → space → default; winner recorded in trace |
 | Operating expenses, all 6 methods | Tested | |
