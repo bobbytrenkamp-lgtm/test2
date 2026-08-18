@@ -66,9 +66,9 @@ file locally at `demo/dist/index.html`.
 
 It is deliberately only the engine. Persistence, authentication, the audit log,
 imports, reports and permissions all need the server, and the page says so above
-the fold. There is no hosted deployment of the whole platform: its container
-images have never been built, which `docs/feature-status.md` records as a
-release blocker rather than glosses.
+the fold. There is no hosted deployment of the whole platform — the container
+images are built and the full stack brought up and smoke-tested in CI on every
+build, but nobody has stood up a real, running instance for the public to use.
 
 **Nothing in this project costs money.** No paid service, external API, hosted
 dependency or commercially licensed component is used; everything runs locally
@@ -236,24 +236,29 @@ rather than approximated; the live property-research integration; and the
 optional AI assistant — which is disabled by default and adds no paid
 dependency without approval.
 
-**Written but unverified.** The Docker Compose stack only — the container
-images have never been built end to end. Every base image now pulls in full
-through `mirror.gcr.io`, a content-identical mirror reachable where Docker
-Hub's own blob CDN is not; what still blocks a complete build is this
-environment's own TLS interception and a separate block on Alpine's package
-CDN, both narrower and better understood than "the registry is unreachable"
-was. See `docs/deployment-guide.md` for the exact diagnosis. The
-backup/restore drill is not in this category: it runs against a real
-PostgreSQL instance in CI on every build (`pnpm drill:restore`) and has never
-failed.
+**Built and run, not hosted.** The Docker Compose stack — every base image
+pulled in full through `mirror.gcr.io`, a content-identical mirror reachable
+where Docker Hub's own blob CDN is not — now builds, and the full stack
+(`postgres`, `api`, `worker`, `web`) comes up and passes an end-to-end smoke
+test through a real browser-facing job pipeline, in CI's own `docker` job on
+every build. This development container still cannot reproduce that build
+itself: its own TLS interception and a separate block on Alpine's package CDN
+stop `RUN pnpm install` and `RUN apk add chromium` respectively, and neither
+has an environment-level fix available here — but that is a fact about where
+this repository happens to be edited, not about whether the images build. See
+`docs/deployment-guide.md` for the exact diagnosis. What remains true is
+narrower: nobody has stood up a real, running instance of this stack for
+anyone but CI to use. The backup/restore drill runs the same way, against a
+real PostgreSQL instance in CI on every build (`pnpm drill:restore`), and has
+never failed.
 
 Nothing in this repository is marked *production ready*. That designation is
 reserved for features that have also passed an accessibility audit with a
-real screen reader, a built and run container image, and a scripted deploy —
-none of which has been done. Load testing and the restore drill *have* been
-done and run in CI on every build; they are not what is missing. The
-`axe-core` checks catch mechanical failures; they are not a screen-reader
-audit and are not offered as one.
+real screen reader — the one thing left that genuinely needs a person, not a
+container. Load testing, the restore drill, the container build and the
+scripted deploy sequence *have* all been done and run in CI on every build;
+none of them is what is missing. The `axe-core` checks catch mechanical
+failures; they are not a screen-reader audit and are not offered as one.
 
 ## Licence
 

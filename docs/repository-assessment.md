@@ -103,7 +103,7 @@ second consumer to justify it. If a second client appears, that changes.
 
 | Risk | Mitigation |
 | --- | --- |
-| Compose files unverified because no Docker daemon was available | Marked "designed, unverified" in `docs/feature-status.md`; local development was proven instead against a directly installed PostgreSQL 16 |
+| Compose files unverified because no Docker daemon was available | Local development was proven instead against a directly installed PostgreSQL 16; the Compose stack itself was later built and run end to end by a `docker` job in CI (see `docs/feature-status.md` and `docs/deployment-guide.md`) |
 | A hand-written SQL migration runner instead of an ORM's generator | Migrations are reviewable in the diff, checksummed, and applied in a transaction; an edited applied migration is refused rather than skipped |
 | Engine methodology decisions (rollover weighting, preferred-return accrual, percentage-rent timing) are judgement calls | Each is documented in `docs/calculation-specification.md` with its rationale, and covered by a regression fixture |
 
