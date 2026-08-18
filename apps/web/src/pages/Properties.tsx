@@ -170,8 +170,15 @@ function NewPropertyForm({ onCreated }: { onCreated: () => void }): JSX.Element 
     }),
   );
 
+  const [showProblems, setShowProblems] = useState(false);
+  const nameProblem = form.name.trim() ? undefined : 'Name is required.';
+
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (nameProblem) {
+      setShowProblems(true);
+      return;
+    }
     const result = await create.run();
     if (result) {
       onCreated();
@@ -180,13 +187,12 @@ function NewPropertyForm({ onCreated }: { onCreated: () => void }): JSX.Element 
   }
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} noValidate>
       <h2>New property</h2>
       <ErrorMessage error={create.error} />
       <div className="form-grid">
-        <Field label="Name">
+        <Field label="Name" {...(showProblems && nameProblem ? { error: nameProblem } : {})}>
           <input
-            required
             maxLength={200}
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}

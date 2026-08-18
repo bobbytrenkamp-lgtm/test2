@@ -87,6 +87,29 @@ test('refuses capital recorded against an investor who is not in the fund', asyn
   expect(options).not.toContain('');
 });
 
+test('names what is missing on the investor and capital forms, rather than a browser popup', async ({
+  page,
+}) => {
+  await page.goto('/funds');
+  const row = page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: FUND }) });
+  await row.getByRole('button', { name: 'Open' }).click();
+
+  const investorForm = page
+    .locator('form')
+    .filter({ has: page.getByRole('heading', { name: 'Add or update an investor' }) });
+  await investorForm.getByRole('button', { name: 'Add investor' }).click();
+  await expect(investorForm.getByText('Investor reference is required.')).toBeVisible();
+  await expect(investorForm.getByText('Name is required.')).toBeVisible();
+  await expect(investorForm.getByText('Commitment is required.')).toBeVisible();
+
+  const recordForm = page
+    .locator('form')
+    .filter({ has: page.getByRole('heading', { name: 'Record capital' }) });
+  await recordForm.getByRole('button', { name: 'Record' }).click();
+  await expect(recordForm.getByText('Choose an investor.')).toBeVisible();
+  await expect(recordForm.getByText('Amount is required.')).toBeVisible();
+});
+
 test('records a recallable distribution, then a recall, and nets them on screen', async ({
   page,
 }) => {

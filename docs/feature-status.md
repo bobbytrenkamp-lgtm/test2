@@ -139,7 +139,7 @@ Tests       1510 passed (251 engine regression, 31 engine unit, 20 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     248 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     252 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          8 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -148,15 +148,15 @@ Browser     248 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 assumption provenance, 10 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 7 palette and paste,
-                         6 funds, 2 version comparison, 4 review comments,
+                         7 funds, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
-                         3 new underwriting, 2 workflow progress, 3 inputs tab,
+                         4 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
                          5 consolidated review screen, 3 underwriting package,
                          3 mention notifications, 3 documents, 4 dashboards,
-                         2 breadcrumbs)
+                         2 breadcrumbs, 2 new-property validation)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (556 kB, 155 kB gzipped)
