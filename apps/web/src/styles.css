@@ -837,6 +837,14 @@ details.chart-data > summary {
   padding: 1px 4px;
 }
 
+.command-hint kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 2px;
+}
+
 /* Notifications ----------------------------------------------------------- */
 
 .notification-bell {
