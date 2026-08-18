@@ -186,8 +186,9 @@ built bundle:
 | Mention notifications: the bell shows what was recorded on the comment, opening it navigates and marks it read, accessibility with the panel open | `e2e/notifications.spec.ts` | 3 |
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
+| Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 
-**245 browser tests in total**, for 1755 across the whole repository.
+**247 browser tests in total**, for 1757 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

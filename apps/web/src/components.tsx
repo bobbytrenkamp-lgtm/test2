@@ -1,4 +1,5 @@
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { Diagnostic } from '@cre/domain-models';
 import { formatNumber, titleCase } from './format.js';
 import type { ApiError } from './api.js';
@@ -15,6 +16,38 @@ export function Loading({ label = 'Loading' }: { label?: string }): JSX.Element 
     <div className="loading" role="status" aria-live="polite" aria-label={label}>
       {label}…
     </div>
+  );
+}
+
+/**
+ * A trail back to where the current page sits in the hierarchy.
+ *
+ * Three levels deep in a model, nothing else on screen says which property
+ * or organization is being looked at, or offers a click back to either —
+ * only the header's own org switcher does, and it scrolls out of view. The
+ * last item is rendered as plain text with `aria-current="page"`, matching
+ * the standard breadcrumb pattern: it names where you are, not somewhere
+ * else to go.
+ */
+export function Breadcrumbs({
+  items,
+}: {
+  items: Array<{ label: string; to?: string }>;
+}): JSX.Element {
+  return (
+    <nav aria-label="Breadcrumb" className="breadcrumbs">
+      <ol>
+        {items.map((item, index) => (
+          <li key={index}>
+            {item.to ? (
+              <Link to={item.to}>{item.label}</Link>
+            ) : (
+              <span aria-current="page">{item.label}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 }
 
