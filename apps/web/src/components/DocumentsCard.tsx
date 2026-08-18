@@ -132,7 +132,11 @@ export function DocumentsCard({ propertyId }: { propertyId: string }): JSX.Eleme
                           className="subtle"
                           disabled={remove.pending}
                           onClick={async () => {
-                            if (await remove.run(document.id)) documents.reload();
+                            if (
+                              window.confirm(`Delete "${document.filename}"?`) &&
+                              (await remove.run(document.id))
+                            )
+                              documents.reload();
                           }}
                         >
                           Delete

@@ -280,6 +280,18 @@ test.describe('as an analyst', () => {
     // (deleting or renaming the library entry afterward would not change
     // this cell, since it was copied in, not linked).
     await expect(savedRow).toContainText('Library: E2E test CPI curve');
+
+    // Deleting a row asks first. Dismissing the confirmation leaves it in
+    // place — the only defence a growth curve used across a model has against
+    // an accidental click, since nothing else in this table asks before it
+    // acts.
+    page.once('dialog', (dialog) => void dialog.dismiss());
+    await savedRow.getByRole('button', { name: 'Delete' }).click();
+    await expect(savedRow).toBeVisible();
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await savedRow.getByRole('button', { name: 'Delete' }).click();
+    await expect(growthCurves.getByRole('row', { name: /e2e-cpi/ })).toHaveCount(0);
   });
 
   test('a market leasing profile can start from the organization library and keeps a record of it', async ({

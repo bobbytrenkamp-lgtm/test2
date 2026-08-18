@@ -754,6 +754,7 @@ function RecalculateButton({
       >
         {recalc.pending ? 'Running…' : 'Under current engine'}
       </button>
+      <ErrorMessage error={recalc.error} />
       {summary && (
         <div className="field-hint" style={{ whiteSpace: 'normal' }}>
           {summary}
