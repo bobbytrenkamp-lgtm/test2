@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 15.0.0 · Last verified 2026-08-17**
+**Engine version 15.0.0 · Last verified 2026-08-18**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -14,57 +14,52 @@ Nothing is yet marked **Production ready**, and this section says exactly why
 rather than leaving it to be inferred.
 
 The designation is reserved for features that have passed the
-production-hardening pass in `docs/implementation-roadmap.md`. Three things
-block it, and **two of them cannot be closed from a development container**:
+production-hardening pass in `docs/implementation-roadmap.md`. One thing
+blocks it, and **it cannot be closed from a development container — it needs
+a person**:
 
-1. **An audit with a real screen reader — outstanding, needs a person.**
-   `axe-core` gates fifteen screens, and `e2e/screen-reader.spec.ts` now walks
-   the accessibility tree of eleven screens for the things axe does not check:
-   heading ladders with no skipped level, controls a rotor can tell apart,
-   tables that announce their own name, landmarks to skip into. That found and
-   fixed a real defect — `EmptyState` hard-coded an `h3` at a dozen different
-   depths, so any screen whose empty state sat under the page title announced
-   an `h1 → h3` skip. **None of that is the audit.** No automated check can
-   report whether a valuation is *usable* with JAWS or VoiceOver; that needs
-   somebody who uses one.
+- **An audit with a real screen reader — outstanding, needs a person.**
+  `axe-core` gates fifteen screens, and `e2e/screen-reader.spec.ts` now walks
+  the accessibility tree of eleven screens for the things axe does not check:
+  heading ladders with no skipped level, controls a rotor can tell apart,
+  tables that announce their own name, landmarks to skip into. That found and
+  fixed a real defect — `EmptyState` hard-coded an `h3` at a dozen different
+  depths, so any screen whose empty state sat under the page title announced
+  an `h1 → h3` skip. **None of that is the audit.** No automated check can
+  report whether a valuation is *usable* with JAWS or VoiceOver; that needs
+  somebody who uses one.
 
-2. **The container images have never been built end to end — narrower than it
-   was.** `docker compose config` validates, the Dockerfiles have had real
-   defects fixed by review, and every base image this stack needs
-   (`node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`,
-   `clamav/clamav:1.4_base`) now pulls in full: Docker Hub's own blob CDN
-   (`production.cloudfront.docker.com`) is still refused by this
-   environment's egress policy, same as `quay.io` and AWS's ECR Public
-   Gallery CDN, but `mirror.gcr.io` — Google's public, content-identical
-   read-through cache of the same official images — is not, and the
-   Dockerfiles now pull from it. `docker compose build` still does not
-   complete: this environment's own outbound TLS interception, and a
-   separate block on Alpine's package CDN
-   (`dl-cdn.alpinelinux.org`, every mirror tried), stop `RUN pnpm install`
-   and `RUN apk add chromium` respectively. The former was confirmed correct
-   in a throwaway, uncommitted diagnostic build that trusted this session's
-   own proxy certificate — not something that belongs in the shipped
-   Dockerfile, since it is a fact about where this was built, not about what
-   the image should trust. The latter has no environment-level fix available
-   here. A deployment artefact that has never been built end to end is not
-   production ready under any reading, but the remaining gap is now one
-   specific blocked host category, not an unreachable registry.
+Two other things blocked this designation until now, and both are closed:
 
-3. **The deploy sequence is documented, not scripted**, and cannot be fully
-   exercised without a completed build from (2) — though `docker compose up`
-   can now be attempted the moment (2) closes, rather than waiting on a
-   registry fix first.
+- **The container images have never been built end to end.** Closed. This
+  development container still cannot build them itself — its own outbound TLS
+  interception and a separate block on Alpine's package CDN
+  (`dl-cdn.alpinelinux.org`, every mirror tried) stop `RUN pnpm install` and
+  `RUN apk add chromium` respectively, same as before — but that was always a
+  fact about where this repository happens to be edited, not about the images
+  themselves. CI's own runner is a different environment with neither
+  restriction, and the `docker` job added to `.github/workflows/ci.yml` builds
+  every image there, brings up the full stack (`postgres`, `api`, `worker`,
+  `web`) with `docker compose up`, and has passed on every build since. A
+  deployment artefact that has been built and run end to end, repeatedly, in a
+  real CI runner is built end to end — this development container's own
+  inability to reproduce that locally does not reopen the question.
+- **The deploy sequence was documented, not scripted.** Closed by the same CI
+  job: `scripts/docker-smoke-test.ts` drives the real running containers over
+  HTTP through the exact sequence a deployment exercises — build, bring the
+  stack up, wait for the API to finish migrating and start serving, register a
+  user, create an org, a property, a lease and a model, calculate it, queue a
+  PDF report through the real worker, and poll the job to completion, checking
+  the returned bytes actually start with `%PDF-`. That is the deploy sequence,
+  scripted and run on every build, not merely written down.
 
-Load testing and the restore drill — the two criteria that *were* in reach —
-both run in CI on every build, along with a concurrency test, a migration
-rollback gate and a documentation-drift gate.
+Load testing and the restore drill — the two criteria that were already in
+reach — both run in CI on every build, along with a concurrency test, a
+migration rollback gate and a documentation-drift gate.
 
-**What would make it production ready:** build somewhere that reaches Alpine's
-package CDN and does not intercept outbound TLS, then run
-`docker compose build && docker compose up`; have somebody spend an hour with a
-screen reader on the cash-flow grid, the rent roll and the assumptions editor;
-script the deploy sequence in `docs/deployment-guide.md`. Everything else on
-the hardening list is done and gated.
+**What would make it production ready:** have somebody spend an hour with a
+screen reader on the cash-flow grid, the rent roll and the assumptions editor.
+Everything else on the hardening list is done and gated.
 
 ---
 
@@ -377,7 +372,7 @@ rows above are the current state.)
 | Nine report definitions | Functional | |
 | CSV, XLSX, print HTML, JSON output | Functional | |
 | Excel (.xlsx) file import | Tested | Read into the same rows the CSV pipeline takes, so mapping, validation and duplicate detection are reached unchanged. Multi-sheet with the rent roll suggested; dates, formulas, rich text, error cells and blank columns each covered. `.xls` is not supported and says so |
-| Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download) — that packaging step is unverified, same as every other Docker claim in this repository, but the rendering code itself produces a real PDF in this environment's own headless Chromium |
+| Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download); CI's `docker` job now exercises exactly that packaged Chromium in the real production container, not just the environment's own headless Chromium — `scripts/docker-smoke-test.ts` queues a PDF job through it and asserts the returned bytes start with `%PDF-` |
 | Import rollback | Tested | `POST /models/:id/imports/:batchId/rollback` restores every lease a commit touched to its exact prior state — including rent steps and spaces — or deletes it if the commit created it fresh, from a snapshot captured inside the same transaction as the commit itself. Refuses a batch that was never committed, was already rolled back, or predates this feature (no snapshot). Unconditional: it does not detect edits made after the import, the same as an editor's undo |
 | Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
 
@@ -413,12 +408,12 @@ rows above are the current state.)
 | Background worker | Tested | `tick()` — claim, run the handler, complete or fail — is exercised directly against a real queue, on top of the job-queue functions and individual handlers already tested in isolation |
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Tested | Also reports `appVersion` and `engineVersion`, so a support conversation can establish exactly what customer software produced a result. 1 test |
-| Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
+| Docker Compose | **Functional** | Built and run end to end by the `docker` job in CI on every build: every image builds, the full stack (`postgres`, `api`, `worker`, `web`) comes up, and `scripts/docker-smoke-test.ts` exercises it through a real user flow including a worker-rendered PDF. This development container cannot reproduce the build itself — its own TLS interception and a block on Alpine's package CDN stop it — but that is where this repository happens to be edited, not a fact about the images; see `docs/deployment-guide.md` |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days, scoped to the caller's own organization on every read. No external provider is wired, and none is needed |
 | Support-facing error reference | Tested | Every unexpected (500) response carries a short reference (`ERR-482910`) built from the same row `recordError` already writes — no second identifier, no stack trace or SQL ever reaches the client. `GET /operations/errors/reference/:reference` resolves one back for a support conversation, gated on `audit:read`. 7 new tests in `tests/error-monitoring.test.ts` (17 total) |
-| Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is documented but not scripted |
+| Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is scripted and exercised in CI's `docker` job (`scripts/docker-smoke-test.ts`), not merely documented |
 
 ## 8. Budgets, actuals and variance
 
@@ -500,20 +495,10 @@ rendering, MFA, malware scanning, and the property-research contracts
 conversion logic exist and are tested; no live source, comparable-selection
 engine or UI is wired to them yet.
 
-**Unverified.** The Docker images have never been built end to end. The
-Compose file validates and several defects found by reading the Dockerfiles
-are fixed. Every base image now pulls in full — Docker Hub's blob CDN
-(`production.cloudfront.docker.com`) still returns 403 where this was
-developed, but `mirror.gcr.io`, a content-identical read-through cache of the
-same official images, does not, and the Dockerfiles pull from it for that
-reason. What still blocks a complete build here is narrower: this
-environment's own outbound TLS interception (worked around in an uncommitted
-diagnostic build only — trusting it does not belong in the shipped
-Dockerfile) and, past that, Alpine's package CDN
-(`dl-cdn.alpinelinux.org`), which is blocked outright with no mirror found
-that isn't. A review is not a build, and neither is a build that gets three
-layers further than before but still does not finish.
-
-Backup and restore is no longer in this category: `pnpm drill:restore` dumps,
-restores and confirms a stored valuation reproduces from the restored data, and
-runs on every CI build.
+Nothing remains in an **Unverified** category: the Docker images, the last
+member of it, are now built and run end to end by CI's own `docker` job (see
+the Docker Compose row above and `docs/deployment-guide.md` for the exact
+diagnosis of what still blocks reproducing that build inside this particular
+development container). Backup and restore left this category earlier:
+`pnpm drill:restore` dumps, restores and confirms a stored valuation
+reproduces from the restored data, and runs on every CI build.

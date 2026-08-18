@@ -51,9 +51,18 @@ Now:
   six hours**, which is the single largest way a metered account leaks minutes.
 - `permissions: contents: read` — least privilege.
 - `workflow_dispatch` allows a manual run without adding a recurring cost.
-- Every check runs in **one job**. A second job would repeat the checkout, the
-  dependency install and the browser download; that repetition, not the checks
-  themselves, is what a metered account pays for.
+- Every check that shares dependencies — format, lint, typecheck, migrations,
+  the full test suite including the browser suite, the build, the licence gate
+  — runs in **one job**, so none of them repeats the checkout, the dependency
+  install or the browser download. A second job, `docker`, was added later:
+  it builds and runs the Docker Compose stack, which needs its own `postgres`,
+  `api`, `worker` and `web` containers rather than the `verify` job's
+  PostgreSQL service container, and running both in one job would mean two
+  independent Postgres instances fighting over the same port. Splitting it out
+  is the deliberate exception, not an oversight — it repeats a checkout and a
+  frozen-lockfile install (for `scripts/docker-smoke-test.ts` alone, never the
+  browser download `verify` already paid for), and on a public repository that
+  repetition still costs nothing.
 - Failed browser traces and the HTML report stay on the runner. Uploading them
   as artifacts would consume metered artifact storage on a private repository,
   and the failure output already names the rule, the element and the page.
@@ -67,11 +76,18 @@ hosted browser grid, no device farm and no visual-regression service. The run
 adds roughly a minute, and the `timeout-minutes: 20` ceiling was already
 generous enough to absorb it.
 
+### The docker job adds no billable service either
+
+It runs on the same `ubuntu-latest` runner, carries its own `timeout-minutes:
+15`, and pulls every base image through `mirror.gcr.io` — Google's public,
+unauthenticated, free read-through cache — rather than a paid registry. It
+has completed in roughly one to two minutes on every run so far, well inside
+its own ceiling.
+
 ### If this repository is ever made private
 
-Actions minutes become metered against the account's free allowance. The
-settings above keep usage far inside it (a full run is roughly two minutes), but
-verify before switching:
+Actions minutes become metered against the account's free allowance, and now
+across two jobs rather than one. Verify before switching:
 
 - Settings → Billing → **spending limit stays at $0**.
 - Settings → Billing → **"Actions" usage-based billing disabled**.
@@ -94,7 +110,7 @@ only succeed by spending money.
 | `.devcontainer` / `devcontainer.json` | **Absent** — Codespaces cannot start from this repository, so the free allowance cannot be consumed |
 | GitHub Pages | **Enabled**, publishing one static page from a public repository. Free with no payment method; GitHub asks for usage to be reduced past the soft bandwidth limit rather than charging. See below |
 | Vercel / Netlify / Render / Fly / Railway / Heroku config | **None present** |
-| Deployment workflow | **Pages only.** The application itself is deployed nowhere; its container images have never been built end to end. See `docs/deployment-guide.md` |
+| Deployment workflow | **Pages only, for the engine demo.** The full application is not deployed anywhere for real use; its container images are built and run end to end on every CI build (the `docker` job above), just not stood up as a running instance for anyone but CI. See `docs/deployment-guide.md` |
 | Purchased domain | **None.** The site is served from `github.io`, which costs nothing |
 
 ### What the Pages workflow publishes, and why it is free
@@ -172,8 +188,8 @@ Everything runs on the developer's machine with no hosted dependency:
 | Calculations, imports, exports | In-process | — |
 | Web client | Vite dev server / static files | MIT |
 
-Container images used by the (still not fully built — see
-`docs/deployment-guide.md`) Compose stack are the free official
+Container images used by the Compose stack (built and run end to end in CI —
+see `docs/deployment-guide.md`) are the free official
 `postgres:16-alpine`, `node:22-alpine`, `nginx:1.27-alpine` and
 `clamav/clamav:1.4_base`. Docker Hub applies anonymous pull *rate limits*,
 never charges. The Dockerfiles pull these from `mirror.gcr.io` rather than
