@@ -14,7 +14,7 @@
 | 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
-| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, recallable distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls are not built, and the statement says so on its face. |
+| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, recallable distributions, unfunded capital, investor returns and a fund-level waterfall (tiered preferred return, GP catch-up and residual split against each investor's real, per-transaction ledger), portfolio reports and an investor statement. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
 | 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI; every migration is gated on leaving the previous release able to run; documentation counts are gated too. Machine-checked accessibility. Local error monitoring. Multi-factor authentication. A CI `docker` job builds every image, brings the full stack up and scripts the deploy sequence end to end on every build. Still missing: a screen-reader audit — the one item left that needs a person, not a container. |
 
@@ -362,10 +362,29 @@ residual value **and says why**: substituting contributed capital would give
 every such fund a TVPI near 1.0, a number that looks like an answer and is not
 one.
 
-Deliberately not modelled, and documented in `fund.ts` rather than approximated:
-fund-level carried interest and catch-up (the deal waterfall settles one
-investment, a fund waterfall settles across the whole portfolio with its own
-hurdle and clawback), and management fee mechanics.
+**Fund-level waterfall, `fund-waterfall.ts`.** `fund.ts` itself makes no
+assumption about how a distribution was split once it lands — that settlement
+is `computeFundWaterfall`, a separate module because a fund's investors are
+admitted and called on real, irregularly-spaced dates and amounts, not the
+deal waterfall's fixed monthly grid and constant partner share. It draws the
+same tier taxonomy as the deal waterfall (return of capital, preferred return
+or IRR hurdle, GP catch-up, residual split) but accrues on actual/365 real
+dates — the same day-count convention `xirr` already uses — and treats every
+past distribution as a stated fact to book against each investor's own
+ledger (accrued preferred first, then unreturned capital) rather than a
+figure to recompute; only a new, proposed distribution is actually allocated.
+Unlike the deal waterfall's fallback-to-contribution-share behaviour, an
+under-specified tier set (most often a missing `residual_split`) throws
+naming the exact shortfall, since this runs on demand for one proposed
+distribution a GP can still catch before money moves. Reachable at
+`GET`/`PUT /funds/:id/waterfall-tiers` and `POST /funds/:id/waterfall/preview`
+and `/apply`, the latter recording one `distribution` transaction per paid
+investor in a single write.
+
+Deliberately not modelled: management fee mechanics — offsets, step-downs,
+fees on invested rather than committed capital. A fee that has been charged
+appears as the contribution it was funded by; how it was computed is
+upstream.
 
 **Recallable distributions, added later.** A transaction can be marked
 `recallable`, and a later `recall` transaction draws against it — both facts

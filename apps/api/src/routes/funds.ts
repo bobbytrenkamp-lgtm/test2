@@ -1,7 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '@cre/database';
-import { computeFund, type FundInvestor, type FundTransaction } from '@cre/calculation-engine';
+import {
+  computeFund,
+  computeFundWaterfall,
+  type FundInvestor,
+  type FundTransaction,
+  type FundWaterfallTier,
+} from '@cre/calculation-engine';
+import { waterfallTierSchema } from '@cre/domain-models';
 import { FUND_REPORTS } from '@cre/reporting';
 import { HttpError, badRequest, notFound, requireCapability } from '../context.js';
 import { aggregateForPortfolio } from './portfolios.js';
@@ -235,6 +242,185 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /* ---------------------------------------------------------------------- */
+  /* Fund-level waterfall                                                    */
+  /* ---------------------------------------------------------------------- */
+
+  app.get('/funds/:id/waterfall-tiers', async (request) => {
+    const context = requireCapability(request, 'portfolio:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const fund = await requireFund(request, context.organizationId, id);
+    return { tiers: fund.waterfall_tiers ?? [], version: fund.version };
+  });
+
+  app.put('/funds/:id/waterfall-tiers', async (request) => {
+    const context = requireCapability(request, 'portfolio:write');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    await requireFund(request, context.organizationId, id);
+
+    const body = z
+      .object({
+        tiers: z.array(waterfallTierSchema),
+        expectedVersion: z.number().int().min(1).nullish(),
+      })
+      .parse(request.body);
+
+    // Every split has to name a real investor of this fund. The engine
+    // itself would simply pay nobody for an id it does not recognise — no
+    // error, since it cannot tell a stale id from a value that was never
+    // valid — so an id that names nothing is caught here instead, while the
+    // mistake is still in front of whoever is about to save it.
+    const investors = (await request.db`
+      SELECT id FROM fund_investors WHERE fund_id = ${id}
+    `) as unknown as Array<{ id: string }>;
+    const investorIds = new Set(investors.map((row) => row.id));
+    const unknown = new Set<string>();
+    for (const tier of body.tiers) {
+      for (const split of tier.splits) {
+        if (!investorIds.has(split.partnerId)) unknown.add(split.partnerId);
+      }
+    }
+    if (unknown.size > 0) {
+      throw badRequest(
+        `These tier splits name an id that does not belong to any investor in this fund: ${[...unknown].join(', ')}.`,
+      );
+    }
+
+    const fund = await request.db.begin(async (tx) => {
+      if (body.expectedVersion !== undefined && body.expectedVersion !== null) {
+        const existing = (await tx`
+          SELECT version FROM funds WHERE id = ${id} FOR UPDATE
+        `) as unknown as Array<{ version: number }>;
+        const current = existing[0]?.version;
+        if (current !== undefined && current !== body.expectedVersion) {
+          throw new HttpError(
+            409,
+            'FUND_VERSION_CONFLICT',
+            `This fund has been changed by someone else since you opened it ` +
+              `(you have version ${body.expectedVersion}, it is now ${current}).`,
+            { expectedVersion: body.expectedVersion, currentVersion: current },
+          );
+        }
+      }
+      const rows = (await tx`
+        UPDATE funds
+        SET waterfall_tiers = ${tx.json(body.tiers as never)}, version = version + 1, updated_at = now()
+        WHERE id = ${id}
+        RETURNING *
+      `) as unknown as Array<Record<string, unknown>>;
+      return rows[0] as Record<string, unknown>;
+    });
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: 'fund.waterfall_tiers_saved',
+      entityType: 'fund',
+      entityId: id,
+      newValue: { tierCount: body.tiers.length },
+      ipAddress: request.ip,
+    });
+
+    return { tiers: fund.waterfall_tiers, version: fund.version };
+  });
+
+  /**
+   * Proposes how a distribution should split, without recording anything.
+   *
+   * `computeFundWaterfall` throws when its own tiers do not fully allocate
+   * the amount — no residual tier, or one whose shares sum to zero — rather
+   * than guess a fallback; that becomes a 400 naming exactly what is short,
+   * so a GP finds a misconfigured waterfall before a single dollar moves,
+   * not after.
+   */
+  app.post('/funds/:id/waterfall/preview', async (request) => {
+    const context = requireCapability(request, 'portfolio:read');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const fund = await requireFund(request, context.organizationId, id);
+
+    const body = z
+      .object({ distributionDate: isoDate, distributableAmount: decimalAmount })
+      .parse(request.body);
+
+    const tiers = (fund.waterfall_tiers as FundWaterfallTier[] | null) ?? [];
+    if (tiers.length === 0) {
+      throw badRequest(
+        'This fund has no waterfall tiers configured yet. Add at least one before proposing a distribution.',
+      );
+    }
+
+    const { investors, transactions } = await loadWaterfallInputs(request, id);
+    const proposal = runWaterfall(investors, transactions, tiers, body);
+    return { proposal };
+  });
+
+  /**
+   * Applies a proposed distribution: recomputes it server-side from the same
+   * real transactions and stated tiers a preview reads — never a
+   * client-supplied allocation, so an apply can never record a split the
+   * tiers themselves did not produce — then records one `distribution`
+   * transaction per investor the proposal actually pays, in one transaction
+   * so the fund's ledger is never left with some of a distribution recorded
+   * and the rest missing.
+   */
+  app.post('/funds/:id/waterfall/apply', async (request, reply) => {
+    const context = requireCapability(request, 'portfolio:write');
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const fund = await requireFund(request, context.organizationId, id);
+
+    const body = z
+      .object({ distributionDate: isoDate, distributableAmount: decimalAmount })
+      .parse(request.body);
+
+    const tiers = (fund.waterfall_tiers as FundWaterfallTier[] | null) ?? [];
+    if (tiers.length === 0) {
+      throw badRequest(
+        'This fund has no waterfall tiers configured yet. Add at least one before proposing a distribution.',
+      );
+    }
+
+    const { investors, transactions } = await loadWaterfallInputs(request, id);
+    const proposal = runWaterfall(investors, transactions, tiers, body);
+
+    const toRecord = proposal.allocations.filter((allocation) => Number(allocation.total) > 0);
+    if (toRecord.length === 0) {
+      throw badRequest('This distribution would pay nobody, so nothing was recorded.');
+    }
+
+    const created = await request.db.begin(async (tx) => {
+      const rows: Array<Record<string, unknown>> = [];
+      for (const allocation of toRecord) {
+        const inserted = (await tx`
+          INSERT INTO fund_transactions (
+            fund_id, investor_id, transaction_date, type, amount, recallable, reference, created_by
+          ) VALUES (
+            ${id}, ${allocation.investorId}, ${body.distributionDate}, 'distribution',
+            ${allocation.total}, false, 'Fund waterfall distribution', ${context.userId}
+          )
+          RETURNING *
+        `) as unknown as Array<Record<string, unknown>>;
+        rows.push(inserted[0] as Record<string, unknown>);
+      }
+      return rows;
+    });
+
+    await writeAudit(request.db, {
+      organizationId: context.organizationId,
+      userId: context.userId,
+      action: 'fund.waterfall_applied',
+      entityType: 'fund',
+      entityId: id,
+      newValue: {
+        distributionDate: body.distributionDate,
+        distributableAmount: body.distributableAmount,
+        investorCount: toRecord.length,
+      },
+      ipAddress: request.ip,
+    });
+
+    return reply.status(201).send({ transactions: created, proposal });
+  });
+
+  /* ---------------------------------------------------------------------- */
   /* Reports                                                                 */
   /* ---------------------------------------------------------------------- */
 
@@ -308,28 +494,28 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
 }
 
 /**
- * A fund's position at a date.
+ * Loads a fund's investors and transactions in the shape the calculation
+ * engine expects.
  *
- * Extracted from the route so the reports are built from the same figures the
- * screen shows. A second path would drift, and a statement that disagrees with
- * the screen it was printed from is the worst kind of report: both look
- * authoritative and only one can be right.
+ * Shared by the roll-up (`fundPosition`) and the waterfall routes so there is
+ * exactly one query for "what has actually happened in this fund's ledger" —
+ * a second, drifted copy is how a report and a distribution preview end up
+ * disagreeing about the same fund.
  */
-async function fundPosition(
+async function loadWaterfallInputs(
   request: Parameters<typeof requireCapability>[0],
-  organizationId: string,
   id: string,
-  query: { valuationDate?: string; modelClassification?: string },
 ): Promise<{
-  fund: Record<string, unknown>;
-  valuationDate: string;
-  residualBasis: string;
-  summary: ReturnType<typeof computeFund> & {
-    positions: Array<Record<string, unknown>>;
-  };
+  investorRows: Array<{
+    id: string;
+    code: string;
+    name: string;
+    investor_class: string;
+    commitment: string;
+  }>;
+  investors: FundInvestor[];
+  transactions: FundTransaction[];
 }> {
-  const fund = await requireFund(request, organizationId, id);
-
   const investorRows = (await request.db`
     SELECT id, code, name, investor_class, commitment
     FROM fund_investors WHERE fund_id = ${id} ORDER BY code
@@ -352,6 +538,74 @@ async function fundPosition(
     amount: string;
     recallable: boolean;
   }>;
+
+  const investors: FundInvestor[] = investorRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    investorClass: row.investor_class,
+    commitment: row.commitment,
+  }));
+  const transactions: FundTransaction[] = transactionRows.map((row) => ({
+    investorId: row.investor_id,
+    date: row.date,
+    type: row.type as FundTransaction['type'],
+    amount: row.amount,
+    recallable: row.recallable,
+  }));
+
+  return { investorRows, investors, transactions };
+}
+
+/**
+ * Runs `computeFundWaterfall`, translating the engine's own thrown `Error`
+ * (an unallocated remainder, or a transaction on/after the proposed date)
+ * into a 400 that names the problem — the caller gets to fix a misconfigured
+ * waterfall instead of seeing an unhandled server error.
+ */
+function runWaterfall(
+  investors: FundInvestor[],
+  transactions: FundTransaction[],
+  tiers: FundWaterfallTier[],
+  body: { distributionDate: string; distributableAmount: string },
+): ReturnType<typeof computeFundWaterfall> {
+  try {
+    return computeFundWaterfall({
+      investors,
+      transactions,
+      tiers,
+      distributionDate: body.distributionDate,
+      distributableAmount: body.distributableAmount,
+    });
+  } catch (error) {
+    throw badRequest(
+      error instanceof Error ? error.message : 'This waterfall could not be computed.',
+    );
+  }
+}
+
+/**
+ * A fund's position at a date.
+ *
+ * Extracted from the route so the reports are built from the same figures the
+ * screen shows. A second path would drift, and a statement that disagrees with
+ * the screen it was printed from is the worst kind of report: both look
+ * authoritative and only one can be right.
+ */
+async function fundPosition(
+  request: Parameters<typeof requireCapability>[0],
+  organizationId: string,
+  id: string,
+  query: { valuationDate?: string; modelClassification?: string },
+): Promise<{
+  fund: Record<string, unknown>;
+  valuationDate: string;
+  residualBasis: string;
+  summary: ReturnType<typeof computeFund> & {
+    positions: Array<Record<string, unknown>>;
+  };
+}> {
+  const fund = await requireFund(request, organizationId, id);
+  const { investorRows, investors, transactions } = await loadWaterfallInputs(request, id);
 
   /*
    * Residual value from the fund's portfolio, using the same roll-up the
@@ -381,20 +635,6 @@ async function fundPosition(
         'The attached portfolio has no calculated model, so no residual value is included.';
     }
   }
-
-  const investors: FundInvestor[] = investorRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    investorClass: row.investor_class,
-    commitment: row.commitment,
-  }));
-  const transactions: FundTransaction[] = transactionRows.map((row) => ({
-    investorId: row.investor_id,
-    date: row.date,
-    type: row.type as FundTransaction['type'],
-    amount: row.amount,
-    recallable: row.recallable,
-  }));
 
   const valuationDate = query.valuationDate ?? new Date().toISOString().slice(0, 10);
   const summary = computeFund({ investors, transactions, netAssetValue, valuationDate });

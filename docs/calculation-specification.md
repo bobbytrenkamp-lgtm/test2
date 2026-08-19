@@ -28,6 +28,7 @@ call, the choice and its reasoning are stated rather than left implicit.
 14. [Valuation](#14-valuation)
 15. [Return metrics](#15-return-metrics)
 16. [Equity waterfall](#16-equity-waterfall)
+16a. [Fund-level waterfall](#16a-fund-level-waterfall)
 17. [Portfolio aggregation](#17-portfolio-aggregation)
 18. [Diagnostics](#18-diagnostics)
 19. [Calculation traces](#19-calculation-traces)
@@ -857,6 +858,59 @@ Sponsor fees are charged before distributions: acquisition on the basis at time
 zero, asset management on effective gross revenue monthly, disposition on gross
 sale price. Development and refinance fee bases are **not implemented** and
 raise `FEE_TYPE_NOT_MODELLED` rather than being charged at zero.
+
+---
+
+## 16a. Fund-level waterfall
+
+`computeFundWaterfall` in `fund-waterfall.ts` — a separate module from the
+deal waterfall above, because a fund's investors are admitted and called on
+real, irregularly-spaced dates and amounts, not the deal waterfall's fixed
+monthly grid and one constant partner share. It draws the same tier taxonomy
+(`return_of_capital`, `preferred_return`/`irr_hurdle`, `catch_up`,
+`residual_split`, evaluated in the stated order) but accrues on actual
+calendar dates rather than monthly periods.
+
+**Day-count accrual.** Every accrual step uses actual/365 day-count
+compounding — the same convention `xirr` already uses elsewhere in this
+engine — rather than the deal waterfall's monthly root:
+
+```
+compounding     → accrued += (unreturnedCapital + accrued) × ((1 + rate)^(days/365) − 1)
+non-compounding → accrued += unreturnedCapital × days × ((1 + rate)^(1/365) − 1)
+```
+
+The non-compounding case de-compounds the annual rate to a daily rate and
+applies it linearly over the elapsed days — the same relationship the deal
+waterfall's own monthly formulas have to each other, just on a daily grid
+instead of a monthly one, never the different convention of a naive
+`rate × days/365` simple-interest calculation.
+
+**Two kinds of distribution date.** Every transaction the caller passes in
+that falls before the date being proposed is a settled fact, not a figure to
+recompute: a past `distribution` is *booked* against the tier order (accrued
+preferred first, then unreturned capital) purely to keep each investor's
+running balance correct, exactly as `fund.ts` never re-derives a recorded
+transaction. Only the amount actually being proposed — the `distributionDate`
+and `distributableAmount` the caller is asking about — is *allocated* by the
+full multi-investor tier-resolution algorithm. A `recall` transaction is
+treated identically to a `contribution` (it increases `unreturnedCapital`),
+matching `fund.ts`'s own treatment of the two as the same direction of flow.
+
+**Unallocated remainder.** Unlike the deal waterfall's fallback to
+contribution-share splitting with a `WATERFALL_RESIDUAL_UNALLOCATED` warning
+— appropriate there because it runs as one line inside a larger calculation
+that must always produce a result — `computeFundWaterfall` throws, naming the
+exact shortfall, when its tiers do not fully allocate the amount proposed
+(most often a missing `residual_split`). It is invoked on demand for one
+proposed distribution specifically so a shortfall is caught before any money
+moves, not silently guessed at.
+
+Reachable at `GET`/`PUT /funds/:id/waterfall-tiers` (optimistic locking, same
+`expectedVersion` pattern as everywhere else in this API) and
+`POST /funds/:id/waterfall/preview` and `/apply`, the latter recording one
+`distribution` transaction per paid investor in a single database
+transaction.
 
 ---
 

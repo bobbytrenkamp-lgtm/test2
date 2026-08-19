@@ -66,10 +66,11 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1533 passed (251 engine regression, 31 engine unit, 20 fund,
-                         13 version comparison, 25 variance, 56 import,
+Tests       1558 passed (251 engine regression, 31 engine unit, 20 fund,
+                         15 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
-                         12 funds via the API, 17 optimistic locking,
+                         12 funds via the API, 10 fund waterfall via the API,
+                         17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
                          6 reforecast, 10 comments, 12 tasks, 31 TOTP,
@@ -139,7 +140,7 @@ Tests       1533 passed (251 engine regression, 31 engine unit, 20 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     255 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+Browser     256 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          11 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -148,7 +149,7 @@ Browser     255 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 assumption provenance, 10 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 7 palette and paste,
-                         7 funds, 2 version comparison, 4 review comments,
+                         8 funds and the fund waterfall, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
@@ -285,7 +286,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
 | Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so on screen |
 | Recallable distributions | Tested | A recall nets against `distributed` and against how much recall right is still live on a distribution marked `recallable`; it does not restore or expand unfunded commitment beyond stated commitment, which stays out of scope as the LPA-specific mechanism this module has always refused to guess at. 4 engine tests against hand-derived figures, 2 through the API, 1 in the browser |
-| Fund-level waterfall | Not started | Documented as not modelled in `fund.ts` rather than approximated |
+| Fund-level waterfall | Tested | Tiered preferred return, GP catch-up and residual split against each investor's real, per-transaction ledger; actual/365 day-count accrual, matching `xirr`'s own convention. A past distribution is booked as a stated fact, never recomputed; an under-specified tier set (typically a missing `residual_split`) throws naming the exact shortfall rather than guessing a fallback. 15 engine tests against hand-derived figures, 10 through the API, 1 in the browser |
 | Portfolio reports (summary, concentration, expirations) | Tested | Every rate states its own basis in a column |
 | Investor statement and capital account | Tested | Built from the same position the screen shows; states its own limits on its face |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
