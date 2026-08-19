@@ -44,11 +44,7 @@ interface TransactionRow {
 }
 
 type WaterfallTierType =
-  | 'return_of_capital'
-  | 'preferred_return'
-  | 'irr_hurdle'
-  | 'catch_up'
-  | 'residual_split';
+  'return_of_capital' | 'preferred_return' | 'irr_hurdle' | 'catch_up' | 'residual_split';
 
 const TIER_TYPE_LABEL: Record<WaterfallTierType, string> = {
   return_of_capital: 'Return of capital',
@@ -866,14 +862,20 @@ function WaterfallTierEditor({
     );
   }
 
-  function updateSplit(tierIndex: number, splitIndex: number, patch: Partial<WaterfallSplit>): void {
+  function updateSplit(
+    tierIndex: number,
+    splitIndex: number,
+    patch: Partial<WaterfallSplit>,
+  ): void {
     setDirty(true);
     setDraft((current) =>
       current.map((tier, i) =>
         i === tierIndex
           ? {
               ...tier,
-              splits: tier.splits.map((split, j) => (j === splitIndex ? { ...split, ...patch } : split)),
+              splits: tier.splits.map((split, j) =>
+                j === splitIndex ? { ...split, ...patch } : split,
+              ),
             }
           : tier,
       ),
@@ -884,7 +886,9 @@ function WaterfallTierEditor({
     setDirty(true);
     setDraft((current) =>
       current.map((tier, i) =>
-        i === tierIndex ? { ...tier, splits: tier.splits.filter((_, j) => j !== splitIndex) } : tier,
+        i === tierIndex
+          ? { ...tier, splits: tier.splits.filter((_, j) => j !== splitIndex) }
+          : tier,
       ),
     );
   }
@@ -919,8 +923,8 @@ function WaterfallTierEditor({
     <form className="card" onSubmit={submit} noValidate>
       <h2>Waterfall tiers</h2>
       <p className="field-hint" style={{ marginTop: 0 }}>
-        The order below is the payment order: return of capital, then a preferred return, then a
-        GP catch-up, then a residual split is the usual shape, but this fund&rsquo;s own governing
+        The order below is the payment order: return of capital, then a preferred return, then a GP
+        catch-up, then a residual split is the usual shape, but this fund&rsquo;s own governing
         document decides it. Each tier pays what it is owed from what the tiers above it left over.
       </p>
 
@@ -935,9 +939,7 @@ function WaterfallTierEditor({
         <ErrorMessage error={save.error} />
       )}
 
-      {draft.length === 0 && (
-        <p className="field-hint">No tiers configured yet. Add one below.</p>
-      )}
+      {draft.length === 0 && <p className="field-hint">No tiers configured yet. Add one below.</p>}
 
       {draft.map((tier, index) => (
         <div
@@ -1034,7 +1036,9 @@ function WaterfallTierEditor({
                 <input
                   inputMode="decimal"
                   value={tier.catchUpTargetShare ?? ''}
-                  onChange={(event) => updateTier(index, { catchUpTargetShare: event.target.value })}
+                  onChange={(event) =>
+                    updateTier(index, { catchUpTargetShare: event.target.value })
+                  }
                 />
               </Field>
             )}
@@ -1073,7 +1077,9 @@ function WaterfallTierEditor({
                     style={{ maxWidth: 100 }}
                     placeholder="Share"
                     value={split.share}
-                    onChange={(event) => updateSplit(index, splitIndex, { share: event.target.value })}
+                    onChange={(event) =>
+                      updateSplit(index, splitIndex, { share: event.target.value })
+                    }
                   />
                   <button
                     type="button"
@@ -1164,8 +1170,8 @@ function WaterfallDistributionPanel({
       <div className="card">
         <h2>Propose a distribution</h2>
         <EmptyState title="No waterfall tiers yet">
-          Add at least one tier above — typically return of capital, then a preferred return, then
-          a residual split — before a distribution can be proposed.
+          Add at least one tier above — typically return of capital, then a preferred return, then a
+          residual split — before a distribution can be proposed.
         </EmptyState>
       </div>
     );
@@ -1240,7 +1246,9 @@ function WaterfallDistributionPanel({
                     <th scope="row">{allocation.investorName}</th>
                     <td>
                       {allocation.byTier
-                        .map((entry) => `${entry.tierName}: ${formatCurrency(entry.amount, currency)}`)
+                        .map(
+                          (entry) => `${entry.tierName}: ${formatCurrency(entry.amount, currency)}`,
+                        )
                         .join(', ')}
                     </td>
                     <td className="numeric">{formatCurrency(allocation.total, currency)}</td>

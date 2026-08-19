@@ -159,7 +159,10 @@ describe('a single distribution: return of capital, an 8% preferred, a 20% GP ca
 describe('non-compounding preferred return', () => {
   it('accrues on unreturned capital alone, at a rate de-compounded to a daily one and applied linearly — never folding its own growing balance back into the base', () => {
     const investors = [lp('LP')];
-    const tiers = [preferredReturn('0.10', false), residualSplit([{ partnerId: 'LP', share: '1' }])];
+    const tiers = [
+      preferredReturn('0.10', false),
+      residualSplit([{ partnerId: 'LP', share: '1' }]),
+    ];
     // Two full accrual years (2025 and 2026 are both non-leap, so
     // 2025-01-01 to 2027-01-01 is exactly 730 days).
     const transactions = [contribution('LP', '2025-01-01', '1000000')];

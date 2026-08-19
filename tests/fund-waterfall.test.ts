@@ -64,8 +64,7 @@ describe.skipIf(!hasDatabase)('fund waterfall', () => {
       url: `/api/v1/funds/${fundId}/investors`,
       headers: authed(owner.cookie),
     });
-    const rows = (investors.json() as { investors: Array<{ id: string; code: string }> })
-      .investors;
+    const rows = (investors.json() as { investors: Array<{ id: string; code: string }> }).investors;
     lpId = rows.find((row) => row.code === 'LP')?.id as string;
     gpId = rows.find((row) => row.code === 'GP')?.id as string;
 
@@ -222,9 +221,9 @@ describe.skipIf(!hasDatabase)('fund waterfall', () => {
       url: `/api/v1/funds/${fundId}/summary?valuationDate=2026-01-01`,
       headers: authed(owner.cookie),
     });
-    expect((summary.json() as { summary: { totalDistributed: string } }).summary.totalDistributed).toBe(
-      '0',
-    );
+    expect(
+      (summary.json() as { summary: { totalDistributed: string } }).summary.totalDistributed,
+    ).toBe('0');
   });
 
   it('names exactly what is unallocated when a proposal outruns its tiers', async () => {
@@ -283,9 +282,9 @@ describe.skipIf(!hasDatabase)('fund waterfall', () => {
       url: `/api/v1/funds/${fundId}/summary?valuationDate=2026-01-01`,
       headers: authed(owner.cookie),
     });
-    expect((summary.json() as { summary: { totalDistributed: string } }).summary.totalDistributed).toBe(
-      '1080000',
-    );
+    expect(
+      (summary.json() as { summary: { totalDistributed: string } }).summary.totalDistributed,
+    ).toBe('1080000');
   });
 
   it('refuses to apply a distribution that would pay nobody', async () => {

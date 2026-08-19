@@ -321,7 +321,10 @@ export function computeFundWaterfall(input: FundWaterfallInput): FundWaterfallRe
       }, ZERO);
       const otherProfit = investors
         .filter((investor) => !recipients.some((r) => r.partnerId === investor.id))
-        .reduce((acc, investor) => acc.plus((states.get(investor.id) as InvestorState).profitDistributed), ZERO);
+        .reduce(
+          (acc, investor) => acc.plus((states.get(investor.id) as InvestorState).profitDistributed),
+          ZERO,
+        );
       // Bring the recipients' collective profit up to `target` of everyone's.
       const needed = otherProfit.times(target).dividedBy(ONE.minus(target)).minus(sponsorProfit);
       if (needed.lessThanOrEqualTo(0)) continue;
@@ -377,4 +380,3 @@ export function computeFundWaterfall(input: FundWaterfallInput): FundWaterfallRe
     allocations,
   };
 }
-
