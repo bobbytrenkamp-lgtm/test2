@@ -37,6 +37,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Calendar and date arithmetic | `packages/calculation-engine/src/calendar.test.ts` | 13 | No |
 | Metrics and closed-form checks | `packages/calculation-engine/src/metrics.test.ts` | 18 | No |
 | Fund investor economics | `packages/calculation-engine/src/fund.test.ts` | 20 | No |
+| Fund-level waterfall: tiered preferred return, GP catch-up and residual split against a real per-investor transaction history | `packages/calculation-engine/src/fund-waterfall.test.ts` | 15 | No |
 | Version comparison | `packages/calculation-engine/src/compare.test.ts` | 13 | No |
 | Regression fixtures and invariants | `packages/calculation-engine/src/regression.test.ts` | 251 | No |
 | Property-based invariants over generated models | `packages/calculation-engine/src/properties.test.ts` | 9 | No |
@@ -68,6 +69,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 12 | Yes |
+| Fund waterfall through the API: tier configuration with optimistic locking, distribution preview and apply | `tests/fund-waterfall.test.ts` | 10 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Job reaper attempt cap, and `failJob` itself: requeues with backoff under the attempt limit, moves to failed once it is reached | `tests/jobs.test.ts` | 5 | Yes |
 | The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
@@ -142,7 +144,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1533 tests in total.**
+**1558 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -163,7 +165,7 @@ built bundle:
 | Capability-driven control visibility | `e2e/permissions.spec.ts` | 6 |
 | Rent-roll import wizard, CSV and workbook | `e2e/imports.spec.ts` | 2 |
 | Accessibility, `axe-core` | `e2e/accessibility.spec.ts` | 12 |
-| Fund positions | `e2e/funds.spec.ts` | 7 |
+| Fund positions, and configuring and applying a fund-level waterfall | `e2e/funds.spec.ts` | 8 |
 | Version comparison | `e2e/versions.spec.ts` | 2 |
 | Review comments, across two roles | `e2e/review.spec.ts` | 4 |
 | Budgets, variance and its accessibility | `e2e/budgets.spec.ts` | 5 |
@@ -194,7 +196,7 @@ built bundle:
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
 
-**255 browser tests in total**, for 1788 across the whole repository.
+**256 browser tests in total**, for 1814 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

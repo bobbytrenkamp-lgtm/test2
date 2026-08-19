@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading, Metric } from '../components.js';
 import { formatCurrency, formatDate, formatMultiple, formatPercent } from '../format.js';
-import { useMutation, useResource } from '../hooks.js';
+import { useMutation, useResource, useUnsavedChangesWarning, type Resource } from '../hooks.js';
 import { useSession } from '../session.js';
 
 /**
@@ -41,6 +41,54 @@ interface TransactionRow {
   investor_code: string;
   investor_name: string;
   reference: string | null;
+}
+
+type WaterfallTierType =
+  | 'return_of_capital'
+  | 'preferred_return'
+  | 'irr_hurdle'
+  | 'catch_up'
+  | 'residual_split';
+
+const TIER_TYPE_LABEL: Record<WaterfallTierType, string> = {
+  return_of_capital: 'Return of capital',
+  preferred_return: 'Preferred return',
+  irr_hurdle: 'IRR hurdle',
+  catch_up: 'GP catch-up',
+  residual_split: 'Residual split',
+};
+
+interface WaterfallSplit {
+  partnerId: string;
+  share: string;
+}
+
+interface WaterfallTier {
+  id: string;
+  name: string;
+  type: WaterfallTierType;
+  hurdleRate: string | null;
+  compounding: boolean;
+  catchUpTargetShare: string | null;
+  splits: WaterfallSplit[];
+}
+
+interface WaterfallTiersResponse {
+  tiers: WaterfallTier[];
+  version: number;
+}
+
+interface WaterfallAllocation {
+  investorId: string;
+  investorName: string;
+  byTier: Array<{ tierId: string; tierName: string; amount: string }>;
+  total: string;
+}
+
+interface WaterfallProposal {
+  distributionDate: string;
+  distributableAmount: string;
+  allocations: WaterfallAllocation[];
 }
 
 interface Position {
@@ -363,6 +411,12 @@ function FundDetail({
             currency={currency}
             onSaved={refresh}
           />
+          <WaterfallSection
+            fundId={fund.id}
+            investors={investors.data?.investors ?? []}
+            currency={currency}
+            onApplied={refresh}
+          />
         </>
       )}
 
@@ -638,6 +692,578 @@ function TransactionForm({
       <button type="submit" className="primary" style={{ marginTop: 12 }} disabled={save.pending}>
         {save.pending ? 'Recording…' : 'Record'}
       </button>
+    </form>
+  );
+}
+
+function newTierId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `tier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function blankTier(): WaterfallTier {
+  return {
+    id: newTierId(),
+    name: '',
+    type: 'return_of_capital',
+    hurdleRate: null,
+    compounding: true,
+    catchUpTargetShare: null,
+    splits: [],
+  };
+}
+
+function blankSplit(): WaterfallSplit {
+  return { partnerId: '', share: '' };
+}
+
+const USES_HURDLE_RATE = new Set<WaterfallTierType>(['preferred_return', 'irr_hurdle']);
+const USES_SPLITS = new Set<WaterfallTierType>(['catch_up', 'residual_split']);
+
+/**
+ * A tier's own validation problem, or `undefined` if it is ready to save.
+ *
+ * Checked client-side so a GP finds a blank hurdle rate or an unassigned
+ * split before the round trip, not after — the server checks the same shape
+ * again regardless, since a form can always be bypassed.
+ */
+function tierProblem(tier: WaterfallTier): string | undefined {
+  if (!tier.name.trim()) return 'Name the tier.';
+  if (USES_HURDLE_RATE.has(tier.type) && !tier.hurdleRate?.trim()) {
+    return 'A hurdle rate is required for this tier type.';
+  }
+  if (tier.type === 'catch_up' && !tier.catchUpTargetShare?.trim()) {
+    return 'A catch-up target share is required.';
+  }
+  if (USES_SPLITS.has(tier.type)) {
+    if (tier.splits.length === 0) return 'Add at least one split.';
+    for (const split of tier.splits) {
+      if (!split.partnerId) return 'Every split needs an investor.';
+      if (!split.share.trim()) return 'Every split needs a share.';
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Fund-level waterfall: the tiers a distribution is proposed against, and a
+ * panel to preview and apply one.
+ *
+ * Order is the whole point of a tier list — the same tiers reordered pay
+ * different amounts, since each tier consumes from what the one before it
+ * left over. The editor keeps that order explicit (numbered, with move
+ * controls) rather than letting it fall out of whatever order rows were
+ * added in.
+ */
+function WaterfallSection({
+  fundId,
+  investors,
+  currency,
+  onApplied,
+}: {
+  fundId: string;
+  investors: InvestorRow[];
+  currency: string;
+  onApplied: () => void;
+}): JSX.Element {
+  const [reloadKey, setReloadKey] = useState(0);
+  const tiersResource = useResource<WaterfallTiersResponse>(`/funds/${fundId}/waterfall-tiers`, [
+    fundId,
+    reloadKey,
+  ]);
+
+  return (
+    <>
+      <WaterfallTierEditor
+        investors={investors}
+        tiersResource={tiersResource}
+        onSaved={() => setReloadKey((key) => key + 1)}
+        save={(tiers, expectedVersion) =>
+          api.put<WaterfallTiersResponse>(`/funds/${fundId}/waterfall-tiers`, {
+            tiers,
+            expectedVersion,
+          })
+        }
+      />
+      <WaterfallDistributionPanel
+        fundId={fundId}
+        currency={currency}
+        tiers={tiersResource.data?.tiers ?? []}
+        onApplied={() => {
+          setReloadKey((key) => key + 1);
+          onApplied();
+        }}
+      />
+    </>
+  );
+}
+
+function WaterfallTierEditor({
+  investors,
+  tiersResource,
+  onSaved,
+  save: saveTiers,
+}: {
+  investors: InvestorRow[];
+  tiersResource: Resource<WaterfallTiersResponse>;
+  onSaved: () => void;
+  save: (tiers: WaterfallTier[], expectedVersion: number | null) => Promise<WaterfallTiersResponse>;
+}): JSX.Element {
+  const [draft, setDraft] = useState<WaterfallTier[]>([]);
+  const [version, setVersion] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChangesWarning(dirty);
+
+  // Loads whatever the server holds into the editable draft — on first load,
+  // and again after a successful save elsewhere changes the resource — but
+  // never on a keystroke, since the draft's own state is what keystrokes
+  // update.
+  useEffect(() => {
+    if (!tiersResource.data) return;
+    setDraft(tiersResource.data.tiers);
+    setVersion(tiersResource.data.version);
+    setDirty(false);
+    // Deps are listed deliberately; see the comment above.
+  }, [tiersResource.data]);
+
+  const save = useMutation(async () => saveTiers(draft, version));
+  const [showProblems, setShowProblems] = useState(false);
+
+  function updateTier(index: number, patch: Partial<WaterfallTier>): void {
+    setDirty(true);
+    setDraft((current) => current.map((tier, i) => (i === index ? { ...tier, ...patch } : tier)));
+  }
+
+  function addTier(): void {
+    setDirty(true);
+    setDraft((current) => [...current, blankTier()]);
+  }
+
+  function removeTier(index: number): void {
+    setDirty(true);
+    setDraft((current) => current.filter((_, i) => i !== index));
+  }
+
+  function moveTier(index: number, delta: -1 | 1): void {
+    const target = index + delta;
+    if (target < 0 || target >= draft.length) return;
+    setDirty(true);
+    setDraft((current) => {
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(target, 0, moved as WaterfallTier);
+      return next;
+    });
+  }
+
+  function addSplit(tierIndex: number): void {
+    setDirty(true);
+    setDraft((current) =>
+      current.map((tier, i) =>
+        i === tierIndex ? { ...tier, splits: [...tier.splits, blankSplit()] } : tier,
+      ),
+    );
+  }
+
+  function updateSplit(tierIndex: number, splitIndex: number, patch: Partial<WaterfallSplit>): void {
+    setDirty(true);
+    setDraft((current) =>
+      current.map((tier, i) =>
+        i === tierIndex
+          ? {
+              ...tier,
+              splits: tier.splits.map((split, j) => (j === splitIndex ? { ...split, ...patch } : split)),
+            }
+          : tier,
+      ),
+    );
+  }
+
+  function removeSplit(tierIndex: number, splitIndex: number): void {
+    setDirty(true);
+    setDraft((current) =>
+      current.map((tier, i) =>
+        i === tierIndex ? { ...tier, splits: tier.splits.filter((_, j) => j !== splitIndex) } : tier,
+      ),
+    );
+  }
+
+  const problems = draft.map(tierProblem);
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    if (problems.some(Boolean)) {
+      setShowProblems(true);
+      return;
+    }
+    const result = await save.run();
+    if (result) {
+      setDirty(false);
+      onSaved();
+    }
+  }
+
+  if (investors.length === 0) {
+    return (
+      <div className="card">
+        <h2>Waterfall tiers</h2>
+        <EmptyState title="No investors yet">
+          A tier's split names an investor, so add at least one before configuring a waterfall.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  return (
+    <form className="card" onSubmit={submit} noValidate>
+      <h2>Waterfall tiers</h2>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        The order below is the payment order: return of capital, then a preferred return, then a
+        GP catch-up, then a residual split is the usual shape, but this fund&rsquo;s own governing
+        document decides it. Each tier pays what it is owed from what the tiers above it left over.
+      </p>
+
+      {save.error?.status === 409 ? (
+        <div className="message error" role="alert">
+          <strong>{save.error.message}</strong>
+          <p style={{ marginBottom: 0 }}>
+            Nothing has been saved. Reload to see the current tiers before reapplying your change.
+          </p>
+        </div>
+      ) : (
+        <ErrorMessage error={save.error} />
+      )}
+
+      {draft.length === 0 && (
+        <p className="field-hint">No tiers configured yet. Add one below.</p>
+      )}
+
+      {draft.map((tier, index) => (
+        <div
+          key={tier.id}
+          className="card"
+          style={{ background: 'var(--surface-sunken)', marginBottom: 12 }}
+        >
+          <div className="row" style={{ marginBottom: 8 }}>
+            <strong>Tier {index + 1}</strong>
+            <div className="spacer" />
+            <button
+              type="button"
+              className="subtle"
+              disabled={index === 0}
+              onClick={() => moveTier(index, -1)}
+              aria-label={`Move tier ${index + 1} up`}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="subtle"
+              disabled={index === draft.length - 1}
+              onClick={() => moveTier(index, 1)}
+              aria-label={`Move tier ${index + 1} down`}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              className="subtle"
+              aria-label={`Remove tier ${index + 1}`}
+              onClick={() => removeTier(index)}
+            >
+              Remove
+            </button>
+          </div>
+
+          <div className="form-grid">
+            <Field label="Name">
+              <input
+                value={tier.name}
+                onChange={(event) => updateTier(index, { name: event.target.value })}
+              />
+            </Field>
+            <Field label="Type">
+              <select
+                value={tier.type}
+                onChange={(event) => {
+                  // Clearing fields the new type does not use avoids a stray
+                  // blank string (invalid: a decimal field is either a real
+                  // number or null, never "") surviving a type change and
+                  // failing validation on save for a reason no longer shown
+                  // on screen.
+                  const nextType = event.target.value as WaterfallTierType;
+                  updateTier(index, {
+                    type: nextType,
+                    hurdleRate: USES_HURDLE_RATE.has(nextType) ? tier.hurdleRate : null,
+                    catchUpTargetShare: nextType === 'catch_up' ? tier.catchUpTargetShare : null,
+                  });
+                }}
+              >
+                {Object.entries(TIER_TYPE_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {USES_HURDLE_RATE.has(tier.type) && (
+              <>
+                <Field label="Annual hurdle rate" hint="e.g. 0.08 for 8%">
+                  <input
+                    inputMode="decimal"
+                    value={tier.hurdleRate ?? ''}
+                    onChange={(event) => updateTier(index, { hurdleRate: event.target.value })}
+                  />
+                </Field>
+                <Field label="Compounding">
+                  <select
+                    value={tier.compounding ? 'yes' : 'no'}
+                    onChange={(event) =>
+                      updateTier(index, { compounding: event.target.value === 'yes' })
+                    }
+                  >
+                    <option value="yes">Compounding</option>
+                    <option value="no">Non-compounding</option>
+                  </select>
+                </Field>
+              </>
+            )}
+            {tier.type === 'catch_up' && (
+              <Field label="GP catch-up target share" hint="e.g. 0.20 for 20% of profit">
+                <input
+                  inputMode="decimal"
+                  value={tier.catchUpTargetShare ?? ''}
+                  onChange={(event) => updateTier(index, { catchUpTargetShare: event.target.value })}
+                />
+              </Field>
+            )}
+          </div>
+
+          {USES_SPLITS.has(tier.type) && (
+            <div style={{ marginTop: 8 }}>
+              <div className="row">
+                <span className="field-hint" style={{ margin: 0 }}>
+                  Splits
+                </span>
+                <div className="spacer" />
+                <button type="button" className="subtle" onClick={() => addSplit(index)}>
+                  Add split
+                </button>
+              </div>
+              {tier.splits.map((split, splitIndex) => (
+                <div key={splitIndex} className="row" style={{ gap: 8, marginTop: 6 }}>
+                  <select
+                    aria-label={`Tier ${index + 1} split ${splitIndex + 1} investor`}
+                    value={split.partnerId}
+                    onChange={(event) =>
+                      updateSplit(index, splitIndex, { partnerId: event.target.value })
+                    }
+                  >
+                    <option value="">Choose an investor</option>
+                    {investors.map((investor) => (
+                      <option key={investor.id} value={investor.id}>
+                        {investor.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    aria-label={`Tier ${index + 1} split ${splitIndex + 1} share`}
+                    inputMode="decimal"
+                    style={{ maxWidth: 100 }}
+                    placeholder="Share"
+                    value={split.share}
+                    onChange={(event) => updateSplit(index, splitIndex, { share: event.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="subtle"
+                    aria-label={`Remove tier ${index + 1} split ${splitIndex + 1}`}
+                    onClick={() => removeSplit(index, splitIndex)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showProblems && problems[index] && (
+            <p className="field-error" role="alert">
+              {problems[index]}
+            </p>
+          )}
+        </div>
+      ))}
+
+      <div className="row" style={{ gap: 8 }}>
+        <button type="button" className="subtle" onClick={addTier}>
+          Add tier
+        </button>
+        <div className="spacer" />
+        <button type="submit" className="primary" disabled={save.pending}>
+          {save.pending ? 'Saving…' : 'Save tiers'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function WaterfallDistributionPanel({
+  fundId,
+  currency,
+  tiers,
+  onApplied,
+}: {
+  fundId: string;
+  currency: string;
+  tiers: WaterfallTier[];
+  onApplied: () => void;
+}): JSX.Element {
+  const [distributionDate, setDistributionDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [distributableAmount, setDistributableAmount] = useState('');
+  const [proposal, setProposal] = useState<WaterfallProposal | null>(null);
+
+  const preview = useMutation(async () =>
+    api.post<{ proposal: WaterfallProposal }>(`/funds/${fundId}/waterfall/preview`, {
+      distributionDate,
+      distributableAmount,
+    }),
+  );
+  const apply = useMutation(async () =>
+    api.post<{ transactions: unknown[]; proposal: WaterfallProposal }>(
+      `/funds/${fundId}/waterfall/apply`,
+      { distributionDate, distributableAmount },
+    ),
+  );
+
+  function clearProposal(): void {
+    setProposal(null);
+    apply.clearError();
+  }
+
+  async function runPreview(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    const result = await preview.run();
+    if (result) setProposal(result.proposal);
+  }
+
+  async function runApply(): Promise<void> {
+    const result = await apply.run();
+    if (result) {
+      setProposal(null);
+      setDistributableAmount('');
+      onApplied();
+    }
+  }
+
+  if (tiers.length === 0) {
+    return (
+      <div className="card">
+        <h2>Propose a distribution</h2>
+        <EmptyState title="No waterfall tiers yet">
+          Add at least one tier above — typically return of capital, then a preferred return, then
+          a residual split — before a distribution can be proposed.
+        </EmptyState>
+      </div>
+    );
+  }
+
+  const payable = proposal?.allocations.filter((allocation) => Number(allocation.total) > 0) ?? [];
+
+  return (
+    <form className="card" onSubmit={runPreview} noValidate>
+      <h2>Propose a distribution</h2>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        Preview recomputes the split from the fund&rsquo;s tiers and every transaction recorded
+        before this date. Nothing is recorded until you apply it.
+      </p>
+
+      <div className="form-grid">
+        <Field label="Distribution date">
+          <input
+            type="date"
+            value={distributionDate}
+            onChange={(event) => {
+              setDistributionDate(event.target.value);
+              clearProposal();
+            }}
+          />
+        </Field>
+        <Field label={`Distributable amount (${currency})`}>
+          <input
+            inputMode="decimal"
+            value={distributableAmount}
+            onChange={(event) => {
+              setDistributableAmount(event.target.value);
+              clearProposal();
+            }}
+          />
+        </Field>
+      </div>
+      <ErrorMessage error={preview.error} />
+      <button
+        type="submit"
+        className="subtle"
+        disabled={preview.pending || !distributableAmount.trim()}
+      >
+        {preview.pending ? 'Calculating…' : 'Preview'}
+      </button>
+
+      {proposal && (
+        <>
+          <div className="table-scroll" tabIndex={0} style={{ marginTop: 16 }}>
+            <table>
+              <caption className="visually-hidden">
+                Proposed distribution of {formatCurrency(proposal.distributableAmount, currency)} on{' '}
+                {formatDate(proposal.distributionDate)}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Investor</th>
+                  <th scope="col">By tier</th>
+                  <th scope="col" className="numeric">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {payable.length === 0 && (
+                  <tr>
+                    <td colSpan={3}>This distribution would pay nobody.</td>
+                  </tr>
+                )}
+                {payable.map((allocation) => (
+                  <tr key={allocation.investorId}>
+                    <th scope="row">{allocation.investorName}</th>
+                    <td>
+                      {allocation.byTier
+                        .map((entry) => `${entry.tierName}: ${formatCurrency(entry.amount, currency)}`)
+                        .join(', ')}
+                    </td>
+                    <td className="numeric">{formatCurrency(allocation.total, currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ErrorMessage error={apply.error} />
+          <button
+            type="button"
+            className="primary"
+            style={{ marginTop: 12 }}
+            disabled={apply.pending || payable.length === 0}
+            onClick={runApply}
+          >
+            {apply.pending
+              ? 'Recording…'
+              : `Apply: record ${payable.length} distribution${payable.length === 1 ? '' : 's'}`}
+          </button>
+        </>
+      )}
     </form>
   );
 }

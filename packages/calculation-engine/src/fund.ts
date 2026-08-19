@@ -42,10 +42,13 @@ import { safeDivide, toStringOrNull, xirr, type DatedCashFlow } from './metrics.
  *
  * ## What this deliberately does not model
  *
- * - **Fund-level carried interest and catch-up.** The deal waterfall in
- *   `waterfall.ts` models tiers for a single investment. A fund-level waterfall
- *   settles across the whole portfolio with its own hurdle and clawback, which
- *   is a different calculation and not this one.
+ * - **Fund-level carried interest and catch-up.** Settling a preferred return,
+ *   GP catch-up and residual split across a fund's real, irregularly-dated,
+ *   per-investor transaction history is `computeFundWaterfall` in
+ *   `fund-waterfall.ts` — a different calculation from the deal waterfall in
+ *   `waterfall.ts`, which assumes one fixed monthly grid and one constant
+ *   partner share, and this module's own position/return figures still make
+ *   no assumption about how a distribution was split once it lands.
  * - **Management fee mechanics** — offsets, step-downs, fees on invested rather
  *   than committed capital. A fee that has been charged appears here as the
  *   contribution it was funded by; how it was computed is upstream.
