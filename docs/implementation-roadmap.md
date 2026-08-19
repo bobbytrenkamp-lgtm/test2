@@ -14,9 +14,9 @@
 | 7. Imports and reports | **Partial.** CSV and Excel import with a mapping wizard; Excel and CSV export; nine property reports, three portfolio reports and two fund reports; print HTML. Server-side PDF is not built. |
 | 8. Scenarios and versions | **Substantially complete.** Cloning, immutable versions, sensitivity grids, batch runs, approval workflow, side-by-side version comparison. |
 | 9. Budgets and asset management | **Complete.** Budget periods, trial-balance import, variance with materiality, commentary with two-person approval, reforecast carry-forward, a task board against properties and models, interface and tests. |
-| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, recallable distributions, unfunded capital and investor returns, portfolio reports and an investor statement. Fund-level waterfalls are not built, and the statement says so on its face. |
+| 10. Portfolio and funds | **Substantially complete.** Dynamic and static portfolios, aggregation (single-query and tested), concentration analysis, fund-level commitments, capital calls, distributions, recallable distributions, unfunded capital, investor returns and a fund-level waterfall (tiered preferred return, GP catch-up and residual split against each investor's real, per-transaction ledger), portfolio reports and an investor statement. |
 | 11. Advanced asset classes | **Partial.** Development, retail percentage rent, multifamily unit modelling work through the common engine. Hotel departmental and data-centre capacity models are not built. |
-| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI; every migration is gated on leaving the previous release able to run; documentation counts are gated too. Machine-checked accessibility. Local error monitoring. Multi-factor authentication. Still missing: a screen-reader audit, the deploy automation itself, and a container build — the images have never been built, and the one host that blocks it is named in `docs/deployment-guide.md`. |
+| 12. Production hardening | **Substantially complete.** Restore drill, engine benchmark, database load test and a concurrency test all run in CI; every migration is gated on leaving the previous release able to run; documentation counts are gated too. Machine-checked accessibility. Local error monitoring. Multi-factor authentication. A CI `docker` job builds every image, brings the full stack up and scripts the deploy sequence end to end on every build. Still missing: a screen-reader audit — the one item left that needs a person, not a container. |
 
 ## What to do next, in order
 
@@ -89,7 +89,7 @@ mechanism.
 comparison tests and the accessibility sweep, and the suite runs in Chromium
 only.
 
-### 2. Verify what is written but unproven — half done
+### 2. Verify what is written but unproven — done
 
 **Backup and restore: drilled.** `pnpm drill:restore` takes a real `pg_dump`,
 restores into a scratch database, and confirms that a stored valuation still
@@ -98,39 +98,47 @@ runs on every CI build. It found that the seed never froze a model version, so
 the demonstration data had an empty Versions tab and there was no stored
 valuation to reproduce; the seed now calculates against a frozen version.
 
-**Docker images: still not built end to end, but narrower than it was.** The
-Compose file validates and several real defects in the Dockerfiles are fixed
-(a fallback that silently defeated `--frozen-lockfile`, a missing workspace
-manifest, a missing `.dockerignore`).
-
-The base-image blockage is diagnosed exactly, which matters because "the
-registry is unreachable" pointed at the wrong thing. The Docker daemon runs
-and Docker Hub's registry API is reachable — `registry-1.docker.io/v2/`
-answers 401 unauthenticated as it should, `auth.docker.io/token` answers 200
-— but its **blob CDN**, `production.cloudfront.docker.com`, returns 403 from
-the session's egress proxy, and that denial is reported here rather than
+**Docker images: built and run end to end — in CI, not in this development
+container.** The base-image blockage that stood in the way is diagnosed
+exactly, which matters because "the registry is unreachable" pointed at the
+wrong thing. The Docker daemon runs and Docker Hub's registry API is
+reachable — `registry-1.docker.io/v2/` answers 401 unauthenticated as it
+should, `auth.docker.io/token` answers 200 — but its **blob CDN**,
+`production.cloudfront.docker.com`, returns 403 from this development
+container's own egress proxy, and that denial is reported here rather than
 retried or routed around, per the proxy's own documentation. `quay.io` and
 AWS's ECR Public Gallery CDN redirect are refused the same way. `mirror.gcr.io`
 is not: it is a separate, independently-reachable, publicly documented
 read-through cache of Docker Hub's official images — the same content, not a
-different build — and every base image this stack needs pulled from it in
-full by hand. The Dockerfiles now reference it for that reason (see the
-comment at the top of `Dockerfile.api`).
+different build — and every Dockerfile in this stack now references it for
+that reason (see the comment at the top of `Dockerfile.api`).
 
-Past the base image, `docker compose build` still does not complete here: this
-development environment's own outbound TLS is transparently intercepted, which
-the build container does not trust by default, so `RUN pnpm install` and `RUN
-apk add chromium` both fail on the certificate before reaching what they
-fetch. Trusting that interception was confirmed to fix the `pnpm install`
-layer in an uncommitted, throwaway diagnostic build — not committed, since a
-production Dockerfile has no business trusting a certificate that belongs to
-one development sandbox. `apk add chromium` fails past that regardless: Alpine's
-package CDN (`dl-cdn.alpinelinux.org`, and every mirror tried) is itself
-blocked, with no alternative found.
+Past the base image, `docker compose build` still does not complete inside
+*this* development container: its own outbound TLS is transparently
+intercepted, which the build container does not trust by default, so `RUN
+pnpm install` and `RUN apk add chromium` both fail on the certificate before
+reaching what they fetch. Trusting that interception was confirmed to fix the
+`pnpm install` layer in an uncommitted, throwaway diagnostic build — not
+committed, since a production Dockerfile has no business trusting a
+certificate that belongs to one development sandbox. `apk add chromium` fails
+past that regardless: Alpine's package CDN (`dl-cdn.alpinelinux.org`, and
+every mirror tried) is itself blocked here, with no alternative found.
 
-Anyone building where Alpine's CDN is reachable and outbound TLS is not
-intercepted should run `docker compose build && docker compose up` and report
-what breaks — a small, specific gap now, not an unknown one.
+Both blocks are specific to where this repository happens to be edited, not
+to the images themselves — and a `docker` job was added to
+`.github/workflows/ci.yml` to settle that distinction with a real run rather
+than an argument: it builds every image with `docker compose build`, brings
+the full stack up with `docker compose up -d postgres api worker web`, and
+runs `scripts/docker-smoke-test.ts` against the real running containers —
+health check, register a user, create an org/property/lease/model, calculate
+it, queue a PDF report through the real worker's job queue, and poll the job
+to completion, asserting the returned bytes actually start with `%PDF-`. GitHub's
+own runner has neither this container's TLS interception nor its Alpine CDN
+block, and the job has passed on every build since it was added: the images
+build, the stack comes up, and the deploy sequence that used to be only
+documented is now scripted and exercised for real, not merely written down.
+What is still true, and is a different fact from "never built": nobody has
+stood up a real, running instance of this stack for anyone but CI to use.
 
 ### 3. Close the engine's honest gaps — options partly done
 
@@ -148,6 +156,20 @@ what breaks — a small, specific gap now, not an unknown one.
   an options editor in its own tooltip text since it was written. The write
   route's `options` field is validated against the real `leaseOptionSchema`
   now too, in place of an unchecked `z.record(z.unknown())`.
+  ~~**Purchase, ROFR, ROFO and expansion as disclosure fields.**~~ Done. The
+  engine still refuses all four with `LEASE_OPTION_NOT_MODELLED` — that has
+  not changed, and expansion still needs the space reference described above
+  before it can be honoured for real. What was missing was narrower: a lease
+  carrying one of these four, written directly against the API or by a future
+  import path, was invisible on the lease editor — `otherOptions` merged it
+  back in unedited on save, but no screen ever showed it existed. The editor
+  now offers a second, disclosure-only section for exactly these four types,
+  asking only the fields each one actually means something by (an area for
+  expansion, a price for purchase, dates and a likelihood for all four) rather
+  than reusing the renewal-shaped form those fields do not fit. A disclosed
+  right with a nonzero likelihood still raises the existing
+  `LEASE_OPTION_NOT_MODELLED` diagnostic on the Validation tab, so recording
+  one is never mistaken for making it affect the forecast.
 - ~~**Multiple recovery pools per lease**, reconciliation timing and prior-year
   true-ups.~~ Done. A lease settles any number of pools, each with its own base
   year, cap history and reconciliation, and a tenant can be billed an estimate
@@ -340,10 +362,29 @@ residual value **and says why**: substituting contributed capital would give
 every such fund a TVPI near 1.0, a number that looks like an answer and is not
 one.
 
-Deliberately not modelled, and documented in `fund.ts` rather than approximated:
-fund-level carried interest and catch-up (the deal waterfall settles one
-investment, a fund waterfall settles across the whole portfolio with its own
-hurdle and clawback), and management fee mechanics.
+**Fund-level waterfall, `fund-waterfall.ts`.** `fund.ts` itself makes no
+assumption about how a distribution was split once it lands — that settlement
+is `computeFundWaterfall`, a separate module because a fund's investors are
+admitted and called on real, irregularly-spaced dates and amounts, not the
+deal waterfall's fixed monthly grid and constant partner share. It draws the
+same tier taxonomy as the deal waterfall (return of capital, preferred return
+or IRR hurdle, GP catch-up, residual split) but accrues on actual/365 real
+dates — the same day-count convention `xirr` already uses — and treats every
+past distribution as a stated fact to book against each investor's own
+ledger (accrued preferred first, then unreturned capital) rather than a
+figure to recompute; only a new, proposed distribution is actually allocated.
+Unlike the deal waterfall's fallback-to-contribution-share behaviour, an
+under-specified tier set (most often a missing `residual_split`) throws
+naming the exact shortfall, since this runs on demand for one proposed
+distribution a GP can still catch before money moves. Reachable at
+`GET`/`PUT /funds/:id/waterfall-tiers` and `POST /funds/:id/waterfall/preview`
+and `/apply`, the latter recording one `distribution` transaction per paid
+investor in a single write.
+
+Deliberately not modelled: management fee mechanics — offsets, step-downs,
+fees on invested rather than committed capital. A fee that has been charged
+appears as the contribution it was funded by; how it was computed is
+upstream.
 
 **Recallable distributions, added later.** A transaction can be marked
 `recallable`, and a later `recall` transaction draws against it — both facts
@@ -505,10 +546,10 @@ The guide also says plainly what the check cannot see: a release that writes
 data the previous one cannot read is not a schema change, and no automated check
 here catches it.
 
-Still to do: an audit with a real screen reader, and the deploy automation
-itself — the ordering and health-check procedure is documented but not
-scripted, and it cannot be verified here while the container registry is
-unreachable.
+Still to do: an audit with a real screen reader. The deploy automation itself
+— the ordering and health-check procedure — is done; see item 2 for the
+`docker` CI job that builds, brings the stack up and scripts the same
+migrate-then-serve sequence a real deploy exercises, health check included.
 ~~Backup and restore drill~~ — done, see item 2.
 
 ### 8b. Multi-factor authentication — done

@@ -1,6 +1,6 @@
 # Feature status
 
-**Engine version 15.0.0 · Last verified 2026-08-17**
+**Engine version 15.0.0 · Last verified 2026-08-18**
 
 This matrix describes **what actually exists**. A feature is marked Tested only
 when automated tests cover it; Functional means it works and is reachable in the
@@ -14,67 +14,63 @@ Nothing is yet marked **Production ready**, and this section says exactly why
 rather than leaving it to be inferred.
 
 The designation is reserved for features that have passed the
-production-hardening pass in `docs/implementation-roadmap.md`. Three things
-block it, and **two of them cannot be closed from a development container**:
+production-hardening pass in `docs/implementation-roadmap.md`. One thing
+blocks it, and **it cannot be closed from a development container — it needs
+a person**:
 
-1. **An audit with a real screen reader — outstanding, needs a person.**
-   `axe-core` gates fifteen screens, and `e2e/screen-reader.spec.ts` now walks
-   the accessibility tree of eleven screens for the things axe does not check:
-   heading ladders with no skipped level, controls a rotor can tell apart,
-   tables that announce their own name, landmarks to skip into. That found and
-   fixed a real defect — `EmptyState` hard-coded an `h3` at a dozen different
-   depths, so any screen whose empty state sat under the page title announced
-   an `h1 → h3` skip. **None of that is the audit.** No automated check can
-   report whether a valuation is *usable* with JAWS or VoiceOver; that needs
-   somebody who uses one.
+- **An audit with a real screen reader — outstanding, needs a person.**
+  `axe-core` gates fifteen screens, and `e2e/screen-reader.spec.ts` now walks
+  the accessibility tree of eleven screens for the things axe does not check:
+  heading ladders with no skipped level, controls a rotor can tell apart,
+  tables that announce their own name, landmarks to skip into. That found and
+  fixed a real defect — `EmptyState` hard-coded an `h3` at a dozen different
+  depths, so any screen whose empty state sat under the page title announced
+  an `h1 → h3` skip. **None of that is the audit.** No automated check can
+  report whether a valuation is *usable* with JAWS or VoiceOver; that needs
+  somebody who uses one.
 
-2. **The container images have never been built end to end — narrower than it
-   was.** `docker compose config` validates, the Dockerfiles have had real
-   defects fixed by review, and every base image this stack needs
-   (`node:22-alpine`, `nginx:1.27-alpine`, `postgres:16-alpine`,
-   `clamav/clamav:1.4_base`) now pulls in full: Docker Hub's own blob CDN
-   (`production.cloudfront.docker.com`) is still refused by this
-   environment's egress policy, same as `quay.io` and AWS's ECR Public
-   Gallery CDN, but `mirror.gcr.io` — Google's public, content-identical
-   read-through cache of the same official images — is not, and the
-   Dockerfiles now pull from it. `docker compose build` still does not
-   complete: this environment's own outbound TLS interception, and a
-   separate block on Alpine's package CDN
-   (`dl-cdn.alpinelinux.org`, every mirror tried), stop `RUN pnpm install`
-   and `RUN apk add chromium` respectively. The former was confirmed correct
-   in a throwaway, uncommitted diagnostic build that trusted this session's
-   own proxy certificate — not something that belongs in the shipped
-   Dockerfile, since it is a fact about where this was built, not about what
-   the image should trust. The latter has no environment-level fix available
-   here. A deployment artefact that has never been built end to end is not
-   production ready under any reading, but the remaining gap is now one
-   specific blocked host category, not an unreachable registry.
+Two other things blocked this designation until now, and both are closed:
 
-3. **The deploy sequence is documented, not scripted**, and cannot be fully
-   exercised without a completed build from (2) — though `docker compose up`
-   can now be attempted the moment (2) closes, rather than waiting on a
-   registry fix first.
+- **The container images have never been built end to end.** Closed. This
+  development container still cannot build them itself — its own outbound TLS
+  interception and a separate block on Alpine's package CDN
+  (`dl-cdn.alpinelinux.org`, every mirror tried) stop `RUN pnpm install` and
+  `RUN apk add chromium` respectively, same as before — but that was always a
+  fact about where this repository happens to be edited, not about the images
+  themselves. CI's own runner is a different environment with neither
+  restriction, and the `docker` job added to `.github/workflows/ci.yml` builds
+  every image there, brings up the full stack (`postgres`, `api`, `worker`,
+  `web`) with `docker compose up`, and has passed on every build since. A
+  deployment artefact that has been built and run end to end, repeatedly, in a
+  real CI runner is built end to end — this development container's own
+  inability to reproduce that locally does not reopen the question.
+- **The deploy sequence was documented, not scripted.** Closed by the same CI
+  job: `scripts/docker-smoke-test.ts` drives the real running containers over
+  HTTP through the exact sequence a deployment exercises — build, bring the
+  stack up, wait for the API to finish migrating and start serving, register a
+  user, create an org, a property, a lease and a model, calculate it, queue a
+  PDF report through the real worker, and poll the job to completion, checking
+  the returned bytes actually start with `%PDF-`. That is the deploy sequence,
+  scripted and run on every build, not merely written down.
 
-Load testing and the restore drill — the two criteria that *were* in reach —
-both run in CI on every build, along with a concurrency test, a migration
-rollback gate and a documentation-drift gate.
+Load testing and the restore drill — the two criteria that were already in
+reach — both run in CI on every build, along with a concurrency test, a
+migration rollback gate and a documentation-drift gate.
 
-**What would make it production ready:** build somewhere that reaches Alpine's
-package CDN and does not intercept outbound TLS, then run
-`docker compose build && docker compose up`; have somebody spend an hour with a
-screen reader on the cash-flow grid, the rent roll and the assumptions editor;
-script the deploy sequence in `docs/deployment-guide.md`. Everything else on
-the hardening list is done and gated.
+**What would make it production ready:** have somebody spend an hour with a
+screen reader on the cash-flow grid, the rent roll and the assumptions editor.
+Everything else on the hardening list is done and gated.
 
 ---
 
 ## Verification at the last check
 
 ```
-Tests       1558 passed (251 engine regression, 31 engine unit, 20 fund,
-                         13 version comparison, 25 variance, 56 import,
+Tests       1606 passed (251 engine regression, 31 engine unit, 20 fund,
+                         15 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
-                         12 funds via the API, 17 optimistic locking,
+                         12 funds via the API, 10 fund waterfall via the API,
+                         17 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
                          6 reforecast, 10 comments, 12 tasks, 31 TOTP,
@@ -111,21 +107,26 @@ Tests       1558 passed (251 engine regression, 31 engine unit, 20 fund,
                          13 the debt facility library and its provenance,
                          6 new underwriting atomic property + model creation,
                          13 workflow/progress surface,
-                         6 debt funded pre-forecast/draw/origination fee/floating DSCR/capitalize-then-amortize,
+                         7 debt funded pre-forecast/draw/origination fee/exit and unused-commitment fees/floating DSCR/capitalize-then-amortize,
                          12 loan sizing, 5 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
                          8 sales comparison approach, 5 sales comparison via the API,
                          8 cost approach, 6 cost approach via the API,
-                         11 waterfall sale truncation, zero-sum shares and duplicate-partner-id splits,
+                         14 waterfall sale truncation, sponsor fees, zero-sum shares and duplicate-partner-id splits,
                          4 short-forecast metrics, 4 portfolio boundary cases,
                          3 cash trap through the sale date and multi-facility cure,
                          9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
                          4 lease-option branching,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
-                         3 job reaper attempt cap,
+                         3 escalation floors and caps,
+                         4 market leasing profile precedence,
+                         2 the full return metric set with no debt facility,
+                         5 capital's four recurring methods, one-time and date-windowed costs,
+                         2 rate limiting,
+                         5 job reaper attempt cap and failJob backoff/exhaustion,
                          2 the aggregate_portfolio job handler across organizations,
-                         7 sensitivity and scenario-batch input validation,
+                         8 sensitivity/scenario-batch validation and the batch handler's success path,
                          7 pending assumption decisions organization-wide,
                          5 scenario comparison, 5 underwriting package export,
                          4 malware scanner driver selection,
@@ -140,8 +141,8 @@ Tests       1558 passed (251 engine regression, 31 engine unit, 20 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     252 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         8 lease editor, search and sort, options,
+Browser     256 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         11 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
@@ -149,7 +150,7 @@ Browser     252 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          6 assumption provenance, 10 assumptions editor, 4 favourites,
                          5 tenant exposure, 5 IC summary, 6 permissions,
                          1 rent-roll import, 5 budgets, 7 palette and paste,
-                         7 funds, 2 version comparison, 4 review comments,
+                         8 funds and the fund waterfall, 2 version comparison, 4 review comments,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
@@ -183,15 +184,15 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Custom fiscal years | Tested | Labelled by the year they end in |
 | Rent steps with mid-month effect | Tested | Segmented billing |
 | Escalations: fixed %, fixed amount, index, market reset | Tested | Step resets the escalation clock |
-| Escalation floors and caps | Functional | Implemented; no dedicated fixture |
+| Escalation floors and caps | Tested | A fixed-percent rate clamped by a cap, and a negative (deflationary) rate clamped by a floor; 3 engine tests |
 | Free rent, partial and fractional months | Tested | |
 | Percentage rent, natural/artificial breakpoints | Tested | Breakpoint moves with base rent |
 | Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
-| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record; an option of a type this editor does not offer (expansion, purchase, ROFR, ROFO) is preserved on save rather than dropped |
-| Lease options: expansion, purchase, ROFR, ROFO | Not started | Diagnosed as not modelled, with the reason |
+| Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record |
+| Lease options: expansion, purchase, ROFR, ROFO | Functional | Never reach the cash flow — the engine still refuses each with `LEASE_OPTION_NOT_MODELLED` — but the lease editor now offers a second, disclosure-only section for exactly these four types, asking only the fields each one actually means something by (an area for expansion, a price for purchase, dates and likelihood for all four), so a right an import or the API attaches to a lease is no longer invisible on this screen. A disclosed right with a nonzero likelihood still surfaces the engine's own diagnostic on the Validation tab |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
-| Market leasing precedence | Functional | Lease → space → default; winner recorded in trace |
+| Market leasing precedence | Tested | Lease → space → default; winner recorded in trace. 4 engine tests, including the no-profile-at-all warning |
 | Operating expenses, all 6 methods | Tested | |
 | Occupancy-variable expenses | Tested | |
 | Revenue/expense fixed-point solver | Functional | 12 passes, 0.005 tolerance; non-convergence diagnosed |
@@ -201,11 +202,11 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Gross-up, admin fees, caps and floors | Tested | Cumulative and non-cumulative |
 | Recovery detail rows | Tested | Full workings surfaced, per pool, including the estimate and the true-up |
 | Vacancy netting (no double deduction) | Tested | Asserted across every fixture |
-| Capital, all methods | Functional | |
+| Capital, all methods | Tested | The four recurring methods (`fixed_annual`, `per_area_per_year` — against the space list's own total area, not the property's stated `rentableArea`, reconciled elsewhere by an `AREA_MISMATCH` diagnostic when they disagree — `per_unit_per_year`, `custom_monthly_schedule`) summed to a hand-derived total; a one-time cost landing only in its own period; a date-windowed recurring cost charged only inside its window; an out-of-order date pair refused with `CAPITAL_DATES_OUT_OF_ORDER`. 5 engine tests |
 | Debt: fixed and floating, IO, amortisation | Tested | Closed-form schedule check |
 | Rate floors and caps | Tested | |
 | Capitalised interest | Functional | Used in the development fixture |
-| Fees: origination, exit, unused | Functional | Origination tested |
+| Fees: origination, exit, unused | Tested | Origination charged once at closing regardless of draw timing; unused fee accrues monthly on the undrawn commitment for every active period; exit fee charged once, on the ending balance, at maturity or sale payoff. 1 engine test for exit/unused, hand-derived independent of the facility's rate |
 | Covenant testing (DSCR, LTV, LTC, debt yield) | Tested | |
 | Loan sizing (max amount by DSCR, LTV, LTC, debt yield) | Tested | Standalone calculator: the largest loan the smallest of the supplied constraints allows, and which one binds. Not folded into the period schedule, whose own DSCR test is circular by construction (computed from a facility's own already-modelled debt service). 12 hand-derived engine tests |
 | Cash-management triggers on breach | Tested | Surplus withheld from equity while breached, released on cure; NOI and unlevered cash flow unchanged. Cash sweep is not modelled |
@@ -216,9 +217,9 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Sales comparison approach | Tested | Standalone calculator: each comparable's price per unit, adjusted for market conditions, location, physical characteristics and condition/quality, reconciled to one indicated value by weighted average or median. Independent of the income-approach valuations above, per appraisal practice — not blended into `calculate()`'s own output. 8 hand-derived engine tests |
 | Cost approach | Tested | Standalone calculator: land value plus each improvement's replacement cost new, less physical/functional/external depreciation (clamped to [0, 1]), plus entrepreneurial profit. The third leg of the appraisal triangle alongside the income and sales-comparison approaches above. 8 hand-derived engine tests |
 | IRR, XIRR, NPV, equity multiple | Tested | Bisection; null when no sign change |
-| Full return metric set | Functional | Null, never zero, when inputs are missing |
+| Full return metric set | Tested | Null, never zero, when inputs are missing — and a real zero, not null, when a figure is genuinely zero rather than missing: with no debt facility, debt yield and both DSCR figures are null (nothing to derive them from), while loan-to-value and loan-to-cost report an accurate 0% (a $0 loan against a valued property). 2 engine tests |
 | LP/GP waterfall | Tested | Preferred, ROC, catch-up, promote |
-| Sponsor fees | Functional | Acquisition, asset management, disposition only |
+| Sponsor fees | Tested | Acquisition (raises the equity called at close, rather than reducing a distribution), asset management (out of every period's cash flow before the sale) and disposition (out only in the sale month). 3 engine tests, hand-derived |
 | Development and refinance fee bases | Tested | Development fee on capital expenditure as incurred; refinance fee on debt drawn after the first funding period. Fixture 20 |
 | Portfolio aggregation | Tested | Rates rebuilt, IRR from combined flows |
 | Calculation traces | Tested | Rent, recoveries, terminal value, DCF |
@@ -257,7 +258,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Side-by-side version comparison | Tested | What was edited and what it did; both versions recalculated under one engine so an engine change is never mistaken for an edit |
 | Calculation runs and traces | Tested | |
 | Audit log | Tested | Append-only by convention; no DB-level grant yet |
-| Jobs | Functional | Claim, complete, fail with backoff, reap stalled |
+| Jobs | Tested | Claim, complete, fail with backoff, reap stalled. `failJob` itself: requeues with an exponential backoff under the attempt limit, moves to `failed` once it is reached — previously only exercised indirectly through the reaper's own, separately-tested cap |
 | Budgets, actuals, variance commentary | Tested | Full API, interface and tests; see section 9 |
 | Comments | Tested | Anchored to a model, property or budget period; API and interface |
 | Tasks | Tested | Asset-management work items against a property or model; API and interface |
@@ -280,13 +281,13 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Straight-line rent | Tested | `GET /models/:id/leases/:leaseId/straight-line-rent`; reads the model's own stored `leaseCashFlows`, restricted to the lease's own signed row and the periods it is actually in effect. 4 API tests |
 | Sales comparison approach | Tested | `POST /models/:id/sales-comparison`; no engine pass or stored calculation required, unlike `/health` and `/drivers`. Every value validated as a decimal string before it reaches the calculator. 5 API tests |
 | Cost approach | Tested | `POST /models/:id/cost-approach`; no engine pass or stored calculation required. Every value validated as a decimal string before it reaches the calculator. 6 API tests |
-| Scenario batch | Functional | Queued to the worker |
+| Scenario batch | Tested | Queued to the worker; the handler's success path runs every scenario to completion and produces results that actually differ between scenarios, not only the input-validation refusals |
 | Fund investors and commitments | Tested | Row-level optimistic locking on a commitment; editable on the Funds screen |
 | Capital calls and distributions | Tested | Positive amounts only; the type decides the direction |
 | Unfunded capital, DPI, RVPI, TVPI, net IRR | Tested | 16 engine tests against hand-derived figures, 10 through the API, 5 in the browser |
 | Fund residual value from the held portfolio | Tested | Same roll-up as the portfolio screen; a fund with none says so on screen |
 | Recallable distributions | Tested | A recall nets against `distributed` and against how much recall right is still live on a distribution marked `recallable`; it does not restore or expand unfunded commitment beyond stated commitment, which stays out of scope as the LPA-specific mechanism this module has always refused to guess at. 4 engine tests against hand-derived figures, 2 through the API, 1 in the browser |
-| Fund-level waterfall | Not started | Documented as not modelled in `fund.ts` rather than approximated |
+| Fund-level waterfall | Tested | Tiered preferred return, GP catch-up and residual split against each investor's real, per-transaction ledger; actual/365 day-count accrual, matching `xirr`'s own convention. A past distribution is booked as a stated fact, never recomputed; an under-specified tier set (typically a missing `residual_split`) throws naming the exact shortfall rather than guessing a fallback. 15 engine tests against hand-derived figures, 10 through the API, 1 in the browser |
 | Portfolio reports (summary, concentration, expirations) | Tested | Every rate states its own basis in a column |
 | Investor statement and capital account | Tested | Built from the same position the screen shows; states its own limits on its face |
 | Portfolio aggregate | Tested | One `DISTINCT ON` query regardless of portfolio size; 7 tests covering precedence and both exclusion reasons |
@@ -297,7 +298,7 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Capability checks on every protected route | Tested | 23 tests |
 | Cross-organization isolation | Tested | 10 dedicated tests |
 | CSRF header requirement | Tested | |
-| Rate limiting | Functional | Global 600/min; 10/min on auth |
+| Rate limiting | Tested | Global 600/min; 10/min on auth. An 11th login attempt in a minute is actually refused with 429, and the tighter limit does not leak onto an ordinary route. 2 tests |
 | Generated API surface | Tested | `docs/api-surface.md` is printed from the router's own table, so it cannot drift. Not an OpenAPI document: request and response schemas live inside handlers rather than on the route definitions, and a spec with empty schemas would look like a contract and describe nothing |
 | PDF-assumption import: target dictionary, analyzer, apply | Tested | `GET /assumption-import/targets` serialises the same writable-target registry the assumption-proposal decision route consults; `POST /assumption-import/analyze` parses and compares a pasted `cre-assumption-import` document against the model with zero writes; `POST /assumption-import/apply` re-analyzes server-side and applies the selected targets atomically as already-accepted proposals, through the same write path a person's edit or a posted proposal uses. See `docs/claude-assumption-import.md` |
 
@@ -379,7 +380,7 @@ rows above are the current state.)
 | Nine report definitions | Functional | |
 | CSV, XLSX, print HTML, JSON output | Functional | |
 | Excel (.xlsx) file import | Tested | Read into the same rows the CSV pipeline takes, so mapping, validation and duplicate detection are reached unchanged. Multi-sheet with the rent roll suggested; dates, formulas, rich text, error cells and blank columns each covered. `.xls` is not supported and says so |
-| Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download) — that packaging step is unverified, same as every other Docker claim in this repository, but the rendering code itself produces a real PDF in this environment's own headless Chromium |
+| Server-side PDF rendering | Tested | `POST /models/:id/reports/:reportId/pdf` enqueues a `render_report` job; the worker renders the same print HTML through a real headless Chromium (`playwright-core`) and returns real PDF bytes, polled via the existing `GET /jobs/:id`. The production image installs Chromium via Alpine's own `apk` package (musl-built, unlike Playwright's own glibc-targeted download); CI's `docker` job now exercises exactly that packaged Chromium in the real production container, not just the environment's own headless Chromium — `scripts/docker-smoke-test.ts` queues a PDF job through it and asserts the returned bytes start with `%PDF-` |
 | Import rollback | Tested | `POST /models/:id/imports/:batchId/rollback` restores every lease a commit touched to its exact prior state — including rent steps and spaces — or deletes it if the commit created it fresh, from a snapshot captured inside the same transaction as the commit itself. Refuses a batch that was never committed, was already rolled back, or predates this feature (no snapshot). Unconditional: it does not detect edits made after the import, the same as an editor's undo |
 | Portfolio reports | Tested | Summary, concentration and lease-expiration definitions, plus an investor statement and capital account for funds. 10 tests |
 
@@ -395,7 +396,7 @@ rows above are the current state.)
 | Content security policy, security headers | Functional | via helmet |
 | Input validation on every route | Tested | zod |
 | SQL injection prevention | Functional | Parameterised throughout |
-| Rate limiting | Functional | |
+| Rate limiting | Tested | See section 3's row for the tests |
 | Error messages that leak nothing | Functional | Internals logged, never returned |
 | Secrets outside source control | Functional | `.env` git-ignored, validated at startup |
 | Multi-factor authentication | Tested | TOTP (RFC 6238) with no new dependency, checked against the RFC's own published vectors. Two-step enrolment, hashed single-use recovery codes, password required to disable. 44 tests plus 3 in the browser |
@@ -415,12 +416,12 @@ rows above are the current state.)
 | Background worker | Tested | `tick()` — claim, run the handler, complete or fail — is exercised directly against a real queue, on top of the job-queue functions and individual handlers already tested in isolation |
 | Structured JSON logs | Functional | Worker; API uses pino |
 | Health endpoint | Tested | Also reports `appVersion` and `engineVersion`, so a support conversation can establish exactly what customer software produced a result. 1 test |
-| Docker Compose | **Designed, never built** | `docker compose config` validates and Dockerfile defects found by reading are fixed. The daemon runs and the registry API answers; the blob CDN `production.cloudfront.docker.com` is blocked by egress policy (403), so layers cannot be fetched. One host to allow; see `docs/deployment-guide.md` |
+| Docker Compose | **Functional** | Built and run end to end by the `docker` job in CI on every build: every image builds, the full stack (`postgres`, `api`, `worker`, `web`) comes up, and `scripts/docker-smoke-test.ts` exercises it through a real user flow including a worker-rendered PDF. This development container cannot reproduce the build itself — its own TLS interception and a block on Alpine's package CDN stop it — but that is where this repository happens to be edited, not a fact about the images; see `docs/deployment-guide.md` |
 | CI workflow | Functional | Runs format, lint, typecheck, migrations, tests, build and the licence gate. Verified green on GitHub runners |
 | Zero-cost posture | Tested | Audited in `docs/zero-cost-operation.md`; licence gate enforced in CI |
 | Error monitoring | Tested | Local: unhandled faults recorded and grouped by fingerprint, pruned at 90 days, scoped to the caller's own organization on every read. No external provider is wired, and none is needed |
 | Support-facing error reference | Tested | Every unexpected (500) response carries a short reference (`ERR-482910`) built from the same row `recordError` already writes — no second identifier, no stack trace or SQL ever reaches the client. `GET /operations/errors/reference/:reference` resolves one back for a support conversation, gated on `audit:read`. 7 new tests in `tests/error-monitoring.test.ts` (17 total) |
-| Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is documented but not scripted |
+| Deployment rollback safety | Tested | `pnpm check:migrations` refuses a migration the previous release could not run against; gated in CI. The deploy sequence itself is scripted and exercised in CI's `docker` job (`scripts/docker-smoke-test.ts`), not merely documented |
 
 ## 8. Budgets, actuals and variance
 
@@ -502,20 +503,10 @@ rendering, MFA, malware scanning, and the property-research contracts
 conversion logic exist and are tested; no live source, comparable-selection
 engine or UI is wired to them yet.
 
-**Unverified.** The Docker images have never been built end to end. The
-Compose file validates and several defects found by reading the Dockerfiles
-are fixed. Every base image now pulls in full — Docker Hub's blob CDN
-(`production.cloudfront.docker.com`) still returns 403 where this was
-developed, but `mirror.gcr.io`, a content-identical read-through cache of the
-same official images, does not, and the Dockerfiles pull from it for that
-reason. What still blocks a complete build here is narrower: this
-environment's own outbound TLS interception (worked around in an uncommitted
-diagnostic build only — trusting it does not belong in the shipped
-Dockerfile) and, past that, Alpine's package CDN
-(`dl-cdn.alpinelinux.org`), which is blocked outright with no mirror found
-that isn't. A review is not a build, and neither is a build that gets three
-layers further than before but still does not finish.
-
-Backup and restore is no longer in this category: `pnpm drill:restore` dumps,
-restores and confirms a stored valuation reproduces from the restored data, and
-runs on every CI build.
+Nothing remains in an **Unverified** category: the Docker images, the last
+member of it, are now built and run end to end by CI's own `docker` job (see
+the Docker Compose row above and `docs/deployment-guide.md` for the exact
+diagnosis of what still blocks reproducing that build inside this particular
+development container). Backup and restore left this category earlier:
+`pnpm drill:restore` dumps, restores and confirms a stored valuation
+reproduces from the restored data, and runs on every CI build.

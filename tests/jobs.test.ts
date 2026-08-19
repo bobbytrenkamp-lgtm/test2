@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { enqueueJob, getJob, reapStalledJobs } from '@cre/database';
+import { enqueueJob, failJob, getJob, reapStalledJobs } from '@cre/database';
 import { createTestContext, hasDatabase, type TestContext } from './helpers.js';
 
 /**
@@ -93,5 +93,69 @@ describe.skipIf(!hasDatabase)('job reaper attempt cap', () => {
 
     const after = await getJob(ctx.sql, job.id);
     expect(after?.status).toBe('running');
+  });
+});
+
+/**
+ * `failJob` itself, on a real thrown error rather than a stall.
+ *
+ * Every job handler that throws routes here (see `apps/worker/src/index.ts`),
+ * and the reaper's own attempt cap above was modelled directly on this
+ * function's `attempts >= max_attempts` condition — but no test had ever
+ * called `failJob` with attempts still under the limit, so the requeue branch
+ * itself, and the backoff it sets, were never exercised; only the "already
+ * exhausted" branch was, indirectly, through the reaper.
+ */
+describe.skipIf(!hasDatabase)('failJob', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await createTestContext();
+  }, 60_000);
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  it('requeues with an exponential backoff when the attempt limit has not been reached', async () => {
+    const job = await enqueueJob(ctx.sql, {
+      organizationId: null,
+      kind: 'calculate_model',
+      payload: {},
+      maxAttempts: 3,
+    });
+    // A job is claimed before it can fail; claiming is what advances attempts.
+    await ctx.sql`UPDATE jobs SET attempts = 1 WHERE id = ${job.id}`;
+
+    await failJob(ctx.sql, job.id, 'transient failure');
+
+    const after = await getJob(ctx.sql, job.id);
+    expect(after?.status).toBe('queued');
+    expect(after?.completed_at).toBeNull();
+    expect(after?.error_message).toBe('transient failure');
+
+    const [row] = await ctx.sql`SELECT run_after FROM jobs WHERE id = ${job.id}`;
+    // Hand-derived: attempts = 1, so the backoff is 2^1 = 2 seconds — pushed
+    // into the future, not left at (or before) the moment of failure.
+    expect(new Date((row as { run_after: string }).run_after).getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+  });
+
+  it('moves to failed, not queued, once the attempt limit is reached', async () => {
+    const job = await enqueueJob(ctx.sql, {
+      organizationId: null,
+      kind: 'calculate_model',
+      payload: {},
+      maxAttempts: 1,
+    });
+    await ctx.sql`UPDATE jobs SET attempts = 1 WHERE id = ${job.id}`;
+
+    await failJob(ctx.sql, job.id, 'permanent failure');
+
+    const after = await getJob(ctx.sql, job.id);
+    expect(after?.status).toBe('failed');
+    expect(after?.completed_at).not.toBeNull();
+    expect(after?.error_message).toBe('permanent failure');
   });
 });

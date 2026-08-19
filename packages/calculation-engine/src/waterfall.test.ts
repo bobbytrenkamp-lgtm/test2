@@ -96,6 +96,100 @@ describe('equity distributions stop at the sale date', () => {
 });
 
 /**
+ * Sponsor fees: acquisition, asset management and disposition.
+ *
+ * `computeSponsorFees` has charged these three bases since the schema first
+ * offered them, but only `development` and `refinance` were ever exercised by
+ * a fixture (`regression.test.ts`'s fixture 20) — these three sat in the
+ * `switch` with no test proving the basis each is computed against, or where
+ * in the cash flow each one actually lands: acquisition raises the equity
+ * called at close rather than reducing a distribution, asset management comes
+ * out of every period's cash flow before the sale, and disposition comes out
+ * only in the sale month itself.
+ */
+describe('sponsor fees: acquisition, asset management and disposition', () => {
+  const singleLpEquityWithFees = {
+    partners: [{ id: 'LP', name: 'Sole LP', role: 'lp' as const, contributionShare: '1' }],
+    tiers: [
+      {
+        id: 'RESIDUAL',
+        name: 'Residual',
+        type: 'residual_split' as const,
+        splits: [{ partnerId: 'LP', share: '1' }],
+      },
+    ],
+    fees: [
+      { id: 'ACQ', name: 'Acquisition fee', type: 'acquisition' as const, percent: '0.01' },
+      {
+        id: 'AM',
+        name: 'Asset management fee',
+        type: 'asset_management' as const,
+        percent: '0.02',
+      },
+      { id: 'DISP', name: 'Disposition fee', type: 'disposition' as const, percent: '0.015' },
+    ],
+  };
+
+  // Identical to the sale-date fixture above but for the fees: 24-month
+  // forecast, sale at month 6, flat $10,000/month other revenue, so NOI is
+  // exactly $10,000 in every period that is not the sale month.
+  const model = extendModel(baseModel(), {
+    forecast: {
+      startDate: '2026-01-01',
+      months: 24,
+      fiscalYearStartMonth: 1,
+      proration: 'actual_days',
+    },
+    otherRevenue: [
+      {
+        id: 'OTHER',
+        name: 'Flat other revenue',
+        method: 'custom_monthly_schedule',
+        monthlySchedule: Array.from({ length: 24 }, () => '10000'),
+      },
+    ],
+    valuation: {
+      discountRate: '0.08',
+      saleCostPercent: '0',
+      directCapAdjustments: '0',
+      acquisitionCosts: '0',
+      acquisitionPrice: '2000000',
+      saleMonth: 6,
+      grossSalePriceOverride: '3000000',
+    },
+    equity: singleLpEquityWithFees,
+  });
+
+  const result = calculate(model, { trace: { enabled: true } });
+  const lp = result.waterfall.find((partner) => partner.partnerId === 'LP');
+
+  it('raises the equity called at close by the acquisition fee, rather than reducing a distribution', () => {
+    // Hand-derived: 1% of the $2,000,000 acquisition price, added to the
+    // basis before anything is drawn — $2,020,000 called at time zero, not
+    // $2,000,000 with a fee taken out of a later distribution.
+    expect(Number(lp?.contributions)).toBeCloseTo(2_020_000, 2);
+  });
+
+  it('takes the asset management fee out of every period before the sale, and the disposition fee only at the sale month', () => {
+    // Hand-derived, independent of the engine: asset management is 2% of
+    // $10,000 EGR = $200/month, charged every period through the sale month
+    // inclusive (6 periods: months 1-6) = $1,200. Disposition is 1.5% of the
+    // $3,000,000 gross sale price, charged once, in the sale month = $45,000.
+    // Distributions without any fee would be $10,000 x 5 + $10,000 + $3,000,000
+    // = $3,060,000 (see the sale-date fixture above); with both fees:
+    const expectedDistributions = 10_000 * 5 + 10_000 + 3_000_000 - 200 * 6 - 45_000;
+    expect(expectedDistributions).toBe(3_013_800);
+    expect(Number(lp?.distributions)).toBeCloseTo(expectedDistributions, 2);
+  });
+
+  it('records one trace entry for the fees, and raises no error diagnostic', () => {
+    const feeTrace = result.trace?.find((entry) => entry.target === 'equity:sponsorFees');
+    expect(feeTrace).toBeDefined();
+    expect(result.diagnostics.filter((entry) => entry.severity === 'error')).toEqual([]);
+  });
+});
+
+/**
  * Partner contribution shares that sum to zero.
  *
  * Found by the same audit's second round (extreme-value cases): a capital

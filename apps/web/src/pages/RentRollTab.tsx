@@ -471,6 +471,7 @@ interface LeaseForm {
   recoveryMethod: string;
   steps: Array<{ startDate: string; amount: string; basis: string }>;
   options: LeaseOptionForm[];
+  disclosureOptions: DisclosureOptionForm[];
 }
 
 /**
@@ -484,6 +485,19 @@ interface LeaseForm {
  */
 const EDITABLE_OPTION_TYPES = ['renewal', 'termination', 'contraction'] as const;
 type EditableOptionType = (typeof EDITABLE_OPTION_TYPES)[number];
+
+/**
+ * The four option types the engine refuses to simulate (see `NOT_MODELLED` in
+ * `lease-options.ts`), recorded here as disclosure only: a lawyer or a
+ * counterparty reading the lease needs to know these rights exist even though
+ * nothing about them reaches the cash flow. Unlike the editor above, this one
+ * asks for only the fields each type actually means something by — an
+ * expansion option's meaningful figure is the area it names; a purchase
+ * option's is the price; a right of first refusal or first offer has neither,
+ * only the fact that it exists and by when.
+ */
+const DISCLOSURE_OPTION_TYPES = ['expansion', 'purchase', 'rofr', 'rofo'] as const;
+type DisclosureOptionType = (typeof DISCLOSURE_OPTION_TYPES)[number];
 
 const RENT_METHODS: Array<{ value: string; label: string }> = [
   { value: 'market', label: 'Market rent at exercise' },
@@ -509,6 +523,54 @@ function isEditableOption(
   option: LeaseOption,
 ): option is LeaseOption & { type: EditableOptionType } {
   return (EDITABLE_OPTION_TYPES as readonly string[]).includes(option.type);
+}
+
+function isDisclosureOption(
+  option: LeaseOption,
+): option is LeaseOption & { type: DisclosureOptionType } {
+  return (DISCLOSURE_OPTION_TYPES as readonly string[]).includes(option.type);
+}
+
+interface DisclosureOptionForm {
+  id: string;
+  type: DisclosureOptionType;
+  exerciseDate: string;
+  noticeDate: string;
+  probability: string;
+  /** Purchase price. Meaningless, and left blank, for every other type. */
+  amount: string;
+  /** Area the tenant could take. Meaningless, and left blank, for every other type. */
+  areaChange: string;
+}
+
+function disclosureToForm(
+  option: LeaseOption & { type: DisclosureOptionType },
+): DisclosureOptionForm {
+  return {
+    id: option.id,
+    type: option.type,
+    exerciseDate: option.exerciseDate,
+    noticeDate: option.noticeDate ?? '',
+    probability: option.probability,
+    amount: option.rentAmount ?? '',
+    areaChange: option.areaChange,
+  };
+}
+
+function disclosureToWire(option: DisclosureOptionForm): LeaseOption {
+  return {
+    id: option.id,
+    type: option.type,
+    exerciseDate: option.exerciseDate,
+    noticeDate: option.noticeDate || null,
+    probability: option.probability || '0',
+    termMonths: 0,
+    rentMethod: option.amount ? 'fixed' : 'market',
+    rentAmount: option.amount || null,
+    rentBasis: null,
+    cost: '0',
+    areaChange: option.areaChange || '0',
+  };
 }
 
 function optionToForm(option: LeaseOption & { type: EditableOptionType }): LeaseOptionForm {
@@ -576,15 +638,20 @@ function LeaseEditor({
     recoveryMethod: (lease?.recovery?.method as string) ?? 'triple_net',
     steps: lease?.rent_steps ?? [],
     options: (lease?.options ?? []).filter(isEditableOption).map(optionToForm),
+    disclosureOptions: (lease?.options ?? []).filter(isDisclosureOption).map(disclosureToForm),
   }));
   const [dirty, setDirty] = useState(false);
   useUnsavedChangesWarning(dirty);
 
-  // Never edited by this form, and never dropped by it either: an option of
-  // a type this editor does not offer (see EDITABLE_OPTION_TYPES above) is
-  // merged back in unchanged on save.
+  // Every current option type is either editable or disclosure-only, so this
+  // is empty in practice — but a type the schema adds in the future, that
+  // neither form above yet knows to render, is round-tripped unchanged rather
+  // than silently dropped.
   const otherOptions = useMemo(
-    () => (lease?.options ?? []).filter((option) => !isEditableOption(option)),
+    () =>
+      (lease?.options ?? []).filter(
+        (option) => !isEditableOption(option) && !isDisclosureOption(option),
+      ),
     [lease],
   );
 
@@ -633,7 +700,11 @@ function LeaseEditor({
           ? { type: 'none' }
           : { type: form.escalationType, rate: form.escalationRate, frequencyMonths: 12 },
       recovery: { method: form.recoveryMethod },
-      options: [...otherOptions, ...form.options.map(optionToWire)],
+      options: [
+        ...otherOptions,
+        ...form.options.map(optionToWire),
+        ...form.disclosureOptions.map(disclosureToWire),
+      ],
     });
   });
 
@@ -1087,6 +1158,140 @@ function LeaseEditor({
           }
         >
           Add an option
+        </button>
+      </fieldset>
+
+      <fieldset style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
+        <legend style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>
+          Other contractual rights
+        </legend>
+        <p className="field-hint" style={{ marginTop: 0 }}>
+          Expansion, purchase, right of first refusal and right of first offer are recorded here for
+          reference only and never change the cash flow: an expansion option names an area but not
+          which space it comes from, and purchase, ROFR and ROFO bear on whether and when the asset
+          is sold, not on operating cash flow — model a disposition directly through the sale
+          assumptions instead. A right recorded here with a nonzero probability still appears as a
+          diagnostic on the Validation tab, so it is never silently lost.
+        </p>
+        {form.disclosureOptions.map((option, index) => {
+          function updateOption(patch: Partial<DisclosureOptionForm>): void {
+            const options = [...form.disclosureOptions];
+            options[index] = { ...options[index], ...patch } as DisclosureOptionForm;
+            update('disclosureOptions', options);
+          }
+
+          const n = index + 1;
+          return (
+            <div key={option.id} className="card" style={{ marginBottom: 8, padding: 12 }}>
+              <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <Field label={`Right ${n} type`}>
+                  <select
+                    value={option.type}
+                    onChange={(event) =>
+                      updateOption({ type: event.target.value as DisclosureOptionType })
+                    }
+                  >
+                    {DISCLOSURE_OPTION_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type === 'rofr'
+                          ? 'Right of first refusal'
+                          : type === 'rofo'
+                            ? 'Right of first offer'
+                            : titleCase(type)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={`Right ${n} date`} hint="When it can be exercised, or takes effect.">
+                  <input
+                    type="date"
+                    value={option.exerciseDate}
+                    onChange={(event) => updateOption({ exerciseDate: event.target.value })}
+                    style={{ maxWidth: 170 }}
+                  />
+                </Field>
+                <Field label={`Right ${n} notice by`} hint="Optional.">
+                  <input
+                    type="date"
+                    value={option.noticeDate}
+                    onChange={(event) => updateOption({ noticeDate: event.target.value })}
+                    style={{ maxWidth: 170 }}
+                  />
+                </Field>
+                <Field
+                  label={`Right ${n} likelihood`}
+                  hint="How likely it is exercised, 0 to 1. Drives only the Validation-tab diagnostic."
+                >
+                  <input
+                    inputMode="decimal"
+                    value={option.probability}
+                    onChange={(event) => updateOption({ probability: event.target.value })}
+                    style={{ maxWidth: 100 }}
+                  />
+                </Field>
+              </div>
+
+              {option.type === 'purchase' && (
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                  <Field label={`Right ${n} stated price`} hint="Optional.">
+                    <input
+                      inputMode="decimal"
+                      value={option.amount}
+                      onChange={(event) => updateOption({ amount: event.target.value })}
+                      style={{ maxWidth: 140 }}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {option.type === 'expansion' && (
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                  <Field label={`Right ${n} area wanted`} hint="Optional.">
+                    <input
+                      inputMode="decimal"
+                      value={option.areaChange}
+                      onChange={(event) => updateOption({ areaChange: event.target.value })}
+                      style={{ maxWidth: 140 }}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              <div className="row end">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() =>
+                    update(
+                      'disclosureOptions',
+                      form.disclosureOptions.filter((_, i) => i !== index),
+                    )
+                  }
+                >
+                  Remove right
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() =>
+            update('disclosureOptions', [
+              ...form.disclosureOptions,
+              {
+                id: crypto.randomUUID(),
+                type: 'purchase',
+                exerciseDate: '',
+                noticeDate: '',
+                probability: '1',
+                amount: '',
+                areaChange: '0',
+              },
+            ])
+          }
+        >
+          Add a right
         </button>
       </fieldset>
 
