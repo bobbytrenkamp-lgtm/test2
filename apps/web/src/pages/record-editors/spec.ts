@@ -154,8 +154,16 @@ export function fieldValue(text: string, field: FieldSpec): unknown {
     case 'date':
       return trimmed === '' ? null : trimmed;
     default:
-      // decimal, percent, months: decimal strings, kept exactly as typed.
-      return trimmed === '' ? null : trimmed;
+      // decimal, percent, months: decimal strings, kept exactly as typed --
+      // except for a thousands separator. mustBeNumber, this module's own
+      // validator for these fields, already strips commas before checking
+      // the number is valid, so typing "12,500" shows no validation error;
+      // but the API's decimalString schema has no such tolerance, so
+      // sending the comma through unchanged turned a form that said "this
+      // is fine" into a save that failed with a raw "Expected a decimal
+      // number". Stripping it here keeps what is actually stored in
+      // agreement with what the form already judged acceptable.
+      return trimmed === '' ? null : trimmed.replace(/,/g, '');
   }
 }
 

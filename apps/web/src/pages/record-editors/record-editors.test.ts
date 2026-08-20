@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { decimalString } from '@cre/domain-models';
 import {
   fieldText,
   fieldValue,
+  mustBeNumber,
   readPath,
   validate,
   visibleFields,
@@ -63,6 +65,21 @@ describe('field values', () => {
      */
     expect(fieldValue('1234.55', decimal)).toBe('1234.55');
     expect(fieldValue('12345678901234.55', decimal)).toBe('12345678901234.55');
+  });
+
+  it('strips a thousands separator so the stored value is a real decimal string', () => {
+    // mustBeNumber -- the validator these fields actually use (see specs.ts)
+    // -- strips commas before checking the number is valid, so a form field
+    // shows no error for "12,500". What gets stored has to agree with that
+    // verdict: the API's own decimalString schema, the real boundary this
+    // value is eventually validated against again, has no comma tolerance
+    // at all and would refuse the raw text outright.
+    const validated = mustBeNumber({ label: 'Amount' })('12,500');
+    expect(validated).toBeUndefined();
+
+    const stored = fieldValue('12,500', decimal);
+    expect(stored).toBe('12500');
+    expect(decimalString.safeParse(stored).success).toBe(true);
   });
 
   it('parses an integer, because a month count is a count', () => {
