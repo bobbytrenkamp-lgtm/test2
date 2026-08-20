@@ -313,6 +313,48 @@ test('records a purchase option as a disclosure, and it survives a reload', asyn
   await expect(page.getByLabel('Option 1 type')).toBeHidden();
 });
 
+test('names a real space on an expansion right, and it survives a reload', async ({ page }) => {
+  // Unlike purchase/ROFR/ROFO, naming a real space here is what turns this
+  // one right from disclosure-only into something the engine actually
+  // models — see `expansionSpaceIds` in lease-options.ts. SUITE-1800 is the
+  // one the seed deliberately leaves vacant; any of the other three suites
+  // is already leased to a seeded tenant for the whole forecast, and this
+  // whole test file shares one seeded database, so claiming an already-let
+  // suite here would trip the engine's own (correct) SPACE_DOUBLE_LET
+  // diagnostic on a model this suite never touches.
+  const code = 'E2E-LEASE-EXPANSION';
+  await page.getByRole('button', { name: 'Add lease' }).click();
+  await page.getByLabel('Lease reference').fill(code);
+  await page.getByLabel('New tenant name').fill('Aldergate Analytics');
+  await page.getByLabel(/^Area/).fill('12000');
+  await page.getByLabel('Commencement').fill('2027-01-01');
+  await page.getByLabel('Expiration').fill('2036-12-31');
+  await page.getByLabel(/^Base rent/).fill('22.00');
+
+  await page.getByRole('button', { name: 'Add a right' }).click();
+  await page.getByLabel('Right 1 type').selectOption('expansion');
+  await page.getByLabel('Right 1 date').fill('2030-01-01');
+  await page.getByLabel('Right 1 space').selectOption('SUITE-1800');
+  await page.getByLabel('Right 1 TI allowance').fill('15000');
+
+  await page.getByRole('button', { name: 'Save lease' }).click();
+  await expect(page.getByRole('heading', { name: 'New lease' })).toBeHidden();
+
+  const card = page.locator('.card', { has: page.getByRole('heading', { name: 'Leases' }) });
+  const grid = page.getByRole('grid', { name: 'Leases on this model' });
+  const row = grid.getByRole('row').filter({ hasText: code });
+  const editButton = card.getByRole('button', { name: new RegExp(`^Edit ${code} in full$`) });
+  await expect(async () => {
+    await row.getByRole('gridcell').first().click();
+    await expect(editButton).toBeEnabled({ timeout: 2000 });
+  }).toPass();
+  await editButton.click();
+
+  await expect(page.getByLabel('Right 1 type')).toHaveValue('expansion');
+  await expect(page.getByLabel('Right 1 space')).toHaveValue('SUITE-1800');
+  await expect(page.getByLabel('Right 1 TI allowance')).toHaveValue('15000');
+});
+
 test('removes a disclosed right before saving', async ({ page }) => {
   await page.getByRole('button', { name: 'Add lease' }).click();
   await page.getByRole('button', { name: 'Add a right' }).click();

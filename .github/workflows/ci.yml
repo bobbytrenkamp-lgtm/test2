@@ -46,9 +46,11 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # A full run takes roughly two minutes; 20 is generous headroom and still
-    # bounds the cost of a hang.
-    timeout-minutes: 20
+    # A full run takes roughly ten minutes on an unloaded runner; 30 leaves
+    # real headroom for a slow shared runner (observed: e2e alone taking
+    # 3-4x its usual ~5 minutes on a congested day) while still bounding the
+    # cost of a genuine hang.
+    timeout-minutes: 30
 
     services:
       postgres:

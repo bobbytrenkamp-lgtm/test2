@@ -52,7 +52,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Portfolio year-1 NOI, weighted exit cap rate, value-weighted ratios on boundary members, and unlevered/levered IRR discounted from the same basis the property itself used | `packages/calculation-engine/src/portfolio.test.ts` | 4 | No |
 | A cash trap open through the sale date, and a multi-facility cure period | `packages/calculation-engine/src/cash-trap.test.ts` | 3 | No |
 | Zero and negative capitalization and discount rates | `packages/calculation-engine/src/valuation.test.ts` | 11 | No |
-| A renewal option at the forecast horizon, a termination fee, and rollover after a nonzero-cost termination | `packages/calculation-engine/src/lease-options.test.ts` | 4 | No |
+| A renewal option at the forecast horizon, a termination fee, rollover after a nonzero-cost termination, and an expansion option naming a real space (area/rent added from the exercise date, an invalid space refusing the whole option, and integration with the engine's own double-let diagnostic) | `packages/calculation-engine/src/lease-options.test.ts` | 8 | No |
 | A zero-baseline recovery cap, overlapping recovery pools, and a revenue-basis expense's recoverable split | `packages/calculation-engine/src/recoveries.test.ts` | 3 | No |
 | Duplicate entity ids, a dangling growth-curve reference, and a duplicate growth-curve year | `packages/calculation-engine/src/validation.test.ts` | 9 | No |
 | Escalation floors and caps, on both a fixed-percent rate and a negative (deflationary) one | `packages/calculation-engine/src/rent-schedule.test.ts` | 3 | No |
@@ -145,7 +145,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 
-**1606 tests in total.**
+**1610 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -157,7 +157,7 @@ built bundle:
 | --- | --- | --- |
 | Sign-in, one per role | `e2e/auth.setup.ts` | 3 |
 | Underwriting path, the inspector, and the virtualised grid | `e2e/underwriting.spec.ts` | 5 |
-| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling, adding/removing a lease option and it surviving a reload, accessibility with an option's fields open, recording a purchase/ROFR/ROFO/expansion right as a disclosure and it surviving a reload | `e2e/rent-roll.spec.ts` | 11 |
+| Lease editor validation, rent-roll search and sort, switching the editor between two leases without cancelling, adding/removing a lease option and it surviving a reload, accessibility with an option's fields open, recording a purchase/ROFR/ROFO right as a disclosure and it surviving a reload, naming a real space on an expansion right and it surviving a reload | `e2e/rent-roll.spec.ts` | 12 |
 | Spreadsheet editing on the rent roll, including applying one typed value to every selected cell in a column at once | `e2e/rent-roll-grid.spec.ts` | 14 |
 | Spreadsheet editing on the assumption collections | `e2e/assumption-grid.spec.ts` | 7 |
 | Structured record editors | `e2e/record-editors.spec.ts` | 11 |
@@ -197,7 +197,7 @@ built bundle:
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
 
-**256 browser tests in total**, for 1862 across the whole repository.
+**257 browser tests in total**, for 1867 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -126,6 +126,7 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
       rentBasis: 'per_area_per_year',
       cost: '5.00',
       areaChange: '0',
+      expansionSpaceIds: [],
     };
     const response = await put('L-RENEW', [option]);
     expect(response.statusCode, response.body).toBe(200);
@@ -145,6 +146,7 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
         rentBasis: null,
         cost: '-15.00',
         areaChange: '0',
+        expansionSpaceIds: [],
       },
       {
         id: 'opt-contract-1',
@@ -157,6 +159,7 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
         rentBasis: null,
         cost: '2.50',
         areaChange: '1000',
+        expansionSpaceIds: [],
       },
     ];
     const response = await put('L-MULTI', options);
@@ -180,6 +183,7 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
       rentBasis: null,
       cost: '0',
       areaChange: '0',
+      expansionSpaceIds: [],
     };
     const response = await put('L-PURCHASE', [option]);
     expect(response.statusCode, response.body).toBe(200);

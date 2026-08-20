@@ -252,3 +252,175 @@ describe('a terminated lease with a nonzero exercise cost, rolled over rather th
     expect(result.monthly.contractualBaseRent[10]).toBe('32000.00');
   });
 });
+
+/**
+ * An expansion option that names a real space — the case the engine refused
+ * outright before `expansionSpaceIds` existed. A two-suite property: the
+ * tenant holds an 8,000 sf suite (S1) and expands into a vacant 2,000 sf
+ * suite (S2) exactly at the mid-year exercise date.
+ */
+describe('an expansion option naming a real, vacant space', () => {
+  function twoSuiteModel(options: unknown[], secondLease: unknown[] = []) {
+    return buildModel({
+      modelId: 'fx-expansion',
+      modelName: 'Expansion via space reference (fixture)',
+      forecast: {
+        startDate: '2026-01-01',
+        months: 12,
+        fiscalYearStartMonth: 1,
+        proration: 'actual_days',
+      },
+      property: { id: 'P1', name: 'Fixture', propertyType: 'office', rentableArea: '10000' },
+      spaces: [
+        { id: 'S1', code: 'Suite 1', area: '8000' },
+        { id: 'S2', code: 'Suite 2', area: '2000' },
+      ],
+      tenants: [
+        { id: 'T1', name: 'Sole tenant' },
+        { id: 'T2', name: 'Other tenant' },
+      ],
+      leases: [
+        {
+          id: 'L1',
+          tenantId: 'T1',
+          spaceIds: ['S1'],
+          status: 'occupied',
+          area: '8000',
+          commencementDate: '2026-01-01',
+          expirationDate: '2030-12-31',
+          baseRent: '12.00',
+          baseRentBasis: 'per_area_per_year',
+          excludeFromRollover: true,
+          options,
+        },
+        ...secondLease,
+      ],
+      valuation: {
+        discountRate: '0.08',
+        saleCostPercent: '0',
+        directCapAdjustments: '0',
+        acquisitionCosts: '0',
+        acquisitionPrice: '1500000',
+        saleMonth: 12,
+      },
+    } as Parameters<typeof buildModel>[0]);
+  }
+
+  it('adds the named space’s area to rent from the exercise date, and pays its TI cost once', () => {
+    // Hand-derived: $12.00/sf/yr, per_area_per_year.
+    // Jan-Jun (indices 0-5): 8,000 sf x 12 / 12 = $8,000.00/month.
+    // Jul-Dec (indices 6-11): (8,000 + 2,000) sf x 12 / 12 = $10,000.00/month,
+    // priced at the same $12.00 rate the tenant already pays -- expansion does
+    // not reprice the added space (see the module comment for why).
+    const model = twoSuiteModel([
+      {
+        id: 'OPT-EXPAND',
+        type: 'expansion',
+        exerciseDate: '2026-07-01',
+        probability: '1',
+        expansionSpaceIds: ['S2'],
+        cost: '20000',
+      },
+    ]);
+    const result = calculate(model);
+
+    for (let i = 0; i < 6; i += 1) {
+      expect(result.monthly.contractualBaseRent[i]).toBe('8000.00');
+    }
+    for (let i = 6; i < 12; i += 1) {
+      expect(result.monthly.contractualBaseRent[i]).toBe('10000.00');
+    }
+
+    // The TI cost lands once, on the exercise month, as a cost (negative).
+    expect(result.monthly.tenantImprovements[6]).toBe('-20000.00');
+    for (let i = 0; i < 12; i += 1) {
+      if (i === 6) continue;
+      expect(result.monthly.tenantImprovements[i]).toBe('0.00');
+    }
+
+    expect(result.diagnostics.some((entry) => entry.code === 'LEASE_OPTION_NOT_MODELLED')).toBe(
+      false,
+    );
+  });
+
+  it('is not honoured, and warns, when the named space does not exist on the property', () => {
+    const model = twoSuiteModel([
+      {
+        id: 'OPT-EXPAND',
+        type: 'expansion',
+        exerciseDate: '2026-07-01',
+        probability: '1',
+        expansionSpaceIds: ['S-NOPE'],
+      },
+    ]);
+    const result = calculate(model);
+
+    const warning = result.diagnostics.find((entry) => entry.code === 'EXPANSION_SPACE_INVALID');
+    expect(warning?.message).toContain('S-NOPE');
+    expect(warning?.message).toContain('no such space');
+
+    // Unaffected: the lease's own 8,000 sf, all twelve months.
+    for (let i = 0; i < 12; i += 1) {
+      expect(result.monthly.contractualBaseRent[i]).toBe('8000.00');
+    }
+  });
+
+  it('is not honoured, and warns, when the named space is already part of this lease', () => {
+    const model = twoSuiteModel([
+      {
+        id: 'OPT-EXPAND',
+        type: 'expansion',
+        exerciseDate: '2026-07-01',
+        probability: '1',
+        expansionSpaceIds: ['S1'],
+      },
+    ]);
+    const result = calculate(model);
+
+    const warning = result.diagnostics.find((entry) => entry.code === 'EXPANSION_SPACE_INVALID');
+    expect(warning?.message).toContain('S1');
+    expect(warning?.message).toContain('already part of this lease');
+
+    for (let i = 0; i < 12; i += 1) {
+      expect(result.monthly.contractualBaseRent[i]).toBe('8000.00');
+    }
+  });
+
+  it('still trips the existing double-let diagnostic when the claimed space overlaps another lease’s term', () => {
+    // S2 is already let, whole forecast, to a second tenant. L1's expansion
+    // claims it anyway from July 1 -- this is not a structural error the
+    // option's own validation catches (S2 is a real space L1 does not yet
+    // hold), so it is honoured, and the resulting overlap is exactly what
+    // the engine's own SPACE_DOUBLE_LET check exists to catch.
+    const model = twoSuiteModel(
+      [
+        {
+          id: 'OPT-EXPAND',
+          type: 'expansion',
+          exerciseDate: '2026-07-01',
+          probability: '1',
+          expansionSpaceIds: ['S2'],
+        },
+      ],
+      [
+        {
+          id: 'L2',
+          tenantId: 'T2',
+          spaceIds: ['S2'],
+          status: 'occupied',
+          area: '2000',
+          commencementDate: '2025-01-01',
+          expirationDate: '2031-12-31',
+          baseRent: '14.00',
+          baseRentBasis: 'per_area_per_year',
+          excludeFromRollover: true,
+          options: [],
+        },
+      ],
+    );
+    const result = calculate(model);
+
+    const warning = result.diagnostics.find((entry) => entry.code === 'SPACE_DOUBLE_LET');
+    expect(warning).toBeTruthy();
+  });
+});

@@ -241,6 +241,19 @@ export const leaseOptionSchema = z.object({
   /** One-off cost of exercise (termination fee, expansion TI, etc.). */
   cost: decimalString.default('0'),
   areaChange: decimalString.default('0'),
+  /**
+   * The real space(s) an expansion claims, referenced exactly as
+   * `Lease.spaceIds` are. Meaningful only for `type: 'expansion'`.
+   *
+   * Empty by default, which is exactly what every option written before this
+   * field existed means: an expansion with no named space stays
+   * disclosure-only and refused by the engine (`LEASE_OPTION_NOT_MODELLED`),
+   * because honouring `areaChange` alone would either double-count area
+   * against whatever else already holds it or invent rentable area the
+   * property does not have. Naming a real space is what lets the engine
+   * honour the option for real.
+   */
+  expansionSpaceIds: z.array(z.string().min(1)).default([]),
 });
 export type LeaseOption = z.infer<typeof leaseOptionSchema>;
 
