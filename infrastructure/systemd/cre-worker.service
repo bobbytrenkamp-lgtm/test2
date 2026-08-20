@@ -1,0 +1,26 @@
+# The background worker, from the same image cre-api.service runs — the
+# image is shared and the two units differ only in command, exactly as
+# infrastructure/docker-compose.yml's `api` and `worker` services do (see the
+# comment at the top of infrastructure/Dockerfile.api).
+#
+# Install: copy to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now cre-worker.service
+# See infrastructure/systemd/README.md for the full install sequence.
+[Unit]
+Description=CRE platform background worker
+After=docker.service cre-network.service cre-api.service
+Requires=docker.service cre-network.service
+
+[Service]
+EnvironmentFile=/etc/cre-platform/deploy.env
+ExecStartPre=-/usr/bin/docker rm -f cre-worker
+ExecStartPre=/usr/bin/docker pull ${CRE_API_IMAGE}
+# See the comment on this same mount in cre-api.service — the worker reads
+# the same uploads directory when processing an import.
+ExecStart=/usr/bin/docker run --rm --name cre-worker --network cre-platform --env-file /etc/cre-platform/api.env -v /var/lib/cre-platform/uploads:/data/uploads ${CRE_API_IMAGE} pnpm --filter @cre/worker run start
+ExecStop=/usr/bin/docker stop -t 10 cre-worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

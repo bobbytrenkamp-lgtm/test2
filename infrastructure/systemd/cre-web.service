@@ -1,0 +1,28 @@
+# The static client + same-origin API proxy, from the image
+# infrastructure/Dockerfile.web builds — its baked-in nginx.conf is
+# unchanged from local development (it proxies /api/ to the `api` container
+# by Docker DNS name, same as under docker-compose).
+#
+# Bound to loopback only: infrastructure/nginx/production.conf.example is the
+# public TLS listener and reaches this container over 127.0.0.1:8080. Nothing
+# else is meant to reach it directly.
+#
+# Install: copy to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now cre-web.service
+# See infrastructure/systemd/README.md for the full install sequence.
+[Unit]
+Description=CRE platform web (static client + same-origin API proxy)
+After=docker.service cre-network.service cre-api.service
+Requires=docker.service cre-network.service
+
+[Service]
+EnvironmentFile=/etc/cre-platform/deploy.env
+ExecStartPre=-/usr/bin/docker rm -f web
+ExecStartPre=/usr/bin/docker pull ${CRE_WEB_IMAGE}
+ExecStart=/usr/bin/docker run --rm --name web --network cre-platform -p 127.0.0.1:8080:80 ${CRE_WEB_IMAGE}
+ExecStop=/usr/bin/docker stop -t 10 web
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -137,8 +137,17 @@ own runner has neither this container's TLS interception nor its Alpine CDN
 block, and the job has passed on every build since it was added: the images
 build, the stack comes up, and the deploy sequence that used to be only
 documented is now scripted and exercised for real, not merely written down.
-What is still true, and is a different fact from "never built": nobody has
-stood up a real, running instance of this stack for anyone but CI to use.
+
+`.github/workflows/publish-images.yml` and `infrastructure/systemd/` close
+the next piece: a published image and a set of systemd units that run it,
+for the one topology `docs/deployment-guide.md`'s Production topology
+section names — a single host, `nginx` terminating TLS in front of it. What
+is still true, and is a different fact from "never built": nobody has stood
+up a real, running instance of this stack for anyone but CI to use — that
+needs a real host and a domain, neither of which exists in this repository's
+own development environment. What changed is that doing so is now an install
+script and three config files (`infrastructure/systemd/README.md`), not an
+exercise left to whoever deploys it.
 
 ### 3. Close the engine's honest gaps — options done
 

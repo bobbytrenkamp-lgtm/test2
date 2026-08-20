@@ -110,7 +110,7 @@ only succeed by spending money.
 | `.devcontainer` / `devcontainer.json` | **Absent** — Codespaces cannot start from this repository, so the free allowance cannot be consumed |
 | GitHub Pages | **Enabled**, publishing one static page from a public repository. Free with no payment method; GitHub asks for usage to be reduced past the soft bandwidth limit rather than charging. See below |
 | Vercel / Netlify / Render / Fly / Railway / Heroku config | **None present** |
-| Deployment workflow | **Pages only, for the engine demo.** The full application is not deployed anywhere for real use; its container images are built and run end to end on every CI build (the `docker` job above), just not stood up as a running instance for anyone but CI. See `docs/deployment-guide.md` |
+| Deployment workflow | **Pages for the engine demo, plus a free image-publish path for the real application.** Its container images are built and run end to end on every CI build (the `docker` job above); `.github/workflows/publish-images.yml` additionally pushes them to `ghcr.io` after a CI success on `main`, using only the ambient `GITHUB_TOKEN` — GHCR is free for a public repository, no account or paid tier involved. `infrastructure/systemd/` runs those images as long-lived services. Nobody has stood this up against a real host from this repository's own development environment — there is none to stand it up against here — but doing so is now a scripted install, not an exercise left to whoever deploys it. See `docs/deployment-guide.md` |
 | Purchased domain | **None.** The site is served from `github.io`, which costs nothing |
 
 ### What the Pages workflow publishes, and why it is free
