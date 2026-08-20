@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1634 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1635 passed (251 engine regression, 31 engine unit, 20 fund,
                          19 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 8 portfolios,
                          12 funds via the API, 11 fund waterfall via the API,
@@ -83,7 +83,7 @@ Tests       1634 passed (251 engine regression, 31 engine unit, 20 fund,
                          89 Excel Live Model reconciliation,
                          5 Excel Live Model export, 40 grid behaviour,
                          8 batch lease writes, 9 batched assumptions,
-                         29 record-editor specs,
+                         30 record-editor specs,
                          23 health and drivers,
                          33 the assumption input contract,
                          15 assumption proposals via the API,
