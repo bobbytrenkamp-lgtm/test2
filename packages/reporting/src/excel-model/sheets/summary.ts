@@ -217,20 +217,17 @@ export function buildSummary(
 
   if (hasWaterfall) {
     /*
-     * Every dollar the partnership distributes must have come through a tier.
-     * The tiers are imported and the distribution total is a formula over
-     * them, so this catches a tier the exporter failed to carry across.
-     */
-    check(
-      'Partner distributions equal the sum of their tiers',
-      (refs) =>
-        `${refs.ref('waterfall.total.distributions')}-` +
-        `${refs.ref('waterfall.total.contributions')}-` +
-        `${refs.ref('waterfall.total.profit')}`,
-      'check.waterfallBalances',
-      '1',
-    );
-    /*
+     * There used to be a second check here, "Partner distributions equal the
+     * sum of their tiers": `distributions - contributions - profit`. It was
+     * removed as a tautology, not a real check — `profit`'s own formula
+     * (waterfall.ts) *is* `distributions - contributions`, so that
+     * difference collapses to exactly zero by algebra alone for any tier
+     * data whatsoever, correct or corrupted. It could never report anything
+     * but "OK", which is worse than not having it: a check nobody can ever
+     * see fail reads as coverage that is not actually there. The check
+     * below is the real one — two independently computed totals that only
+     * agree if the tiers were carried across correctly.
+     *
      * The dated partner cash-flow rows and the tier table are two independent
      * routes to the same number: the flows come across period by period, while
      * profit is a formula over the tiers less contributions. They must agree,

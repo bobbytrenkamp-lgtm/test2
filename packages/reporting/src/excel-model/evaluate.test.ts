@@ -40,3 +40,42 @@ describe('IFERROR', () => {
     expect(evaluator.value('test.finite')).toBe(2);
   });
 });
+
+/**
+ * Found by a repository-wide correctness audit: `unary()`'s `-` branch
+ * recursed into `this.unary()` — the whole power expression — instead of
+ * `this.power()`, negating the *result* of `2^2` instead of negating the
+ * base before raising it. `-2^2` evaluated to -4, the opposite of both the
+ * parser's own grammar comment above `unary()` (`unary := '-'? power`) and
+ * real Excel, which binds unary minus tighter than `^`.
+ */
+describe('unary minus binds tighter than ^, matching real Excel', () => {
+  it('evaluates -2^2 as (-2)^2 = 4, not -(2^2) = -4', () => {
+    const workbook = new WorkbookModel();
+    const sheet = workbook.sheet('Test');
+    sheet.at(1, 1, { kind: 'formula', formula: () => '-2^2' }, 'test.negativeBaseSquared');
+
+    const evaluator = new FormulaEvaluator(workbook);
+    expect(evaluator.value('test.negativeBaseSquared')).toBe(4);
+  });
+
+  it('still negates a plain value with no exponent', () => {
+    const workbook = new WorkbookModel();
+    const sheet = workbook.sheet('Test');
+    sheet.at(1, 1, { kind: 'formula', formula: () => '-5' }, 'test.negativeValue');
+
+    const evaluator = new FormulaEvaluator(workbook);
+    expect(evaluator.value('test.negativeValue')).toBe(-5);
+  });
+
+  it('leaves a negative exponent working correctly (already handled by power() itself)', () => {
+    const workbook = new WorkbookModel();
+    const sheet = workbook.sheet('Test');
+    // (1.08)^-2 = 1/1.08^2, the same shape `(1+rate)^-remaining` emitted
+    // formulas already rely on.
+    sheet.at(1, 1, { kind: 'formula', formula: () => '1.08^-2' }, 'test.negativeExponent');
+
+    const evaluator = new FormulaEvaluator(workbook);
+    expect(evaluator.value('test.negativeExponent')).toBeCloseTo(1 / 1.08 ** 2, 10);
+  });
+});

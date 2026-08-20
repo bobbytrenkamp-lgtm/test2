@@ -205,19 +205,29 @@ class Parser {
     this.skipSpace();
     if (this.text[this.pos] === '-') {
       this.pos += 1;
-      // Excel binds unary minus tighter than `^`: `-2^2` is 4, not -4.
-      return -this.unary();
+      // Excel binds unary minus tighter than `^`: `-2^2` is 4, not -4 — the
+      // sign has to land on the *base*, before `^` is applied, not on the
+      // result of the whole power expression. `power()` itself consumes the
+      // entire `base^exponent`, so `-this.power()` (what this used to do)
+      // negates that whole result: for `-2^2` it computes `2^2` = 4 first
+      // and only then negates, landing on -4 — the opposite of both this
+      // comment and real Excel. Passing the negation into `power()` applies
+      // it to the base before `^` sees it instead.
+      return this.power(true);
     }
     if (this.text[this.pos] === '+') {
       this.pos += 1;
       return this.unary();
     }
-    return this.power();
+    return this.power(false);
   }
 
-  /** `^` is right-associative and binds tighter than `*` and `/`. */
-  private power(): number {
-    const base = this.primary();
+  /** `^` is right-associative and binds tighter than `*` and `/`. `negateBase`
+   *  is a leading unary minus applied to the base before exponentiating, not
+   *  to the power expression's result — see the comment in `unary()`. */
+  private power(negateBase: boolean): number {
+    const rawBase = this.primary();
+    const base = negateBase ? -rawBase : rawBase;
     this.skipSpace();
     if (this.text[this.pos] === '^') {
       this.pos += 1;
