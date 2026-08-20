@@ -283,4 +283,30 @@ describe.skipIf(!hasDatabase)('portfolio aggregation', () => {
     });
     expect(response.statusCode).toBe(404);
   });
+
+  it('rejects a dynamic filter shaped wrong with a 400, not an unhandled 500', async () => {
+    // propertyTypes has to be an array for the ::text[] cast this filter
+    // compiles down to in resolvePortfolioMembership; a bare string is valid
+    // JSON and would previously reach that cast unchecked, where Postgres
+    // itself throws "malformed array literal" and the global handler turns
+    // that into a bare 500 with no indication which field was wrong.
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/portfolios',
+      headers: authed(owner.cookie),
+      payload: {
+        name: 'Bad Filter Portfolio',
+        isDynamic: true,
+        filterDefinition: { propertyTypes: 'office' },
+      },
+    });
+    expect(created.statusCode).toBe(400);
+
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/portfolios/${portfolioId}/aggregate`,
+      headers: authed(owner.cookie),
+    });
+    expect(response.statusCode).not.toBe(500);
+  });
 });

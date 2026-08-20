@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { writeAudit } from '@cre/database';
+import { writeAudit, type Sql } from '@cre/database';
 import {
   computeFund,
   computeFundWaterfall,
@@ -348,7 +348,7 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
       );
     }
 
-    const { investors, transactions } = await loadWaterfallInputs(request, id);
+    const { investors, transactions } = await loadWaterfallInputs(request.db, id);
     const proposal = runWaterfall(investors, transactions, tiers, body);
     return { proposal };
   });
@@ -365,28 +365,45 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
   app.post('/funds/:id/waterfall/apply', async (request, reply) => {
     const context = requireCapability(request, 'portfolio:write');
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-    const fund = await requireFund(request, context.organizationId, id);
+    await requireFund(request, context.organizationId, id);
 
     const body = z
       .object({ distributionDate: isoDate, distributableAmount: decimalAmount })
       .parse(request.body);
 
-    const tiers = (fund.waterfall_tiers as FundWaterfallTier[] | null) ?? [];
-    if (tiers.length === 0) {
-      throw badRequest(
-        'This fund has no waterfall tiers configured yet. Add at least one before proposing a distribution.',
-      );
-    }
+    /*
+     * `computeFundWaterfall` decides every allocation from this fund's prior
+     * transactions alone — it has no notion of another `apply` that is
+     * concurrently deciding the same thing. Two requests racing this route
+     * would otherwise both read the same not-yet-updated transaction history,
+     * compute the identical proposal, and both insert it: the same
+     * distribution paid twice. Locking the fund row for the rest of this
+     * transaction — and only then reading tiers and transactions — forces a
+     * second concurrent request to wait for the first to commit; once it
+     * proceeds, it sees the first's just-inserted distribution on this same
+     * date and hits the engine's own "not before the proposed distribution
+     * date" guard (the same one that already refuses a stale preview), so it
+     * fails loudly instead of paying twice.
+     */
+    const { toRecord, proposal, created } = await request.db.begin(async (tx) => {
+      const fundRows = (await tx`
+        SELECT waterfall_tiers FROM funds WHERE id = ${id} FOR UPDATE
+      `) as unknown as Array<{ waterfall_tiers: FundWaterfallTier[] | null }>;
+      const tiers = fundRows[0]?.waterfall_tiers ?? [];
+      if (tiers.length === 0) {
+        throw badRequest(
+          'This fund has no waterfall tiers configured yet. Add at least one before proposing a distribution.',
+        );
+      }
 
-    const { investors, transactions } = await loadWaterfallInputs(request, id);
-    const proposal = runWaterfall(investors, transactions, tiers, body);
+      const { investors, transactions } = await loadWaterfallInputs(tx as unknown as Sql, id);
+      const proposal = runWaterfall(investors, transactions, tiers, body);
 
-    const toRecord = proposal.allocations.filter((allocation) => Number(allocation.total) > 0);
-    if (toRecord.length === 0) {
-      throw badRequest('This distribution would pay nobody, so nothing was recorded.');
-    }
+      const toRecord = proposal.allocations.filter((allocation) => Number(allocation.total) > 0);
+      if (toRecord.length === 0) {
+        throw badRequest('This distribution would pay nobody, so nothing was recorded.');
+      }
 
-    const created = await request.db.begin(async (tx) => {
       const rows: Array<Record<string, unknown>> = [];
       for (const allocation of toRecord) {
         const inserted = (await tx`
@@ -400,7 +417,7 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
         `) as unknown as Array<Record<string, unknown>>;
         rows.push(inserted[0] as Record<string, unknown>);
       }
-      return rows;
+      return { toRecord, proposal, created: rows };
     });
 
     await writeAudit(request.db, {
@@ -503,7 +520,7 @@ export async function registerFundRoutes(app: FastifyInstance): Promise<void> {
  * disagreeing about the same fund.
  */
 async function loadWaterfallInputs(
-  request: Parameters<typeof requireCapability>[0],
+  db: Sql,
   id: string,
 ): Promise<{
   investorRows: Array<{
@@ -516,7 +533,7 @@ async function loadWaterfallInputs(
   investors: FundInvestor[];
   transactions: FundTransaction[];
 }> {
-  const investorRows = (await request.db`
+  const investorRows = (await db`
     SELECT id, code, name, investor_class, commitment
     FROM fund_investors WHERE fund_id = ${id} ORDER BY code
   `) as unknown as Array<{
@@ -527,7 +544,7 @@ async function loadWaterfallInputs(
     commitment: string;
   }>;
 
-  const transactionRows = (await request.db`
+  const transactionRows = (await db`
     SELECT investor_id, to_char(transaction_date, 'YYYY-MM-DD') AS date, type, amount, recallable
     FROM fund_transactions WHERE fund_id = ${id}
     ORDER BY transaction_date
@@ -605,7 +622,7 @@ async function fundPosition(
   };
 }> {
   const fund = await requireFund(request, organizationId, id);
-  const { investorRows, investors, transactions } = await loadWaterfallInputs(request, id);
+  const { investorRows, investors, transactions } = await loadWaterfallInputs(request.db, id);
 
   /*
    * Residual value from the fund's portfolio, using the same roll-up the
