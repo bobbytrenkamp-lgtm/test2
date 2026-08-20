@@ -66,6 +66,10 @@ test('refuses a non-numeric rentable area instead of silently discarding it', as
   await form.getByRole('button', { name: 'Create property' }).click();
   await expect(form.getByText('Rentable area must be a number.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New property' })).toBeVisible();
+  // Every `Field` with an `error` marks its own control `aria-invalid`, not
+  // just the error text itself — the same fix `SignIn.tsx` needed by hand,
+  // but here for free from `Field` (apps/web/src/components.tsx).
+  await expect(form.getByLabel('Rentable area')).toHaveAttribute('aria-invalid', 'true');
 
   await form.getByLabel('Rentable area').fill('42000');
   await form.getByRole('button', { name: 'Create property' }).click();

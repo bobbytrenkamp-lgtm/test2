@@ -198,8 +198,9 @@ built bundle:
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
+| Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**260 browser tests in total**, for 1878 across the whole repository.
+**262 browser tests in total**, for 1880 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

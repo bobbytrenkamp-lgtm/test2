@@ -55,7 +55,16 @@ export function SignInPage(): JSX.Element {
         setError(
           cause instanceof ApiError ? cause.message : 'The server could not be reached. Try again.',
         );
-        setInvalidFields(new Set(['email', 'password']));
+        // Only a genuine credentials rejection means the email or password
+        // was actually wrong. `/auth/login` can also fail with RATE_LIMITED
+        // (too many attempts) or no ApiError at all (offline, unreachable
+        // server) — neither says anything about what was typed, so neither
+        // should mark the fields invalid.
+        setInvalidFields(
+          cause instanceof ApiError && cause.code === 'INVALID_CREDENTIALS'
+            ? new Set(['email', 'password'])
+            : new Set(),
+        );
       }
     } finally {
       setPending(false);
