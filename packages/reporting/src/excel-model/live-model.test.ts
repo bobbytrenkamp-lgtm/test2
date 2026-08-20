@@ -686,6 +686,47 @@ describe('the debt schedule amortises in the workbook', () => {
     });
   }
 
+  it('never shows a facility as active when its funding date falls after the whole forecast', () => {
+    /*
+     * The engine's own fundingIndex (an unclamped month offset from the
+     * forecast start) leaves this facility inactive in every period, drawing
+     * nothing and charging nothing — exactly the same standard as the
+     * capped-rate test below: the modified input is run back through the
+     * engine, and the workbook is reconciled to *that* real schedule, not to
+     * a number worked out by hand.
+     */
+    const { input } = fixture('refinanceScenario');
+    const facility = input.debt[0];
+    if (!facility) return;
+    const neverFunded: ModelInput = {
+      ...input,
+      debt: input.debt.map((entry, index) =>
+        index === 0 ? { ...entry, fundingDate: '2099-01-01' } : entry,
+      ),
+    };
+    const neverFundedResult = calculate(neverFunded);
+    const { workbook } = buildLiveModel(neverFunded, neverFundedResult);
+    const evaluator = new FormulaEvaluator(workbook);
+
+    const schedule = neverFundedResult.debtSchedules.find((s) => s.facilityId === facility.id);
+    expect(schedule).toBeDefined();
+    // The premise of the test: the engine really does leave this schedule at
+    // zero throughout, not merely close to it.
+    expect(schedule?.rows.every((row) => Number(row.endingBalance) === 0)).toBe(true);
+
+    for (let period = 0; period < neverFundedResult.periods.length; period += 1) {
+      const expected = Number(schedule?.rows[period]?.endingBalance ?? '0');
+      expect(
+        evaluator.value(`debt.ending.${facility.id}`, period),
+        `ending balance at period ${period}`,
+      ).toBeCloseTo(expected, 6);
+      expect(
+        evaluator.value(`debt.accrued.${facility.id}`, period),
+        `accrued interest at period ${period}`,
+      ).toBeCloseTo(0, 6);
+    }
+  });
+
   it('moves interest, and therefore levered cash flow, when the rate changes', () => {
     // The dependency chain the feature is judged on.
     const { input, result } = fixture('refinanceScenario');

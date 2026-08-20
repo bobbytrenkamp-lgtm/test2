@@ -162,8 +162,24 @@ function buildFacility(
   sheet.skipRows(1);
   sheet.section(facility.name);
 
-  const fundingIndex = axis.periods.findIndex((period) => period.endDate >= facility.fundingDate);
-  const funded = fundingIndex < 0 ? 0 : fundingIndex;
+  const rawFundingIndex = axis.periods.findIndex(
+    (period) => period.endDate >= facility.fundingDate,
+  );
+  // A facility whose funding date falls after every modelled period's end
+  // date never becomes active within this axis at all — the engine's own
+  // fundingIndex (calculation-engine/src/debt.ts, an unclamped month offset
+  // from the forecast start) works out the same way: monthsSinceFunding
+  // stays negative for every period the engine loops over, so `active` is
+  // false throughout and the schedule is all zeros. Treating a not-found
+  // search (`-1`) as period 0 — as this used to — did the opposite: it
+  // exported formulas that mark the facility active, draw its funding, and
+  // charge interest from period 0 onward, disagreeing with the engine's
+  // correctly-all-zero cachedValue as soon as Excel recalculates. `funded`
+  // set beyond the last axis index keeps every use below (the draw at
+  // `period === funded`, `active`, `amortises`) false for every real period,
+  // the same way `maturityIndex`'s own clamping below already handles the
+  // opposite case (a facility that outlives the axis).
+  const funded = rawFundingIndex < 0 ? axis.count : rawFundingIndex;
   // The engine's own `maturityIndex` is never clamped to the modelled axis —
   // a facility whose term simply outlives the forecast horizon stays active
   // (and its balance stays outstanding) through the last modelled period,
