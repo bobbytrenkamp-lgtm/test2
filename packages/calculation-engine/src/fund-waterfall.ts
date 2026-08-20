@@ -69,9 +69,12 @@ export interface FundWaterfallInput {
   /**
    * Every transaction to date: contributions, recalls, and distributions
    * already recorded as fact. Order does not matter — they are sorted by
-   * date internally — but every one must predate `distributionDate`, or a
-   * distribution on or after it would be double-counted against the new
-   * amount this call is itself proposing.
+   * date internally, and a contribution/recall is always booked before a
+   * distribution on the same date (capital called on a day is at risk
+   * before any distribution that same day can net against it) — but every
+   * one must predate `distributionDate`, or a distribution on or after it
+   * would be double-counted against the new amount this call is itself
+   * proposing.
    */
   transactions: FundTransaction[];
   /**
@@ -176,6 +179,23 @@ export function computeFundWaterfall(input: FundWaterfallInput): FundWaterfallRe
   const { investors, tiers } = input;
   const distributionDate = parseDate(input.distributionDate);
 
+  // Every investor state and every allocation below is keyed by `investor.id`
+  // — a caller-assembled duplicate would silently merge two investors' ledgers
+  // into one `Map` entry and then report that single merged total twice (once
+  // per duplicate `investors` entry) in `allocations`, double-counting against
+  // `distributableAmount` with nothing to say so. Refusing outright is the
+  // same "name the problem, do not guess" answer this module gives the
+  // unallocated-remainder and misconfigured-catch-up cases below.
+  const seenIds = new Set<string>();
+  for (const investor of investors) {
+    if (seenIds.has(investor.id)) {
+      throw new Error(
+        `Investor id ${investor.id} appears more than once in this fund's investor list.`,
+      );
+    }
+    seenIds.add(investor.id);
+  }
+
   const states = new Map<string, InvestorState>(
     investors.map((investor) => [
       investor.id,
@@ -195,9 +215,16 @@ export function computeFundWaterfall(input: FundWaterfallInput): FundWaterfallRe
     ]),
   );
 
-  const events = [...input.transactions].sort((a, b) =>
-    compareDates(parseDate(a.date), parseDate(b.date)),
-  );
+  // A contribution/recall sorts before a distribution on the same date, so
+  // the result never depends on the order the caller happened to list
+  // same-day transactions in (`transactions`'s own doc comment above
+  // promises exactly that). Capital called on a day is at risk before any
+  // distribution that same day can net against it.
+  const eventPriority = (event: FundTransaction): number => (event.type === 'distribution' ? 1 : 0);
+  const events = [...input.transactions].sort((a, b) => {
+    const byDate = compareDates(parseDate(a.date), parseDate(b.date));
+    return byDate !== 0 ? byDate : eventPriority(a) - eventPriority(b);
+  });
   for (const event of events) {
     if (compareDates(parseDate(event.date), distributionDate) >= 0) {
       throw new Error(
@@ -315,6 +342,14 @@ export function computeFundWaterfall(input: FundWaterfallInput): FundWaterfallRe
       const target = d(tier.catchUpTargetShare ?? '0').clamp(0, new Decimal('0.999'));
       if (target.isZero()) continue;
       const recipients = tier.splits.filter((split) => d(split.share).greaterThan(0));
+      // No recipient means nothing this tier could actually pay — matching
+      // the `owedTotal <= 0` "continue" used above for the accrual and
+      // return-of-capital tiers. Without this, `paid` would still be
+      // subtracted from `remaining` below while `distributeBySplits` credits
+      // nobody (its own `shareTotal.isZero()` guard), so the money would
+      // simply vanish from the reported allocations without tripping the
+      // unallocated-remainder check at the end of this function.
+      if (recipients.length === 0) continue;
       const sponsorProfit = recipients.reduce((acc, split) => {
         const state = states.get(split.partnerId);
         return state ? acc.plus(state.profitDistributed) : acc;

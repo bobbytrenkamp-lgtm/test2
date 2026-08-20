@@ -450,3 +450,96 @@ describe('refuses tiers that do not fully allocate the distribution', () => {
     ).toThrow(/300000 unallocated/);
   });
 });
+
+describe('same-day transactions resolve independent of input array order', () => {
+  const tiers = [RETURN_OF_CAPITAL, residualSplit([{ partnerId: 'LP', share: '1' }])];
+  const contributionEvent = contribution('LP', '2025-06-01', '1000000');
+  const distributionEvent = distribution('LP', '2025-06-01', '500000');
+
+  // A contribution then a same-day distribution leaves $500,000 owed on
+  // capital: the $500,000 nets against the $1,000,000 just contributed,
+  // not against zero. A second distribution of $700,000 then pays that
+  // $500,000 in full and sends the remaining $200,000 to the residual
+  // split — so `ROC` reads exactly '500000' only if the contribution was
+  // booked before the same-day distribution, regardless of which one this
+  // test lists first.
+  function secondDistribution(transactions: FundTransaction[]) {
+    return computeFundWaterfall({
+      investors: [lp('LP')],
+      transactions,
+      tiers,
+      distributionDate: '2026-01-01',
+      distributableAmount: '700000',
+    });
+  }
+
+  it('books the same-day distribution against the capital just contributed, when the contribution is listed first', () => {
+    const result = secondDistribution([contributionEvent, distributionEvent]);
+    const roc = result.allocations[0]?.byTier.find((t) => t.tierId === 'ROC');
+    expect(roc?.amount).toBe('500000');
+  });
+
+  it('gives the identical result when the same two events are listed in the opposite order', () => {
+    const result = secondDistribution([distributionEvent, contributionEvent]);
+    const roc = result.allocations[0]?.byTier.find((t) => t.tierId === 'ROC');
+    expect(roc?.amount).toBe('500000');
+  });
+});
+
+describe('a catch-up tier with no valid recipient does not silently drop money', () => {
+  it('skips the tier entirely so its share flows to the residual split, instead of vanishing from the total', () => {
+    const investors = [lp('LP'), gp('GP')];
+    const tiers = [
+      RETURN_OF_CAPITAL,
+      preferredReturn('0.08'),
+      // Misconfigured: a positive target share but nobody named to receive
+      // it — reachable today since neither the schema nor the write route
+      // requires a catch_up tier to name a recipient with a positive share.
+      { ...catchUp('0.20', 'GP'), splits: [] },
+      residualSplit([
+        { partnerId: 'LP', share: '0.8' },
+        { partnerId: 'GP', share: '0.2' },
+      ]),
+    ];
+    const transactions = [contribution('LP', '2025-01-01', '1000000')];
+
+    const result = computeFundWaterfall({
+      investors,
+      transactions,
+      tiers,
+      distributionDate: '2026-01-01',
+      distributableAmount: '1300000',
+    });
+
+    // Hand-derived: with no valid catch-up recipient, that tier claims
+    // nothing, so every dollar past capital ($1,000,000) and preferred
+    // ($80,000, exactly as the first describe block above derives it) —
+    // $220,000 — reaches the residual split at 80/20: $176,000 to the LP
+    // on top of its $1,080,000, $44,000 to the GP.
+    const lpTotal = result.allocations.find((a) => a.investorId === 'LP');
+    const gpTotal = result.allocations.find((a) => a.investorId === 'GP');
+    expect(lpTotal?.total).toBe('1256000');
+    expect(gpTotal?.total).toBe('44000');
+    // The whole point: nothing vanished. Before this fix, exactly $20,000 —
+    // the catch-up amount `distributeBySplits` silently failed to credit —
+    // would be missing from this sum with no error raised anywhere.
+    expect(Number(lpTotal?.total) + Number(gpTotal?.total)).toBe(1_300_000);
+  });
+});
+
+describe('refuses a duplicate investor id rather than merging two investors into one ledger', () => {
+  it('throws naming the id, rather than silently reporting one investor’s allocation twice', () => {
+    const investors = [lp('LP', 'First LP'), lp('LP', 'Second LP')];
+    const tiers = [residualSplit([{ partnerId: 'LP', share: '1' }])];
+
+    expect(() =>
+      computeFundWaterfall({
+        investors,
+        transactions: [],
+        tiers,
+        distributionDate: '2026-01-01',
+        distributableAmount: '100000',
+      }),
+    ).toThrow(/appears more than once/);
+  });
+});
