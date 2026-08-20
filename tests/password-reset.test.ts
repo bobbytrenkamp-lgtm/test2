@@ -30,6 +30,19 @@ class SpyMailer implements Mailer {
   }
 }
 
+/**
+ * Stands in for a relay that rejects, times out, or is simply unreachable —
+ * the case the route's own doc comment now names directly: this must never
+ * surface as anything different from the identical response a nonexistent
+ * address gets, or the enumeration-safety property is only true when the
+ * mailer happens to be working.
+ */
+class FailingMailer implements Mailer {
+  async send(): Promise<void> {
+    throw new Error('mail relay unreachable (simulated)');
+  }
+}
+
 describe.skipIf(!hasDatabase)('password reset', () => {
   let ctx: TestContext;
   let mailer: SpyMailer;
@@ -94,5 +107,39 @@ describe.skipIf(!hasDatabase)('password reset', () => {
     // alone would leak which accounts exist.
     expect(body.message).toBe('If that address has an account, a reset link is on its way.');
     expect(mailer.sent).toHaveLength(before);
+  });
+});
+
+describe.skipIf(!hasDatabase)('password reset when the mailer itself fails', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await createTestContext({ mailer: new FailingMailer() });
+  }, 60_000);
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  it('still returns the same 200 and the same message a real account normally gets', async () => {
+    const actor = await registerActor(ctx.app, 'reset-mailer-down@example.invalid', 'Reset Me Too');
+
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password-reset/request',
+      headers: HEADERS,
+      payload: { email: actor.email },
+    });
+
+    // Before this fix, the mailer's rejection propagated unhandled and the
+    // framework's own error handler turned it into a 500 — the one thing
+    // this route's own doc comment says must never happen: a real account
+    // and a nonexistent one must be indistinguishable from the response
+    // alone, and a 500 only a real account can ever trigger is exactly the
+    // kind of distinguishing signal that promise exists to rule out.
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(true);
+    expect(body.message).toBe('If that address has an account, a reset link is on its way.');
   });
 });
