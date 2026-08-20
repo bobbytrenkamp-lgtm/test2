@@ -132,7 +132,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Application version, on the public health check | `tests/version.test.ts` | 1 | Yes |
 | Entitlements: `canUseFeature`/`isAccessSuspended` | `packages/domain-models/src/entitlements.test.ts` | 13 | No |
 | CREOS universal entity ID utility: spec-compliant ULID generation/validation, ported from CREOS Enterprise's hardened implementation — its first real consumer as of Phase 5, see the row below (see `docs/creos-ids.md`) | `packages/domain-models/src/creos-ids.test.ts` | 31 | No |
-| Phase 5/6 CREOS handoff import (SiteIntel + MarketSignal): `creos-handoff-v1` fail-closed parsing (including the Underwrite-boundary governance rule, re-checked independently of the sender), and pure translation into a reviewable `cre-assumption-import` v1 document — every SiteIntel fact and 12 of MarketSignal's 15 assumption types verified to analyze as informational-only against a real model; MarketSignal's other 3 (vacancy, exit cap rate, discount rate) verified to route to their real underwriting targets and analyze as new/changed, never silently pre-decided | `packages/domain-models/src/creos-handoff-import.test.ts` | 48 | No |
+| Phase 5/6 CREOS handoff import (SiteIntel + MarketSignal): `creos-handoff-v1` fail-closed parsing (including the Underwrite-boundary governance rule, re-checked independently of the sender), and pure translation into a reviewable `cre-assumption-import` v1 document — every SiteIntel fact and 12 of MarketSignal's 15 assumption types verified to analyze as informational-only against a real model; MarketSignal's other 3 (vacancy, exit cap rate, discount rate) verified to route to their real underwriting targets and analyze as new/changed, never silently pre-decided; a category containing a space sanitized rather than producing an invalid target that fails the whole document, an already-valid snake_case category left untouched, over-length methodology/unit text truncated rather than failing validation, and a "State" fact reported in `assumptions[]` instead of `observations[]` still populating `property.state` | `packages/domain-models/src/creos-handoff-import.test.ts` | 52 | No |
 | Entitlements: organization row, `/auth/me`, and the `assumption_import` feature gate | `tests/entitlements.test.ts` | 7 | Yes |
 | Organization export: everything an organization owns, in one document | `tests/organization-export.test.ts` | 6 | Yes |
 | The organization's growth curve library, and traceability when a curve is applied from it | `tests/growth-curve-templates.test.ts` | 11 | Yes |
@@ -148,7 +148,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 | Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1624 tests in total.**
+**1628 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -201,7 +201,7 @@ built bundle:
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 | Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**262 browser tests in total**, for 1886 across the whole repository.
+**262 browser tests in total**, for 1890 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

@@ -465,3 +465,112 @@ describe('translateCreosHandoff — MarketSignal direct-target coverage (all 3)'
     },
   );
 });
+
+describe('translateCreosHandoff — a category with characters a target cannot carry', () => {
+  it('sanitizes a category containing a space instead of producing an invalid target that fails the whole document', () => {
+    const doc = fixtureHandoff({
+      observations: [
+        {
+          assumptionId: generateCreosUlid(),
+          name: 'Zoning designation',
+          category: 'Site Assessment',
+          valueType: 'string',
+          value: 'IND-1',
+          sourceType: 'observed',
+          sourceModule: 'siteintel',
+          status: 'proposed',
+          createdAt: '2026-08-18T12:00:00.000Z',
+          updatedAt: '2026-08-18T12:00:00.000Z',
+        },
+      ],
+    });
+    const parsed = parseCreosHandoffPayload(JSON.stringify(doc));
+    if (!parsed.ok) throw new Error('fixture must parse');
+    const translated = translateCreosHandoff(parsed.data);
+
+    // Before this fix, the target was `siteIntel.Site Assessment.zoning...`,
+    // which fails `assumptionTargetSchema`'s regex and — because the whole
+    // array is validated as one document — would refuse every fact in the
+    // handoff, not just this one.
+    expect(() => creAssumptionImportSchema.parse(translated)).not.toThrow();
+    expect(translated.assumptions[0]?.target).toBe('siteIntel.Site_Assessment.zoningDesignation');
+  });
+
+  it('leaves an already-valid snake_case category exactly as the catalog wrote it', () => {
+    // The MarketSignal fixture's own "market_rent_growth" category already
+    // satisfies the target regex — sanitizing must not rewrite it into
+    // "marketRentGrowth" or any other form the catalog did not send.
+    const parsed = parseCreosHandoffPayload(JSON.stringify(fixtureMarketSignalHandoff()));
+    if (!parsed.ok) throw new Error('fixture must parse');
+    const translated = translateCreosHandoff(parsed.data);
+    expect(translated.assumptions.map((a) => a.target)).toContain(
+      'marketSignal.market_rent_growth',
+    );
+  });
+});
+
+describe('translateCreosHandoff — descriptive text longer than the target schema allows', () => {
+  it('truncates an over-length methodology and unit rather than failing the whole document', () => {
+    const longMethodology = 'M'.repeat(1500);
+    const longUnit = 'U'.repeat(200);
+    const doc = fixtureHandoff({
+      observations: [
+        {
+          assumptionId: generateCreosUlid(),
+          name: 'Assessed value',
+          category: 'valuation',
+          unit: longUnit,
+          valueType: 'number',
+          value: 4200000,
+          sourceType: 'observed',
+          sourceModule: 'siteintel',
+          status: 'proposed',
+          methodology: longMethodology,
+          createdAt: '2026-08-18T12:00:00.000Z',
+          updatedAt: '2026-08-18T12:00:00.000Z',
+        },
+      ],
+    });
+    const parsed = parseCreosHandoffPayload(JSON.stringify(doc));
+    if (!parsed.ok) throw new Error('fixture must parse');
+    const translated = translateCreosHandoff(parsed.data);
+
+    // Before this fix, `unit` (60-char cap) and the evidence `note`
+    // (1000-char cap) in `cre-assumption-import`'s own schema would refuse
+    // this whole document over one item's descriptive text — never the
+    // authoritative `value`, which is untouched either way.
+    expect(() => creAssumptionImportSchema.parse(translated)).not.toThrow();
+    const item = translated.assumptions[0];
+    expect(item?.unit?.length).toBeLessThanOrEqual(60);
+    expect(item?.evidence[0]?.note?.length).toBeLessThanOrEqual(1000);
+    expect(item?.value).toBe(4200000);
+  });
+});
+
+describe('translateCreosHandoff — a "State" fact reported in assumptions[] rather than observations[]', () => {
+  it('still populates property.state, the same as it would from observations[]', () => {
+    // HandoffAssumptionSchema is identical for both arrays — nothing in the
+    // contract requires a "State" fact to arrive in one over the other.
+    const doc = fixtureHandoff({
+      observations: [],
+      assumptions: [
+        {
+          assumptionId: generateCreosUlid(),
+          name: 'State',
+          category: 'identity',
+          valueType: 'string',
+          value: 'VA',
+          sourceType: 'observed',
+          sourceModule: 'siteintel',
+          status: 'proposed',
+          createdAt: '2026-08-18T12:00:00.000Z',
+          updatedAt: '2026-08-18T12:00:00.000Z',
+        },
+      ],
+    });
+    const parsed = parseCreosHandoffPayload(JSON.stringify(doc));
+    if (!parsed.ok) throw new Error('fixture must parse');
+    const translated = translateCreosHandoff(parsed.data);
+    expect(translated.property.state).toBe('VA');
+  });
+});

@@ -263,6 +263,23 @@ function slug(name: string): string {
     .join('');
 }
 
+/**
+ * Makes a category safe to use as a target segment without changing an
+ * already-safe one — unlike `slug()`, which is deliberately for turning a
+ * human-readable *name* into a camelCase field identifier, and would
+ * needlessly rewrite a catalog category like `exit_cap_rate` (already valid:
+ * `assumptionTargetSchema` allows letters, digits, `_`, `-`, `.`, `:`) into
+ * `exitCapRate`, breaking the identifier callers match `category` against
+ * (`MARKET_SIGNAL_DIRECT_TARGETS`'s own keys, and any producer-side catalog
+ * that expects its category to survive the round trip unchanged). Only a
+ * character the schema would actually reject — a space, most punctuation —
+ * gets replaced.
+ */
+function sanitizeTargetSegment(value: string): string {
+  const cleaned = value.replace(/[^A-Za-z0-9_.\-:]+/g, '_').replace(/^_+|_+$/g, '');
+  return cleaned.length === 0 ? 'value' : cleaned;
+}
+
 function mapValueType(
   valueType: CreosHandoffAssumption['valueType'],
 ): 'decimal' | 'string' | 'boolean' | 'date' {
@@ -281,17 +298,32 @@ function mapValueType(
 }
 
 function targetFor(sourceModule: string, item: CreosHandoffAssumption): string {
+  // `item.category` is free text (`HandoffAssumptionSchema.category` is only
+  // `z.string().min(1)`) but every segment of a target has to satisfy
+  // `assumptionTargetSchema`'s own `^[A-Za-z0-9_.\-:]+$` — a category like
+  // "Site Assessment" would otherwise build an invalid target and fail the
+  // *whole* translated document's validation later, blocking every fact in
+  // the handoff over one item's target, not just that item.
+  // `sanitizeTargetSegment`, not `slug()`: the direct-target lookup below is
+  // keyed by the raw catalog category ('vacancy', 'exit_cap_rate', ...),
+  // already valid and checked before sanitizing, and the informational
+  // fallback should leave an already-valid category exactly as the catalog
+  // wrote it too.
   if (sourceModule === 'marketsignal') {
-    return MARKET_SIGNAL_DIRECT_TARGETS[item.category] ?? `marketSignal.${item.category}`;
+    return (
+      MARKET_SIGNAL_DIRECT_TARGETS[item.category] ??
+      `marketSignal.${sanitizeTargetSegment(item.category)}`
+    );
   }
+  const category = sanitizeTargetSegment(item.category);
   if (sourceModule === 'siteintel') {
-    return `siteIntel.${item.category}.${slug(item.name)}`;
+    return `siteIntel.${category}.${slug(item.name)}`;
   }
   // Defensive fallback for a source module this file hasn't reasoned about
   // yet — namespaced and informational, never a guessed real target. Only
   // siteintel/marketsignal above have had their target mappings actually
   // worked out and tested.
-  return `${sourceModule}.${item.category}.${slug(item.name)}`;
+  return `${sourceModule}.${category}.${slug(item.name)}`;
 }
 
 function translateAssumption(
@@ -302,15 +334,23 @@ function translateAssumption(
     method: 'explicit',
     derivation: null,
   };
+  // `unit`/`methodology` are unbounded in `HandoffAssumptionSchema` (only
+  // `cre-assumption-import`'s own schema caps `unit`/`displayValue`/a
+  // `note` at 60/200/1000 chars), so an over-length one here would otherwise
+  // fail that schema's validation for the *whole* translated document,
+  // blocking every fact in the handoff over one item's descriptive text —
+  // never the authoritative `value` itself, which nothing here touches.
+  const unit = item.unit ? item.unit.slice(0, 60) : null;
+  const displayValue = (unit ? `${item.value} ${unit}` : String(item.value)).slice(0, 200);
   return {
     target: targetFor(sourceModule, item),
     value: item.value,
     valueType: mapValueType(item.valueType),
-    unit: item.unit ?? null,
-    displayValue: item.unit ? `${item.value} ${item.unit}` : String(item.value),
+    unit,
+    displayValue,
     confidence: item.confidence ? CONFIDENCE_TO_FRACTION[item.confidence] : null,
     extraction,
-    evidence: item.methodology ? [{ note: item.methodology }] : [],
+    evidence: item.methodology ? [{ note: item.methodology.slice(0, 1000) }] : [],
     notes: null,
   };
 }
@@ -326,11 +366,15 @@ function translateAssumption(
  */
 export function translateCreosHandoff(handoff: CreosHandoffV1): CreAssumptionImport {
   const propertyName = handoff.property?.identity?.propertyName ?? null;
-  const stateObservation = handoff.observations.find((o) => o.name === 'State');
   const documentDate = handoff.createdAt.slice(0, 10);
   const sourceLabel =
     SOURCE_LABELS[handoff.sourceModule] ?? `CREOS handoff (${handoff.sourceModule})`;
   const items = [...handoff.observations, ...handoff.assumptions];
+  // `HandoffAssumptionSchema` is identical for `observations[]` and
+  // `assumptions[]` — nothing requires a "State" fact to arrive in one array
+  // rather than the other — so this has to search the same combined `items`
+  // every other fact in this handoff is drawn from, not just `observations`.
+  const stateObservation = items.find((item) => item.name === 'State');
 
   return {
     format: 'cre-assumption-import',
