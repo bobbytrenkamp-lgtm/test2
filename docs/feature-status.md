@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1624 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1628 passed (251 engine regression, 31 engine unit, 20 fund,
                          19 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          12 funds via the API, 10 fund waterfall via the API,
@@ -98,7 +98,7 @@ Tests       1624 passed (251 engine regression, 31 engine unit, 20 fund,
                          13 the comparable-selection and percentile engine,
                          1 application version, 13 entitlements,
                          31 the CREOS ID utility,
-                         48 the CREOS handoff import (SiteIntel + MarketSignal),
+                         52 the CREOS handoff import (SiteIntel + MarketSignal),
                          7 entitlements via the API, 6 organization export,
                          11 the growth curve library and its provenance,
                          11 the market leasing profile library and its provenance,
