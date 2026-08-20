@@ -51,17 +51,23 @@ the full return metric set; LP/GP waterfalls; portfolio aggregation; calculation
 traces; immutable versions and an approval workflow; deterministic rent-roll
 import; nine reports in four formats; an audit log.
 
-**Implemented, not yet covered by tests.** The web application in full,
-background jobs, sensitivity analysis, model cloning, portfolio roll-up.
+Budgets, actuals and variance reporting; collaboration (comments, tasks,
+mentions, notifications); configurable dashboards; document management;
+portfolio reports; Excel import and export; server-side PDF; multi-factor
+authentication; background jobs; sensitivity analysis; model cloning; and
+portfolio roll-up are also implemented and tested — this list started as two
+separate "not yet covered" and "designed, not built" buckets, both of which
+have since emptied out as the corresponding work shipped.
 
-**Designed, not built.** Budgets, actuals and variance reporting; collaboration
-(comments, tasks, mentions, notifications); configurable dashboards; document
-management; portfolio reports; Excel import; server-side PDF; multi-factor
-authentication; the optional AI assistant.
+**Designed, not built.** The optional AI assistant — provider-neutral,
+disabled by default, no provider bundled (`docs/zero-cost-operation.md`).
 
 **Explicit non-goals for now.** Hotel departmental modelling, data-centre
 capacity modelling, yield capitalisation methods (term and reversion, hardcore,
-equivalent yield), multi-currency translation, and any paid external data source.
+equivalent yield), multi-currency translation, cash sweep (applying trapped
+cash to loan principal, as opposed to withholding it from equity on a covenant
+breach, which is modelled), advanced phased/multi-building development
+underwriting, and any paid external data source.
 
 `docs/feature-status.md` holds the authoritative matrix.
 

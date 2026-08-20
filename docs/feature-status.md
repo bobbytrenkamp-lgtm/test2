@@ -240,8 +240,34 @@ Licences    347 packages, none requiring payment or a commercial licence
   from the cash flow, with `RECONCILIATION_OUTSIDE_FORECAST` naming the amount.
   The forecast does not extend far enough to collect it.
 - Multi-currency is rejected rather than converted; one model, one currency.
+  `MULTIPLE_CURRENCIES` validation existed in `engine.ts` but built its
+  "distinct currencies" set from a single-element array, which can never hold
+  more than one member — dead code masquerading as a check, removed rather
+  than fixed. A real check needs a second currency-bearing field somewhere in
+  the schema, which nothing in it currently has.
 - Yield capitalisation methods (term and reversion, hardcore, equivalent yield)
-  are **not started**.
+  are **not started**. The engine's own income approach is direct
+  capitalisation and discounted cash flow only.
+- Cash sweep — applying trapped cash to loan principal — is **not modelled**.
+  Cash-management triggers on covenant breach are: surplus cash is withheld
+  from equity while a breach persists and released on cure. Applying that
+  withheld cash to principal instead would make the amortization schedule
+  depend on the cash flow the schedule itself produces, and approximating the
+  circularity would misstate every covenant tested against the balance
+  afterwards.
+- Advanced (phased, multi-building) development is **not modelled** as its own
+  workflow. What exists today: a flat capital-item schedule with per-item
+  start/end dates and growth curves (`capital.ts`), a construction-to-permanent
+  debt facility that capitalizes interest through a window then amortizes in
+  cash once stabilised, and development/refinance fee bases in the waterfall.
+  What does not: multiple delivery phases on independent timelines, an
+  absorption/lease-up curve distinct from ordinary rollover, and
+  development-specific return metrics (yield on cost, development margin).
+- Hotel departmental modelling (rooms, F&B, other operated departments each
+  with their own revenue and expense lines and a USALI-style summary) and
+  data-centre capacity modelling (power, cooling load, colocation-specific
+  billing) are **not started**. Both property types can be modelled today only
+  at the same single-line revenue/expense granularity as any other property.
 
 ## 2. Data model and persistence
 

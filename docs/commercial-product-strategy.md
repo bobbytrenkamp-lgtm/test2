@@ -135,10 +135,13 @@ flagship workflow a firm can be sold on."
 
 Matching `docs/commercial-gap-analysis.md`'s deferral list and the
 milestone note this strategy was drafted from: hotel and data-center
-modelling, multi-currency, yield capitalization, ROFR/ROFO/expansion
-options, a CRM-grade deal pipeline, native mobile apps, payment-provider
-integration, and enterprise-only controls (SSO/SAML/SCIM) ahead of having a
-pilot customer who needs them. The engine already has enough underwriting
+modelling, multi-currency, yield capitalization, cash sweep, advanced
+phased/multi-building development underwriting, ROFR/ROFO options (these
+bear on disposition, not operating cash flow — expansion is now modelled
+when the option names the real space it claims), a CRM-grade deal pipeline,
+native mobile apps, payment-provider integration, and enterprise-only
+controls (SSO/SAML/SCIM) ahead of having a pilot customer who needs them.
+The engine already has enough underwriting
 depth to begin commercial validation; the near-term work is making what
 exists trustworthy and usable by a paying firm, not adding modelling
 surface area.

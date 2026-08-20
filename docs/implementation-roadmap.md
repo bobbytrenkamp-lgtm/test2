@@ -708,10 +708,11 @@ browser test fail.
 
 ### 9. Optional extras, only if wanted
 
-Excel import, server-side PDF, multi-factor authentication, malware scanning,
-yield capitalisation methods, hotel and data-centre modules, and the AI
-assistant — which stays disabled by default and adds no paid dependency without
-approval.
+Excel import, server-side PDF, multi-factor authentication and malware
+scanning are all built and tested now. What is left: yield capitalisation
+methods, cash sweep, advanced phased/multi-building development
+underwriting, hotel and data-centre modules, and the AI assistant — which
+stays disabled by default and adds no paid dependency without approval.
 
 ## Standing rules
 
