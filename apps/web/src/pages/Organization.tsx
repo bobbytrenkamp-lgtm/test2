@@ -65,6 +65,12 @@ export function OrganizationPage(): JSX.Element {
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<Role>('analyst');
+  const [showInviteProblems, setShowInviteProblems] = useState(false);
+  const inviteEmailProblem = !inviteEmail.trim()
+    ? 'Email is required.'
+    : !/^\S+@\S+\.\S+$/.test(inviteEmail.trim())
+      ? 'Enter a complete email address.'
+      : undefined;
   const [invited, setInvited] = useState<{ email: string; role: Role; token?: string } | null>(
     null,
   );
@@ -361,17 +367,30 @@ export function OrganizationPage(): JSX.Element {
           <form
             className="row"
             style={{ alignItems: 'flex-end' }}
+            noValidate
             onSubmit={async (event) => {
               event.preventDefault();
-              if (await invite.run(inviteEmail, inviteRole)) members.reload();
+              if (inviteEmailProblem) {
+                setShowInviteProblems(true);
+                return;
+              }
+              if (await invite.run(inviteEmail, inviteRole)) {
+                members.reload();
+                setShowInviteProblems(false);
+              }
             }}
           >
-            <Field label="Email">
+            <Field
+              label="Email"
+              {...(showInviteProblems && inviteEmailProblem ? { error: inviteEmailProblem } : {})}
+            >
               <input
                 type="email"
-                required
                 value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
+                onChange={(event) => {
+                  setInviteEmail(event.target.value);
+                  setShowInviteProblems(false);
+                }}
               />
             </Field>
             <Field label="Role">

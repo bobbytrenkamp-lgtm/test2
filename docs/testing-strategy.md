@@ -144,8 +144,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Pending assumption decisions, organization-wide: lists across every model, carries property/model and each proposal's own current value, drops out once decided, organization isolation | `tests/pending-assumption-proposals.test.ts` | 7 | Yes |
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
+| `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 
-**1610 tests in total.**
+**1614 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -184,7 +185,7 @@ built bundle:
 | Investment committee summary | `e2e/ic-summary.spec.ts` | 5 |
 | PDF-assumption import, paste to applied | `e2e/assumption-import.spec.ts` | 6 |
 | Organization admin: plan, membership, capability-gated invitations | `e2e/organization-admin.spec.ts` | 2 |
-| New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility, names a missing required field instead of a browser popup | `e2e/new-underwriting.spec.ts` | 4 |
+| New Underwriting: guided property + model creation, landing on the new model's assumptions, capability-gated visibility, names a missing required field or a non-numeric one instead of a browser popup or a silently discarded value | `e2e/new-underwriting.spec.ts` | 5 |
 | Workflow/progress surface: all ten steps render on a real model, reflect real state, and are accessible | `e2e/workflow-progress.spec.ts` | 2 |
 | Inputs tab: all six input areas with real status, each card's link opens the right screen, accessibility | `e2e/inputs-tab.spec.ts` | 3 |
 | Pending decisions on the dashboard: shows and links to a pending proposal, gives two proposals on the same model names a rotor can tell apart, drops off once decided, accessibility | `e2e/pending-decisions.spec.ts` | 4 |
@@ -195,9 +196,9 @@ built bundle:
 | Documents: a real file uploaded and downloaded back byte for byte, a read-only member sees documents but is offered no way to add or remove one, accessibility | `e2e/documents.spec.ts` | 3 |
 | Configurable dashboards: hides a widget and shows it again, reorders widgets and a reload remembers it, resets to the default layout, accessibility with the customizer open | `e2e/dashboards.spec.ts` | 4 |
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
-| New property form: creation, and naming the missing field instead of a browser popup | `e2e/properties.spec.ts` | 2 |
+| New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 
-**257 browser tests in total**, for 1867 across the whole repository.
+**260 browser tests in total**, for 1874 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

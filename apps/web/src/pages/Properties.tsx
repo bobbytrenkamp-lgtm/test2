@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { propertyTypeEnum } from '@cre/domain-models';
 import { api, type Property } from '../api.js';
 import { EmptyState, ErrorMessage, Field, Loading, StatusBadge } from '../components.js';
-import { formatCurrency, formatNumber, titleCase } from '../format.js';
-import { useMutation, useResource } from '../hooks.js';
+import { formatCurrency, formatNumber, numericFieldProblem, titleCase } from '../format.js';
+import { useDebouncedValue, useMutation, useResource } from '../hooks.js';
 import { useSession } from '../session.js';
 
 export function PropertiesPage(): JSX.Element {
@@ -12,9 +12,13 @@ export function PropertiesPage(): JSX.Element {
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
   const [creating, setCreating] = useState(false);
+  // Waits for a pause in typing before it reaches the query — a search box
+  // wired straight to useResource fires a new request, and cancels the
+  // previous one, on every keystroke.
+  const debouncedSearch = useDebouncedValue(search);
 
   const query = new URLSearchParams();
-  if (search.trim()) query.set('search', search.trim());
+  if (debouncedSearch.trim()) query.set('search', debouncedSearch.trim());
   if (type) query.set('propertyType', type);
   const suffix = query.toString() ? `?${query}` : '';
 
@@ -172,10 +176,18 @@ function NewPropertyForm({ onCreated }: { onCreated: () => void }): JSX.Element 
 
   const [showProblems, setShowProblems] = useState(false);
   const nameProblem = form.name.trim() ? undefined : 'Name is required.';
+  // Both used to feed `form.rentableArea || null` / `Number(form.unitCount) ||
+  // 0` straight into the request — a typo silently became a dropped value or
+  // 0, with no feedback that what was typed was discarded.
+  const rentableAreaProblem = numericFieldProblem(form.rentableArea, {
+    label: 'Rentable area',
+    min: 0,
+  });
+  const unitCountProblem = numericFieldProblem(form.unitCount, { label: 'Units', min: 0 });
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
-    if (nameProblem) {
+    if (nameProblem || rentableAreaProblem || unitCountProblem) {
       setShowProblems(true);
       return;
     }
@@ -228,14 +240,22 @@ function NewPropertyForm({ onCreated }: { onCreated: () => void }): JSX.Element 
             onChange={(event) => setForm({ ...form, market: event.target.value })}
           />
         </Field>
-        <Field label="Rentable area" hint="Total rentable area in the property's area unit.">
+        <Field
+          label="Rentable area"
+          hint="Total rentable area in the property's area unit."
+          {...(showProblems && rentableAreaProblem ? { error: rentableAreaProblem } : {})}
+        >
           <input
             inputMode="decimal"
             value={form.rentableArea}
             onChange={(event) => setForm({ ...form, rentableArea: event.target.value })}
           />
         </Field>
-        <Field label="Units" hint="Residential, storage or parking units, where applicable.">
+        <Field
+          label="Units"
+          hint="Residential, storage or parking units, where applicable."
+          {...(showProblems && unitCountProblem ? { error: unitCountProblem } : {})}
+        >
           <input
             inputMode="numeric"
             value={form.unitCount}

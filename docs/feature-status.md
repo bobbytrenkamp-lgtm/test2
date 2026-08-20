@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1610 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1614 passed (251 engine regression, 31 engine unit, 20 fund,
                          15 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          12 funds via the API, 10 fund waterfall via the API,
@@ -140,8 +140,9 @@ Tests       1610 passed (251 engine regression, 31 engine unit, 20 fund,
                          7 import atomicity and rollback,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
-                         5 lease options through the API)
-Browser     257 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         5 lease options through the API,
+                         4 the shared numeric form-field validator)
+Browser     260 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          12 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
@@ -154,11 +155,11 @@ Browser     257 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          4 tasks, 3 scenarios, 2 reports, 3 portfolio roll-up,
                          3 two-factor, 12 accessibility, 49 accessibility tree,
                          6 PDF-assumption import, 2 organization admin,
-                         4 new underwriting, 2 workflow progress, 3 inputs tab,
+                         5 new underwriting, 2 workflow progress, 3 inputs tab,
                          4 pending decisions on the dashboard, 3 scenario comparison,
                          5 consolidated review screen, 3 underwriting package,
                          3 mention notifications, 3 documents, 4 dashboards,
-                         2 breadcrumbs, 2 new-property validation)
+                         2 breadcrumbs, 4 new-property validation and debounced search)
 Typecheck   clean across all 7 packages and the browser suite
 Lint        clean (eslint, --max-warnings=0)
 Web build   succeeds (556 kB, 155 kB gzipped)
