@@ -1,0 +1,40 @@
+# The API, run from the image .github/workflows/publish-images.yml publishes.
+#
+# The container is named `api`, not `cre-api` — infrastructure/nginx.conf,
+# baked into the web image and unchanged between local development and this
+# deployment, proxies `/api/` to `http://api:4000` by that exact Docker DNS
+# name. Renaming this container would silently break that proxy.
+#
+# Install: copy to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now cre-api.service
+# See infrastructure/systemd/README.md for the full install sequence and the
+# two env files this unit reads.
+[Unit]
+Description=CRE platform API
+After=docker.service cre-network.service network-online.target
+Requires=docker.service cre-network.service
+Wants=network-online.target
+
+[Service]
+# Deploy-time config only (which image tag to run) — never passed into the
+# container. See infrastructure/systemd/deploy.env.example.
+EnvironmentFile=/etc/cre-platform/deploy.env
+ExecStartPre=-/usr/bin/docker rm -f api
+ExecStartPre=/usr/bin/docker pull ${CRE_API_IMAGE}
+# The same migration infrastructure/docker-compose.yml's `api` service runs
+# on every start. Migrations are written to stay backward compatible with the
+# previous release (`pnpm check:migrations` enforces this in CI), so replaying
+# them on every restart is safe, not merely convenient.
+ExecStartPre=/usr/bin/docker run --rm --network cre-platform --env-file /etc/cre-platform/api.env ${CRE_API_IMAGE} pnpm --filter @cre/database run migrate
+# STORAGE_LOCAL_DIR is mounted from the host so an uploaded document survives
+# a redeploy — the compose file skips this because a single `docker compose
+# up` session never removes the container in between, but this unit does
+# (ExecStartPre removes the previous one), so without a host mount local
+# storage would lose every upload on every restart.
+ExecStart=/usr/bin/docker run --rm --name api --network cre-platform --env-file /etc/cre-platform/api.env -v /var/lib/cre-platform/uploads:/data/uploads ${CRE_API_IMAGE}
+ExecStop=/usr/bin/docker stop -t 10 api
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -202,6 +202,34 @@ Secrets belong in the platform's secret manager. `.env` is git-ignored.
 Nothing is tied to a specific hosting vendor: the platform needs a Node runtime,
 a PostgreSQL database, and a place to serve static files.
 
+**This diagram is now scripted, not only described**, for the one concrete
+topology it names — a single host running the API, worker and static web
+behind a TLS-terminating nginx — under `infrastructure/systemd/` and
+`infrastructure/nginx/production.conf.example`:
+
+- `.github/workflows/publish-images.yml` builds `Dockerfile.api` and
+  `Dockerfile.web` and pushes them to `ghcr.io` (free for this public
+  repository, no account beyond the ambient `GITHUB_TOKEN`) after every CI
+  success on `main`, tagged `latest` and with the commit SHA.
+- `infrastructure/systemd/{cre-network,cre-api,cre-worker,cre-web}.service`
+  run those images as long-lived services, wired the same way
+  `infrastructure/docker-compose.yml` wires them for local development —
+  same container names, same environment contract — so nothing about how the
+  application is configured differs between the two.
+- `infrastructure/nginx/production.conf.example` is the TLS-terminating
+  reverse proxy the diagram's top box names, via certbot/Let's Encrypt
+  (free, no payment method).
+
+See `infrastructure/systemd/README.md` for the install sequence. What it
+does not script — provisioning the host itself, DNS, and the PostgreSQL
+server the diagram shows underneath — is host- and provider-specific by
+nature; scripting a choice this repository cannot make on an operator's
+behalf would be worse than leaving it documented. Nobody has run this
+sequence against a real host from this repository's own development
+environment (there is none to run it against here); what changed is that
+doing so is now an install script and three config files, not an exercise
+left to whoever deploys it.
+
 ## Migrations
 
 ```bash

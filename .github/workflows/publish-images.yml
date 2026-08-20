@@ -1,0 +1,58 @@
+name: Publish images
+
+# Zero-cost policy (see docs/zero-cost-operation.md): GHCR is free for a
+# public repository with no payment method attached, and this job uses only
+# the ambient GITHUB_TOKEN to authenticate — no registry account, no paid
+# tier, no secret to create.
+#
+# Builds the exact same infrastructure/Dockerfile.api and Dockerfile.web
+# already built and smoke-tested by the `docker` job in ci.yml — this job
+# does not duplicate that verification, it runs only after CI has finished
+# successfully on `main`, and pushes what CI already proved runs end to end.
+# Publishing an image nobody tested would be worse than not publishing one,
+# the same reasoning ci.yml's `docker` job comment gives for
+# --frozen-lockfile with no fallback.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+concurrency:
+  group: publish-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # github.repository is already lowercase for this repository, which
+      # GHCR requires of image names; a fork under a mixed-case owner would
+      # need this lower-cased first.
+      - name: Build and push the API/worker image
+        run: |
+          image=ghcr.io/${{ github.repository }}-api
+          sha=${{ github.event.workflow_run.head_sha }}
+          docker build -f infrastructure/Dockerfile.api -t "$image:latest" -t "$image:$sha" .
+          docker push "$image:latest"
+          docker push "$image:$sha"
+
+      - name: Build and push the web image
+        run: |
+          image=ghcr.io/${{ github.repository }}-web
+          sha=${{ github.event.workflow_run.head_sha }}
+          docker build -f infrastructure/Dockerfile.web -t "$image:latest" -t "$image:$sha" .
+          docker push "$image:latest"
+          docker push "$image:$sha"

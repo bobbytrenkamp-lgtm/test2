@@ -1,0 +1,23 @@
+# Creates the docker bridge network the other three units share, so
+# `cre-api`, `cre-worker` and `cre-web` can reach each other by container
+# name the same way they do under docker-compose in local development.
+#
+# Install: copy to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now cre-network.service
+# See infrastructure/systemd/README.md for the full install sequence.
+[Unit]
+Description=cre-platform docker bridge network
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# `docker network create` exits 1 if the network already exists, which is the
+# normal case on every boot after the first — this unit's job is "the network
+# exists before the other units start," not "create it exactly once."
+ExecStart=/bin/sh -c '/usr/bin/docker network inspect cre-platform >/dev/null 2>&1 || /usr/bin/docker network create cre-platform'
+ExecStop=/usr/bin/docker network rm cre-platform
+
+[Install]
+WantedBy=multi-user.target
