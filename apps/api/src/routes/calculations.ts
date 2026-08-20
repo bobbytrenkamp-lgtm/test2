@@ -30,8 +30,12 @@ import { badRequest, notFound, requireCapability, unprocessable } from '../conte
  * Calculation routes.
  *
  * A model of ordinary size calculates in well under a second, so the default
- * path is synchronous. Large batches (a sensitivity grid, a portfolio roll-up)
- * are queued to the worker instead, and the caller polls the job.
+ * path is synchronous. A sensitivity grid runs synchronously too — every
+ * cell in the request handler, one `calculate()` pass each, bounded by the
+ * 15x15 cap on `rows`/`columns` below (225 passes worst case) — because the
+ * caller wants the whole grid back in one response, not a job to poll for a
+ * result it will render as a single table. `/scenario-batch` and a portfolio
+ * roll-up are the ones actually queued to the worker, for a caller that polls.
  */
 export async function registerCalculationRoutes(app: FastifyInstance): Promise<void> {
   app.post('/models/:id/calculate', async (request) => {
@@ -162,19 +166,23 @@ export async function registerCalculationRoutes(app: FastifyInstance): Promise<v
 
     const body = z
       .object({
-        sizingNoi: z.string().min(1),
-        propertyValue: z.string().nullish(),
-        totalCost: z.string().nullish(),
-        annualRate: z.string().min(1),
+        sizingNoi: decimalString,
+        propertyValue: decimalString.nullish(),
+        totalCost: decimalString.nullish(),
+        annualRate: decimalString,
         amortizationMonths: z.number().int().min(0),
-        minimumDscr: z.string().nullish(),
-        maximumLtv: z.string().nullish(),
-        maximumLtc: z.string().nullish(),
-        minimumDebtYield: z.string().nullish(),
+        minimumDscr: decimalString.nullish(),
+        maximumLtv: decimalString.nullish(),
+        maximumLtc: decimalString.nullish(),
+        minimumDebtYield: decimalString.nullish(),
       })
       .parse(request.body);
 
-    return sizeLoan(body);
+    try {
+      return sizeLoan(body);
+    } catch (error) {
+      throw badRequest(error instanceof Error ? error.message : 'Invalid loan sizing input.');
+    }
   });
 
   /**

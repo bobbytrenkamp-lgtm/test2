@@ -156,4 +156,28 @@ describe.skipIf(!hasDatabase)('loan sizing', () => {
     });
     expect(response.statusCode).toBe(400);
   });
+
+  it('rejects a non-numeric decimal field with a 400, not an unhandled 500', async () => {
+    // A field that is *present* but not a real number — the test above only
+    // covers a field that is missing or the wrong type entirely, which a
+    // plain `z.string()` would have caught too. This is the case that
+    // `z.string()` alone let through straight into `sizeLoan()`'s own
+    // `new Decimal(...)`, which throws rather than returning a validation
+    // result, and nothing caught it — the route now validates every decimal
+    // field with the same `decimalString` schema every other calculator
+    // route (`/sales-comparison`, `/cost-approach`) already uses.
+    const response = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${modelId}/debt/size`,
+      headers: authed(owner.cookie),
+      payload: {
+        sizingNoi: 'a lot of money',
+        annualRate: '0.06',
+        amortizationMonths: 360,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(400);
+    const body = response.json() as { error: { code: string } };
+    expect(body.error.code).toBe('VALIDATION_FAILED');
+  });
 });

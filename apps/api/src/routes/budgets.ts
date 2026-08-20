@@ -87,6 +87,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: period.id,
       propertyId: body.propertyId,
       newValue: { kind: body.kind, fiscalYear: body.fiscalYear, label: body.label },
+      ipAddress: request.ip,
     });
 
     return reply.status(201).send({ period });
@@ -121,6 +122,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: id,
       propertyId: period.property_id,
       previousValue: { kind: period.kind, label: period.label },
+      ipAddress: request.ip,
     });
     return reply.status(204).send();
   });
@@ -162,6 +164,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: id,
       propertyId: period.property_id,
       newValue: { entryCount: written },
+      ipAddress: request.ip,
     });
     return { written };
   });
@@ -190,6 +193,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: id,
       propertyId: approved.property_id,
       newValue: { approvedAt: approved.approved_at },
+      ipAddress: request.ip,
     });
     return { period: approved };
   });
@@ -269,6 +273,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
         months: mapped.months,
         errorCount: mapped.issues.filter((issue) => issue.severity === 'error').length,
       },
+      ipAddress: request.ip,
     });
 
     return { written, issues: mapped.issues, months: mapped.months, scanned };
@@ -528,6 +533,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: row.id,
       propertyId: body.propertyId,
       newValue: { accountCode: body.accountCode, periodMonth: body.periodMonth },
+      ipAddress: request.ip,
     });
     return { commentary: row };
   });
@@ -557,6 +563,7 @@ export async function registerBudgetRoutes(app: FastifyInstance): Promise<void> 
       entityId: id,
       propertyId: row.property_id,
       newValue: { approvedText: row.approved_text },
+      ipAddress: request.ip,
     });
     return { commentary: row };
   });

@@ -107,14 +107,14 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Excel Live Model export through the API | `tests/live-model-export.test.ts` | 5 | Yes |
 | Grid selection, clipboard, edit layer and column parsers | `apps/web/src/grid/grid.test.ts` | 40 | No |
 | Batch lease writes through the API | `tests/lease-batch.test.ts` | 8 | Yes |
-| Lease options through the API: a well-formed option of any of the seven schema-named types is accepted and reads back exactly (including expansion/purchase/ROFR/ROFO, which the engine still declines to simulate but the schema has always allowed), a malformed one is refused | `tests/lease-options.test.ts` | 5 | Yes |
+| Lease options through the API: a well-formed option of any of the seven schema-named types is accepted and reads back exactly (including expansion/purchase/ROFR/ROFO, which the engine still declines to simulate but the schema has always allowed), a malformed one is refused, and an expansion option naming a real space by its code actually calculates the expanded revenue, not just a round-trip | `tests/lease-options.test.ts` | 6 | Yes |
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules | `apps/web/src/pages/record-editors/record-editors.test.ts` | 29 | No |
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 23 | No |
 | The assumption input contract, including enum-membership checking | `packages/domain-models/src/assumption-proposals.test.ts` | 33 | No |
 | Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 15 | Yes |
 | Pinned properties and models | `tests/favourites.test.ts` | 7 | Yes |
-| Loan sizing through the API | `tests/debt-sizing.test.ts` | 5 | Yes |
+| Loan sizing through the API, including a non-numeric decimal field refused with a 400 rather than an unhandled 500 | `tests/debt-sizing.test.ts` | 6 | Yes |
 | Straight-line rent through the API | `tests/straight-line-rent.test.ts` | 4 | Yes |
 | Sales comparison approach through the API | `tests/sales-comparison.test.ts` | 5 | Yes |
 | Cost approach through the API | `tests/cost-approach.test.ts` | 6 | Yes |
@@ -145,8 +145,9 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Scenario comparison: reads exactly what each model's own cash flow reports (never recomputed), lists an uncalculated single model, lists a cloned sibling alongside a calculated one, organization isolation | `tests/scenario-comparison.test.ts` | 5 | Yes |
 | Underwriting package export: the summary sheet plus every property report in one workbook, its figures matched metric-by-metric against the Returns and Health tabs, safe filename, refuses an uncalculated model, organization isolation | `tests/underwriting-package-export.test.ts` | 5 | Yes |
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
+| Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1614 tests in total.**
+**1618 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -198,7 +199,7 @@ built bundle:
 | Breadcrumbs on the property and model screens, the click and not just the text, accessibility | `e2e/breadcrumbs.spec.ts` | 2 |
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 
-**260 browser tests in total**, for 1874 across the whole repository.
+**260 browser tests in total**, for 1878 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
