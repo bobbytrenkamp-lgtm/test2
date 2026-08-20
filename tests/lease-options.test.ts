@@ -27,6 +27,7 @@ import {
 describe.skipIf(!hasDatabase)('lease options through the API', () => {
   let ctx: TestContext;
   let owner: Actor;
+  let propertyId: string;
   let modelId: string;
   let tenantId: string;
 
@@ -47,7 +48,22 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
       headers: authed(owner.cookie),
       payload: { name: 'Millbrook Plaza', propertyType: 'office', rentableArea: '30000' },
     });
-    const propertyId = (property.json() as { property: { id: string } }).property.id;
+    propertyId = (property.json() as { property: { id: string } }).property.id;
+
+    // For the expansion-through-a-real-calculation test below: two spaces so
+    // an expansion option can name a real one by its code, the same wire
+    // format `Lease.spaceIds` already uses.
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/properties/${propertyId}/spaces`,
+      headers: authed(owner.cookie),
+      payload: {
+        spaces: [
+          { code: 'MB-BASE', area: '8000', spaceType: 'office' },
+          { code: 'MB-EXPAND', area: '4000', spaceType: 'office' },
+        ],
+      },
+    });
 
     const model = await ctx.app.inject({
       method: 'POST',
@@ -200,5 +216,90 @@ describe.skipIf(!hasDatabase)('lease options through the API', () => {
       { id: 'opt-bad-2', type: 'right_of_first_refusal', exerciseDate: '2029-01-01' },
     ]);
     expect(response.statusCode).toBe(400);
+  });
+
+  it('actually calculates an expansion exercised into a real space named by its code', async () => {
+    // The other tests in this file only prove the option round-trips through
+    // the write route unchanged. This proves the whole chain a real save
+    // exercises: the space is named by its *code* here, exactly as the web
+    // editor sends it (`RentRollTab.tsx`'s `expansionSpaceIds`), the same way
+    // `Lease.spaceIds` itself is always a code, never the space's database
+    // id — `buildModelInput` (packages/database/src/repositories/models.ts)
+    // deliberately sets the engine's `Space.id` to the space's `code`, so a
+    // code-keyed lookup and an id-keyed lookup are the same lookup by the
+    // time either reaches the engine. If that ever stopped being true, this
+    // test would fail with `EXPANSION_SPACE_INVALID` in `diagnostics` instead
+    // of the expanded revenue below.
+    // Its own model, not the shared `modelId` the other tests in this file
+    // write leases onto — `scheduledBaseRent` below is a model-wide total, and
+    // asserting it exactly requires being the only lease in the model.
+    const model = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/models',
+      headers: authed(owner.cookie),
+      payload: {
+        propertyId,
+        name: 'Expansion calculation case',
+        classification: 'valuation',
+        valuationDate: '2026-01-01',
+        forecastStartDate: '2026-01-01',
+        forecastMonths: 24,
+        discountRate: '0.08',
+        terminalCapRate: '0.07',
+        saleMonth: 24,
+      },
+    });
+    expect(model.statusCode, model.body).toBe(201);
+    const expandModelId = (model.json() as { model: { id: string } }).model.id;
+
+    // Not using the shared `put()` helper above: it hardcodes an area,
+    // `spaceIds: []` and a base rent that do not fit this test's numbers.
+    const patched = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/models/${expandModelId}/leases/L-EXPAND-CALC`,
+      headers: authed(owner.cookie),
+      payload: {
+        tenantId,
+        status: 'occupied',
+        area: '8000',
+        spaceIds: ['MB-BASE'],
+        commencementDate: '2026-01-01',
+        expirationDate: '2030-12-31',
+        baseRent: '12.00',
+        baseRentBasis: 'per_area_per_year',
+        options: [
+          {
+            id: 'opt-expand-calc-1',
+            type: 'expansion',
+            exerciseDate: '2027-01-01',
+            probability: '1',
+            expansionSpaceIds: ['MB-EXPAND'],
+          },
+        ],
+      },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+
+    const calculated = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/models/${expandModelId}/calculate`,
+      headers: authed(owner.cookie),
+      payload: { withTrace: true },
+    });
+    expect(calculated.statusCode, calculated.body).toBe(200);
+    const body = calculated.json() as {
+      diagnostics: Array<{ code: string; severity: string }>;
+      annual: Array<{ fiscalYear: number; lines: Record<string, string> }>;
+    };
+
+    expect(body.diagnostics.some((entry) => entry.code === 'EXPANSION_SPACE_INVALID')).toBe(false);
+
+    // 8,000 sf at $12.00/sf/yr is $96,000 in 2026, before the exercise date.
+    // From 2027-01-01 the added 4,000 sf brings it to 12,000 sf at the same,
+    // unrepriced rate: $144,000.
+    const year = (fiscalYear: number) =>
+      body.annual.find((row) => row.fiscalYear === fiscalYear) as { lines: Record<string, string> };
+    expect(year(2026).lines.scheduledBaseRent).toBe('96000.00');
+    expect(year(2027).lines.scheduledBaseRent).toBe('144000.00');
   });
 });

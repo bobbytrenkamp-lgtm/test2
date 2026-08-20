@@ -14,6 +14,7 @@ import {
   updateProperty,
   upsertSpace,
   writeAudit,
+  type Sql,
 } from '@cre/database';
 import { decimalString, propertyTypeEnum } from '@cre/domain-models';
 import { notFound, requireCapability } from '../context.js';
@@ -234,10 +235,16 @@ export async function registerPropertyRoutes(app: FastifyInstance): Promise<void
       })
       .parse(request.body);
 
-    const saved = [];
-    for (const space of body.spaces) {
-      saved.push(await upsertSpace(request.db, { ...space, propertyId: id }));
-    }
+    // Atomic: a failure partway through must not leave some spaces upserted
+    // and the rest missing — the same reasoning every other batch-write route
+    // in this codebase (leases, fund investors, import commits) applies.
+    const saved = await request.db.begin(async (tx) => {
+      const rows = [];
+      for (const space of body.spaces) {
+        rows.push(await upsertSpace(tx as unknown as Sql, { ...space, propertyId: id }));
+      }
+      return rows;
+    });
     await writeAudit(request.db, {
       organizationId: context.organizationId,
       userId: context.userId,

@@ -73,6 +73,49 @@ export const modelAssumptions = z.object({
   equityStructure: z.record(z.unknown()).default({ partners: [], tiers: [], fees: [] }),
 });
 
+/**
+ * The `INSERT INTO models` both `POST /models` and `underwriting.ts`'s
+ * atomic "create a property and a model together" route need — extracted so
+ * the two cannot drift apart on which columns a model actually has, the same
+ * failure mode `modelAssumptions` above already exists to prevent for the
+ * schema side of the same duplication.
+ */
+export async function insertModel(
+  sql: Sql,
+  params: {
+    organizationId: string;
+    propertyId: string;
+    createdBy: string;
+    body: z.infer<typeof modelAssumptions>;
+  },
+): Promise<Record<string, unknown>> {
+  const { organizationId, propertyId, createdBy, body } = params;
+  const rows = (await sql`
+    INSERT INTO models (
+      organization_id, property_id, name, classification, owner_id, valuation_date,
+      forecast_start_date, forecast_months, fiscal_year_start_month, proration_convention,
+      currency, area_unit, notes, discount_rate, discounting_convention, terminal_cap_rate,
+      terminal_noi_basis, sale_cost_percent, sale_month, gross_sale_price_override,
+      direct_cap_rate, direct_cap_noi_basis, direct_cap_adjustments, acquisition_price,
+      acquisition_costs, acquisition_date, general_vacancy_rate,
+      net_against_modelled_vacancy, credit_loss_rate, equity_structure, created_by
+    ) VALUES (
+      ${organizationId}, ${propertyId}, ${body.name}, ${body.classification},
+      ${createdBy}, ${body.valuationDate}, ${body.forecastStartDate}, ${body.forecastMonths},
+      ${body.fiscalYearStartMonth}, ${body.prorationConvention}, ${body.currency}, ${body.areaUnit},
+      ${body.notes ?? null}, ${body.discountRate ?? null}, ${body.discountingConvention},
+      ${body.terminalCapRate ?? null}, ${body.terminalNoiBasis}, ${body.saleCostPercent},
+      ${body.saleMonth ?? null}, ${body.grossSalePriceOverride ?? null},
+      ${body.directCapRate ?? null}, ${body.directCapNoiBasis}, ${body.directCapAdjustments},
+      ${body.acquisitionPrice ?? null}, ${body.acquisitionCosts}, ${body.acquisitionDate ?? null},
+      ${body.generalVacancyRate}, ${body.netAgainstModelledVacancy}, ${body.creditLossRate},
+      ${sql.json(body.equityStructure as never)}, ${createdBy}
+    )
+    RETURNING *
+  `) as unknown as Array<Record<string, unknown>>;
+  return rows[0] as Record<string, unknown>;
+}
+
 export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
   app.get('/models', async (request) => {
     const context = requireCapability(request, 'model:read');
@@ -87,31 +130,12 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
     const property = await getProperty(request.db, context.organizationId, body.propertyId);
     if (!property) throw notFound('That property does not exist in this organization.');
 
-    const rows = (await request.db`
-      INSERT INTO models (
-        organization_id, property_id, name, classification, owner_id, valuation_date,
-        forecast_start_date, forecast_months, fiscal_year_start_month, proration_convention,
-        currency, area_unit, notes, discount_rate, discounting_convention, terminal_cap_rate,
-        terminal_noi_basis, sale_cost_percent, sale_month, gross_sale_price_override,
-        direct_cap_rate, direct_cap_noi_basis, direct_cap_adjustments, acquisition_price,
-        acquisition_costs, acquisition_date, general_vacancy_rate,
-        net_against_modelled_vacancy, credit_loss_rate, equity_structure, created_by
-      ) VALUES (
-        ${context.organizationId}, ${body.propertyId}, ${body.name}, ${body.classification},
-        ${context.userId}, ${body.valuationDate}, ${body.forecastStartDate}, ${body.forecastMonths},
-        ${body.fiscalYearStartMonth}, ${body.prorationConvention}, ${body.currency}, ${body.areaUnit},
-        ${body.notes ?? null}, ${body.discountRate ?? null}, ${body.discountingConvention},
-        ${body.terminalCapRate ?? null}, ${body.terminalNoiBasis}, ${body.saleCostPercent},
-        ${body.saleMonth ?? null}, ${body.grossSalePriceOverride ?? null},
-        ${body.directCapRate ?? null}, ${body.directCapNoiBasis}, ${body.directCapAdjustments},
-        ${body.acquisitionPrice ?? null}, ${body.acquisitionCosts}, ${body.acquisitionDate ?? null},
-        ${body.generalVacancyRate}, ${body.netAgainstModelledVacancy}, ${body.creditLossRate},
-        ${request.db.json(body.equityStructure as never)}, ${context.userId}
-      )
-      RETURNING *
-    `) as unknown as Array<Record<string, unknown>>;
-
-    const model = rows[0] as Record<string, unknown>;
+    const model = await insertModel(request.db, {
+      organizationId: context.organizationId,
+      propertyId: body.propertyId,
+      createdBy: context.userId,
+      body,
+    });
     await writeAudit(request.db, {
       organizationId: context.organizationId,
       userId: context.userId,

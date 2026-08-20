@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createProperty, writeAudit, type Sql } from '@cre/database';
 import { requireCapability } from '../context.js';
 import { propertyBody } from './properties.js';
-import { modelAssumptions } from './models.js';
+import { insertModel, modelAssumptions } from './models.js';
 
 /**
  * "New Underwriting": creates a property and its first model together, in
@@ -13,11 +13,11 @@ import { modelAssumptions } from './models.js';
  * forward.
  *
  * Deliberately not a new resource or a new authorization model: this is the
- * exact same `createProperty` repository call and the exact same `models`
- * insert `POST /properties` and `POST /models` already make (`propertyBody`
- * and `modelAssumptions` are imported from those route files rather than
- * redefined), wrapped in one transaction so a failure partway through never
- * leaves an orphaned property with no model. Both capabilities are checked
+ * exact same `createProperty` repository call and `insertModel` helper
+ * `POST /properties` and `POST /models` already use (`propertyBody`,
+ * `modelAssumptions` and `insertModel` are imported from those route files
+ * rather than redefined), wrapped in one transaction so a failure partway
+ * through never leaves an orphaned property with no model. Both capabilities are checked
  * because, unlike the two routes above, one request now does the work of
  * both — every role that has ever been able to reach either already carries
  * both together (`packages/domain-models/src/permissions.ts`), so this adds
@@ -41,34 +41,14 @@ export async function registerUnderwritingRoutes(app: FastifyInstance): Promise<
         createdBy: context.userId,
       });
 
-      const modelRows = (await tx`
-        INSERT INTO models (
-          organization_id, property_id, name, classification, owner_id, valuation_date,
-          forecast_start_date, forecast_months, fiscal_year_start_month, proration_convention,
-          currency, area_unit, notes, discount_rate, discounting_convention, terminal_cap_rate,
-          terminal_noi_basis, sale_cost_percent, sale_month, gross_sale_price_override,
-          direct_cap_rate, direct_cap_noi_basis, direct_cap_adjustments, acquisition_price,
-          acquisition_costs, acquisition_date, general_vacancy_rate,
-          net_against_modelled_vacancy, credit_loss_rate, equity_structure, created_by
-        ) VALUES (
-          ${context.organizationId}, ${property.id}, ${body.model.name}, ${body.model.classification},
-          ${context.userId}, ${body.model.valuationDate}, ${body.model.forecastStartDate},
-          ${body.model.forecastMonths}, ${body.model.fiscalYearStartMonth},
-          ${body.model.prorationConvention}, ${body.model.currency}, ${body.model.areaUnit},
-          ${body.model.notes ?? null}, ${body.model.discountRate ?? null},
-          ${body.model.discountingConvention}, ${body.model.terminalCapRate ?? null},
-          ${body.model.terminalNoiBasis}, ${body.model.saleCostPercent}, ${body.model.saleMonth ?? null},
-          ${body.model.grossSalePriceOverride ?? null}, ${body.model.directCapRate ?? null},
-          ${body.model.directCapNoiBasis}, ${body.model.directCapAdjustments},
-          ${body.model.acquisitionPrice ?? null}, ${body.model.acquisitionCosts},
-          ${body.model.acquisitionDate ?? null}, ${body.model.generalVacancyRate},
-          ${body.model.netAgainstModelledVacancy}, ${body.model.creditLossRate},
-          ${tx.json(body.model.equityStructure as never)}, ${context.userId}
-        )
-        RETURNING *
-      `) as unknown as Array<Record<string, unknown>>;
+      const model = await insertModel(tx as unknown as Sql, {
+        organizationId: context.organizationId,
+        propertyId: property.id,
+        createdBy: context.userId,
+        body: body.model,
+      });
 
-      return { property, model: modelRows[0] as Record<string, unknown> };
+      return { property, model };
     });
 
     // Written after the transaction commits, matching every other atomic

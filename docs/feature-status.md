@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1614 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1618 passed (251 engine regression, 31 engine unit, 20 fund,
                          15 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          12 funds via the API, 10 fund waterfall via the API,
@@ -108,7 +108,7 @@ Tests       1614 passed (251 engine regression, 31 engine unit, 20 fund,
                          6 new underwriting atomic property + model creation,
                          13 workflow/progress surface,
                          7 debt funded pre-forecast/draw/origination fee/exit and unused-commitment fees/floating DSCR/capitalize-then-amortize,
-                         12 loan sizing, 5 loan sizing via the API,
+                         12 loan sizing, 6 loan sizing via the API,
                          6 straight-line rent, 4 straight-line rent via the API,
                          8 sales comparison approach, 5 sales comparison via the API,
                          8 cost approach, 6 cost approach via the API,
@@ -140,8 +140,9 @@ Tests       1614 passed (251 engine regression, 31 engine unit, 20 fund,
                          7 import atomicity and rollback,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
-                         5 lease options through the API,
-                         4 the shared numeric form-field validator)
+                         6 lease options through the API,
+                         4 the shared numeric form-field validator,
+                         2 property spaces batch atomicity)
 Browser     260 passed  (3 sign-in, 5 underwriting and the virtualised grid,
                          12 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
