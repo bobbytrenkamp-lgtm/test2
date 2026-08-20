@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { modelClassificationEnum, propertyTypeEnum } from '@cre/domain-models';
 import { api, type Model, type Property } from '../api.js';
 import { EmptyState, ErrorMessage, Field } from '../components.js';
-import { titleCase } from '../format.js';
+import { numericFieldProblem, titleCase } from '../format.js';
 import { useMutation } from '../hooks.js';
 import { useSession } from '../session.js';
 
@@ -87,7 +87,31 @@ export function NewUnderwritingPage(): JSX.Element {
     modelName: form.modelName.trim() ? undefined : 'Model name is required.',
     valuationDate: form.valuationDate ? undefined : 'Valuation date is required.',
     forecastStartDate: form.forecastStartDate ? undefined : 'Forecast start is required.',
-    forecastMonths: form.forecastMonths.trim() ? undefined : 'Forecast months is required.',
+    // Everything below used to feed `Number(value) || 0` (or `|| null`)
+    // straight into the request — a typo silently became 0 or was dropped,
+    // with nothing telling the person who typed it what happened.
+    rentableArea: numericFieldProblem(form.rentableArea, { label: 'Rentable area', min: 0 }),
+    unitCount: numericFieldProblem(form.unitCount, { label: 'Units', min: 0 }),
+    forecastMonths: numericFieldProblem(form.forecastMonths, {
+      label: 'Forecast months',
+      required: true,
+      min: 1,
+    }),
+    acquisitionPrice: numericFieldProblem(form.acquisitionPrice, {
+      label: 'Acquisition price',
+      min: 0,
+    }),
+    discountRate: numericFieldProblem(form.discountRate, { label: 'Discount rate', min: 0 }),
+    terminalCapRate: numericFieldProblem(form.terminalCapRate, {
+      label: 'Exit capitalization rate',
+      min: 0,
+    }),
+    saleMonth: numericFieldProblem(form.saleMonth, { label: 'Sale month', min: 1 }),
+    saleCostPercent: numericFieldProblem(form.saleCostPercent, {
+      label: 'Costs of sale',
+      required: true,
+      min: 0,
+    }),
   };
 
   async function submit(event: React.FormEvent): Promise<void> {
@@ -157,14 +181,22 @@ export function NewUnderwritingPage(): JSX.Element {
           <Field label="Market">
             <input value={form.market} onChange={(event) => set('market', event.target.value)} />
           </Field>
-          <Field label="Rentable area" hint="Total rentable area in the property's area unit.">
+          <Field
+            label="Rentable area"
+            hint="Total rentable area in the property's area unit."
+            {...(showProblems && problems.rentableArea ? { error: problems.rentableArea } : {})}
+          >
             <input
               inputMode="decimal"
               value={form.rentableArea}
               onChange={(event) => set('rentableArea', event.target.value)}
             />
           </Field>
-          <Field label="Units" hint="Residential, storage or parking units, where applicable.">
+          <Field
+            label="Units"
+            hint="Residential, storage or parking units, where applicable."
+            {...(showProblems && problems.unitCount ? { error: problems.unitCount } : {})}
+          >
             <input
               inputMode="numeric"
               value={form.unitCount}
@@ -231,35 +263,60 @@ export function NewUnderwritingPage(): JSX.Element {
               onChange={(event) => set('forecastMonths', event.target.value)}
             />
           </Field>
-          <Field label="Acquisition price" hint="Optional. Used as the going-in basis for returns.">
+          <Field
+            label="Acquisition price"
+            hint="Optional. Used as the going-in basis for returns."
+            {...(showProblems && problems.acquisitionPrice
+              ? { error: problems.acquisitionPrice }
+              : {})}
+          >
             <input
               inputMode="decimal"
               value={form.acquisitionPrice}
               onChange={(event) => set('acquisitionPrice', event.target.value)}
             />
           </Field>
-          <Field label="Discount rate" hint="Annual effective rate as a decimal, e.g. 0.08.">
+          <Field
+            label="Discount rate"
+            hint="Annual effective rate as a decimal, e.g. 0.08."
+            {...(showProblems && problems.discountRate ? { error: problems.discountRate } : {})}
+          >
             <input
               inputMode="decimal"
               value={form.discountRate}
               onChange={(event) => set('discountRate', event.target.value)}
             />
           </Field>
-          <Field label="Exit capitalization rate" hint="Decimal, e.g. 0.065.">
+          <Field
+            label="Exit capitalization rate"
+            hint="Decimal, e.g. 0.065."
+            {...(showProblems && problems.terminalCapRate
+              ? { error: problems.terminalCapRate }
+              : {})}
+          >
             <input
               inputMode="decimal"
               value={form.terminalCapRate}
               onChange={(event) => set('terminalCapRate', event.target.value)}
             />
           </Field>
-          <Field label="Sale month">
+          <Field
+            label="Sale month"
+            {...(showProblems && problems.saleMonth ? { error: problems.saleMonth } : {})}
+          >
             <input
               inputMode="numeric"
               value={form.saleMonth}
               onChange={(event) => set('saleMonth', event.target.value)}
             />
           </Field>
-          <Field label="Costs of sale" hint="Fraction of the gross sale price.">
+          <Field
+            label="Costs of sale"
+            hint="Fraction of the gross sale price."
+            {...(showProblems && problems.saleCostPercent
+              ? { error: problems.saleCostPercent }
+              : {})}
+          >
             <input
               inputMode="decimal"
               value={form.saleCostPercent}

@@ -9,6 +9,11 @@ export function SignInPage(): JSX.Element {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Separate from `error`: the message stays up after a failed attempt so the
+  // user knows what went wrong, but each field's own invalid marking clears
+  // as soon as they start correcting it, rather than staying red until they
+  // resubmit and find out whether the edit actually fixed it.
+  const [invalidFields, setInvalidFields] = useState<Set<'email' | 'password' | 'code'>>(new Set());
   const [pending, setPending] = useState(false);
   /*
    * Whether this account has asked for a second factor.
@@ -43,10 +48,14 @@ export function SignInPage(): JSX.Element {
             ? 'Enter the current code from your authenticator app.'
             : 'That code is not right. Codes change every 30 seconds — try the current one.',
         );
+        // MFA_REQUIRED asks for a code nobody has entered yet — that is not a
+        // wrong value, so the field is not marked invalid until it actually is.
+        setInvalidFields(cause.code === 'MFA_INVALID' ? new Set(['code']) : new Set());
       } else {
         setError(
           cause instanceof ApiError ? cause.message : 'The server could not be reached. Try again.',
         );
+        setInvalidFields(new Set(['email', 'password']));
       }
     } finally {
       setPending(false);
@@ -72,8 +81,16 @@ export function SignInPage(): JSX.Element {
             autoComplete="username"
             required
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            aria-invalid={error ? 'true' : undefined}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setInvalidFields((fields) => {
+                if (!fields.has('email')) return fields;
+                const next = new Set(fields);
+                next.delete('email');
+                return next;
+              });
+            }}
+            aria-invalid={invalidFields.has('email') ? 'true' : undefined}
           />
         </Field>
 
@@ -84,8 +101,16 @@ export function SignInPage(): JSX.Element {
             autoComplete="current-password"
             required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={error ? 'true' : undefined}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setInvalidFields((fields) => {
+                if (!fields.has('password')) return fields;
+                const next = new Set(fields);
+                next.delete('password');
+                return next;
+              });
+            }}
+            aria-invalid={invalidFields.has('password') ? 'true' : undefined}
           />
         </Field>
 
@@ -102,8 +127,16 @@ export function SignInPage(): JSX.Element {
               autoFocus
               required
               value={code}
-              onChange={(event) => setCode(event.target.value)}
-              aria-invalid={error ? 'true' : undefined}
+              onChange={(event) => {
+                setCode(event.target.value);
+                setInvalidFields((fields) => {
+                  if (!fields.has('code')) return fields;
+                  const next = new Set(fields);
+                  next.delete('code');
+                  return next;
+                });
+              }}
+              aria-invalid={invalidFields.has('code') ? 'true' : undefined}
             />
           </Field>
         )}

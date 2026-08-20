@@ -142,3 +142,30 @@ export function isNegative(value: string | number | null | undefined): boolean {
   if (value === null || value === undefined) return false;
   return Number(value) < 0;
 }
+
+/**
+ * Validates a numeric form field before it ever reaches `Number(value) || 0`
+ * or a server round trip. A blank required field, or text that is not a
+ * number at all ("12,000", a stray letter), was previously accepted
+ * silently and coerced to 0 — this gives the same field a message instead.
+ *
+ * `min`/`max`, when given, only apply once the value is otherwise a valid
+ * number, so a non-numeric value always reports "not a number" rather than
+ * an unrelated range complaint.
+ */
+export function numericFieldProblem(
+  value: string,
+  options: { label: string; required?: boolean; min?: number; max?: number } = { label: 'Value' },
+): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return options.required ? `${options.label} is required.` : undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return `${options.label} must be a number.`;
+  if (options.min !== undefined && parsed < options.min) {
+    return `${options.label} must be at least ${options.min}.`;
+  }
+  if (options.max !== undefined && parsed > options.max) {
+    return `${options.label} must be at most ${options.max}.`;
+  }
+  return undefined;
+}

@@ -66,6 +66,26 @@ test.describe('as an analyst', () => {
     await expect(page).toHaveURL(/\/models\/[0-9a-f-]+\/assumptions/);
   });
 
+  test('refuses a non-numeric sale month instead of silently discarding it', async ({ page }) => {
+    await page.goto('/underwriting/new');
+    await expect(page.getByRole('heading', { name: 'New underwriting' })).toBeVisible();
+
+    await page.getByLabel('Name', { exact: true }).fill('E2E Sale Month Tower');
+    // This used to feed `Number(form.saleMonth) || null` straight into the
+    // request — text that isn't a number at all silently became "no sale
+    // month set" with nothing telling the person who typed it that their
+    // entry was discarded.
+    await page.getByLabel('Sale month').fill('sixty');
+    await page.getByRole('button', { name: 'Start underwriting' }).click();
+
+    await expect(page.getByText('Sale month must be a number.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'New underwriting' })).toBeVisible();
+
+    await page.getByLabel('Sale month').fill('60');
+    await page.getByRole('button', { name: 'Start underwriting' }).click();
+    await expect(page).toHaveURL(/\/models\/[0-9a-f-]+\/assumptions/);
+  });
+
   test('is accessible', async ({ page }) => {
     await page.goto('/underwriting/new');
     await expect(page.getByRole('heading', { name: 'New underwriting' })).toBeVisible();

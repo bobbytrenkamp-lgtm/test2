@@ -184,6 +184,24 @@ export function useEditShortcut(key: string, handler: (event: KeyboardEvent) => 
   }, [key, handler]);
 }
 
+/**
+ * Delays reflecting a fast-changing value (typically search input) until it
+ * has been still for `delayMs`. Use this to feed a `useResource` path so a
+ * live search does not fire a network request on every keystroke — a
+ * request half-typed will be replaced anyway, so nothing is lost by waiting
+ * for the pause that means the user is done typing.
+ */
+export function useDebouncedValue<T>(value: T, delayMs = 300): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
 /** Persists a small value locally, e.g. a saved view or column preference. */
 export function useLocalState<T>(key: string, initial: T): [T, (value: T) => void] {
   const [value, setValue] = useState<T>(() => {
