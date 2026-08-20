@@ -541,6 +541,17 @@ interface DisclosureOptionForm {
   amount: string;
   /** Area the tenant could take. Meaningless, and left blank, for every other type. */
   areaChange: string;
+  /**
+   * The real space an expansion claims, by its code — meaningless, and left
+   * blank, for every other type. Naming one here is what turns this specific
+   * right from disclosure-only into a real, modelled expansion: the engine
+   * adds that space's own area to the lease from the exercise date, rather
+   * than trusting `areaChange` alone, which could otherwise double-count
+   * someone else's space or invent rentable area the property does not have.
+   */
+  expansionSpaceCode: string;
+  /** TI allowance paid at exercise. Meaningful only once a space is named. */
+  cost: string;
 }
 
 function disclosureToForm(
@@ -554,6 +565,8 @@ function disclosureToForm(
     probability: option.probability,
     amount: option.rentAmount ?? '',
     areaChange: option.areaChange,
+    expansionSpaceCode: option.expansionSpaceIds[0] ?? '',
+    cost: option.cost,
   };
 }
 
@@ -568,8 +581,10 @@ function disclosureToWire(option: DisclosureOptionForm): LeaseOption {
     rentMethod: option.amount ? 'fixed' : 'market',
     rentAmount: option.amount || null,
     rentBasis: null,
-    cost: '0',
+    cost: option.cost || '0',
     areaChange: option.areaChange || '0',
+    expansionSpaceIds:
+      option.type === 'expansion' && option.expansionSpaceCode ? [option.expansionSpaceCode] : [],
   };
 }
 
@@ -600,6 +615,10 @@ function optionToWire(option: LeaseOptionForm): LeaseOption {
     rentBasis: (option.rentBasis || null) as LeaseOption['rentBasis'],
     cost: option.cost || '0',
     areaChange: option.areaChange || '0',
+    // This editor is for renewal, termination and contraction, none of which
+    // read a space reference — only an expansion (handled by the disclosure
+    // form below) does.
+    expansionSpaceIds: [],
   };
 }
 
@@ -1166,12 +1185,14 @@ function LeaseEditor({
           Other contractual rights
         </legend>
         <p className="field-hint" style={{ marginTop: 0 }}>
-          Expansion, purchase, right of first refusal and right of first offer are recorded here for
-          reference only and never change the cash flow: an expansion option names an area but not
-          which space it comes from, and purchase, ROFR and ROFO bear on whether and when the asset
-          is sold, not on operating cash flow — model a disposition directly through the sale
-          assumptions instead. A right recorded here with a nonzero probability still appears as a
-          diagnostic on the Validation tab, so it is never silently lost.
+          Purchase, right of first refusal and right of first offer are recorded here for reference
+          only and never change the cash flow — they bear on whether and when the asset is sold, not
+          on operating cash flow; model a disposition directly through the sale assumptions instead.
+          An expansion is different: naming the real space it claims below models it for real,
+          adding that space&rsquo;s own area to the lease from the exercise date. Left with no space
+          named, it stays disclosure only, the same as the other three. Any right recorded here with
+          a nonzero probability that is not actually modelled still appears as a diagnostic on the
+          Validation tab, so it is never silently lost.
         </p>
         {form.disclosureOptions.map((option, index) => {
           function updateOption(patch: Partial<DisclosureOptionForm>): void {
@@ -1246,12 +1267,42 @@ function LeaseEditor({
 
               {option.type === 'expansion' && (
                 <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                  <Field label={`Right ${n} area wanted`} hint="Optional.">
+                  <Field
+                    label={`Right ${n} space`}
+                    hint="Naming a real space models this expansion for real; left blank, it stays disclosure only."
+                  >
+                    <select
+                      value={option.expansionSpaceCode}
+                      onChange={(event) => updateOption({ expansionSpaceCode: event.target.value })}
+                    >
+                      <option value="">No space named (disclosure only)</option>
+                      {spaces.map((space) => (
+                        <option key={space.id} value={space.code}>
+                          {space.code}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label={`Right ${n} area wanted`}
+                    hint="Optional notes-only figure once a space is named above — the space's own area is what's modelled."
+                  >
                     <input
                       inputMode="decimal"
                       value={option.areaChange}
                       onChange={(event) => updateOption({ areaChange: event.target.value })}
                       style={{ maxWidth: 140 }}
+                    />
+                  </Field>
+                  <Field
+                    label={`Right ${n} TI allowance`}
+                    hint="Paid at exercise. Only applies once a space is named above."
+                  >
+                    <input
+                      inputMode="decimal"
+                      value={option.cost}
+                      onChange={(event) => updateOption({ cost: event.target.value })}
+                      style={{ maxWidth: 120 }}
                     />
                   </Field>
                 </div>
@@ -1287,6 +1338,8 @@ function LeaseEditor({
                 probability: '1',
                 amount: '',
                 areaChange: '0',
+                expansionSpaceCode: '',
+                cost: '0',
               },
             ])
           }

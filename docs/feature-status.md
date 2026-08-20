@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1606 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1610 passed (251 engine regression, 31 engine unit, 20 fund,
                          15 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 7 portfolios,
                          12 funds via the API, 10 fund waterfall via the API,
@@ -117,7 +117,7 @@ Tests       1606 passed (251 engine regression, 31 engine unit, 20 fund,
                          3 cash trap through the sale date and multi-facility cure,
                          9 duplicate ids, dangling growth-curve reference and duplicate growth-curve year,
                          11 zero/negative capitalization/discount rates,
-                         4 lease-option branching,
+                         8 lease-option branching, including expansion via a space reference,
                          3 recovery pool boundaries and revenue-basis expense recoverable split,
                          3 escalation floors and caps,
                          4 market leasing profile precedence,
@@ -141,8 +141,8 @@ Tests       1606 passed (251 engine regression, 31 engine unit, 20 fund,
                          5 mention notifications,
                          6 local object storage, 7 documents, 8 dashboards,
                          5 lease options through the API)
-Browser     256 passed  (3 sign-in, 5 underwriting and the virtualised grid,
-                         11 lease editor, search and sort, options,
+Browser     257 passed  (3 sign-in, 5 underwriting and the virtualised grid,
+                         12 lease editor, search and sort, options,
                          14 rent-roll spreadsheet editing,
                          7 assumption spreadsheet editing,
                          11 record editors, 8 explainability,
@@ -190,7 +190,8 @@ Licences    347 packages, none requiring payment or a commercial licence
 | Straight-line (GAAP) rent and the deferred rent balance | Tested | Standalone calculator over one signed lease's own net billed rent; not part of `calculate()`'s own output. Ends at exactly zero by construction. 6 hand-derived engine tests |
 | Probability-weighted rollover | Tested | Renewal and new-lease branches, downtime, weight pruning |
 | Lease options: renewal, termination, contraction | Tested | Probability-weighted paths applied in exercise-date order; 3 engine fixtures. Now editable: the lease editor's own "Edit … in full" button had promised an options editor since it was written, `leases.options` has round-tripped through the API the whole time, but nothing offered a field for it until this editor. `options` is validated against the real `leaseOptionSchema` rather than an unchecked record |
-| Lease options: expansion, purchase, ROFR, ROFO | Functional | Never reach the cash flow — the engine still refuses each with `LEASE_OPTION_NOT_MODELLED` — but the lease editor now offers a second, disclosure-only section for exactly these four types, asking only the fields each one actually means something by (an area for expansion, a price for purchase, dates and likelihood for all four), so a right an import or the API attaches to a lease is no longer invisible on this screen. A disclosed right with a nonzero likelihood still surfaces the engine's own diagnostic on the Validation tab |
+| Lease options: expansion via a space reference | Tested | Naming a real space in `expansionSpaceIds` (matching `Lease.spaceIds`'s own convention) adds that space's area and unit count to the lease from the exercise date, at the tenant's existing rent schedule, unrepriced — the same convention `contraction` already uses in reverse. Left with no space named, it stays refused (`LEASE_OPTION_NOT_MODELLED`), exactly as before this field existed — `areaChange` alone names an amount but not which space it comes from. A space that does not exist, or that the lease already holds, refuses the whole option (`EXPANSION_SPACE_INVALID`); a space some other lease already holds is caught by the engine's own pre-existing `SPACE_DOUBLE_LET` diagnostic rather than a second check. 4 engine tests against hand-derived figures |
+| Lease options: purchase, ROFR, ROFO (disclosure only) | Functional | Never reach the cash flow — the engine refuses each with `LEASE_OPTION_NOT_MODELLED` by design, since they bear on disposition, not operating cash flow — but the lease editor offers a disclosure-only section for exactly these three types (plus expansion with no space named), asking only the fields each one actually means something by (a price for purchase, dates and likelihood for all), so a right an import or the API attaches to a lease is no longer invisible on this screen. A disclosed right with a nonzero likelihood still surfaces the engine's own diagnostic on the Validation tab |
 | Speculative lease-up of vacant space | Tested | Added after occupancy was found flat for a whole forecast |
 | Market leasing precedence | Tested | Lease → space → default; winner recorded in trace. 4 engine tests, including the no-profile-at-all warning |
 | Operating expenses, all 6 methods | Tested | |
@@ -228,11 +229,12 @@ Licences    347 packages, none requiring payment or a commercial licence
 **Known engine limitations**
 
 - Lease options: renewal, termination and contraction are modelled as
-  probability-weighted branches. **Expansion, purchase, ROFR and ROFO are not**,
-  and each raises `LEASE_OPTION_NOT_MODELLED` naming the reason — expansion
-  because the option records how much area is taken but not which space it comes
-  from, the rest because they bear on disposition rather than operating cash
-  flow.
+  probability-weighted branches, and so is expansion when the option names the
+  real space it claims (`expansionSpaceIds`). **Purchase, ROFR and ROFO are
+  not**, and each raises `LEASE_OPTION_NOT_MODELLED` naming the reason: they
+  bear on disposition rather than operating cash flow. An expansion with no
+  space named raises the same diagnostic, for the same "which space?" reason
+  that used to apply to every expansion.
 - Percentage rent is spread across the year rather than settled at year end.
 - A true-up whose reconciliation month falls beyond the forecast is excluded
   from the cash flow, with `RECONCILIATION_OUTSIDE_FORECAST` naming the amount.

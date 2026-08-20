@@ -1,5 +1,5 @@
 import type { Lease, LeaseOption, RentBasis } from '@cre/domain-models';
-import { Decimal, ONE, d } from './decimal.js';
+import { Decimal, ONE, ZERO, d } from './decimal.js';
 import {
   type CalendarDate,
   addDays,
@@ -12,6 +12,7 @@ import { monthlyRentFromBasis } from './rent-schedule.js';
 import { traceInputs } from './trace.js';
 import {
   type LeaseOccurrence,
+  type NormalizedSpace,
   type RolloverContext,
   marketRentAt,
   resolveProfile,
@@ -42,16 +43,40 @@ import {
  * | `renewal` | Extends the term. Modelled. |
  * | `termination` | Ends the term early. Modelled. |
  * | `contraction` | Reduces the area held. Modelled; the released area becomes vacant. |
- * | `expansion` | **Not modelled** — see below. |
+ * | `expansion` | Modelled when the option names the space(s) it claims (`expansionSpaceIds`); refused otherwise — see below. |
  * | `purchase`, `rofr`, `rofo` | **Not modelled** — these bear on disposition, not on operating cash flow. |
  *
- * Expansion is refused rather than approximated. Expanding into space means
- * taking space that belongs to some other suite, and `LeaseOption` records an
- * area but not *which* space the area comes from. Inventing that would either
- * double-count the area against whatever else occupies it, or silently create
- * rentable area the property does not have. Both produce a plausible-looking
- * cash flow that is wrong, which is worse than a diagnostic saying so. The
- * schema needs a space reference before this can be done properly.
+ * An expansion with no named space is refused rather than approximated.
+ * Expanding into space means taking space that belongs to some other suite,
+ * and `areaChange` alone states how much area is taken but not *which* space
+ * it comes from — inventing that would either double-count the area against
+ * whatever else occupies it, or silently create rentable area the property
+ * does not have. Both produce a plausible-looking cash flow that is wrong,
+ * which is worse than a diagnostic saying so.
+ *
+ * Naming real spaces in `expansionSpaceIds` is what lets the option be
+ * honoured: the named spaces' own area (and unit count) is added to the
+ * lease's occurrence from the exercise date, at the tenant's *existing*
+ * rent schedule — the added area is priced exactly like the space the tenant
+ * already holds, the same convention `contraction` already uses in reverse
+ * (its released area is not repriced either). A deal where the expansion
+ * space is meant to command a different rate is not this option; model it as
+ * a separate new lease commencing on the expansion date instead.
+ *
+ * A named space that does not exist on the property, or that the lease
+ * already holds, refuses the whole option (`EXPANSION_SPACE_INVALID`) rather
+ * than partially claiming the rest — a half-wrong space reference is exactly
+ * the kind of invented-area risk this feature exists to avoid. A named space
+ * some *other* lease already holds for an overlapping period is not checked
+ * here at all: it is caught by the engine's own existing `SPACE_DOUBLE_LET`
+ * diagnostic once the occurrence is built, the same check that already
+ * covers every other way two leases could overlap. One exception is worth
+ * naming: `SPACE_DOUBLE_LET` only inspects occurrences still carrying
+ * `scenario: 'contract'`, and an expansion exercised after an earlier renewal
+ * option has already turned this lease's tail into a `'renewal'` occurrence
+ * inherits that scenario too, so a double-let created by *that* ordering
+ * would not be caught. Narrow enough — an expansion dated after a renewal on
+ * the same lease — that it is documented rather than specially handled.
  */
 
 /** A weighted sequence of occurrences. Rollover continues from the last one. */
@@ -63,8 +88,13 @@ export interface LeasePath {
 /** Weight below which a path stops being carried. Matches rollover's threshold. */
 const WEIGHT_PRUNE_THRESHOLD = new Decimal('0.0001');
 
-/** Option types that change the shape of the cash flow. */
-const MODELLED = new Set(['renewal', 'termination', 'contraction']);
+/** Whether an option changes the shape of the cash flow, given its own configuration. */
+function isModelled(option: LeaseOption): boolean {
+  if (option.type === 'expansion') return option.expansionSpaceIds.length > 0;
+  return (
+    option.type === 'renewal' || option.type === 'termination' || option.type === 'contraction'
+  );
+}
 
 /** Option types recorded on the lease that deliberately do not reach the engine. */
 const NOT_MODELLED: Record<string, string> = {
@@ -141,6 +171,36 @@ function truncated(occurrence: LeaseOccurrence, endsOn: CalendarDate): LeaseOccu
 }
 
 /**
+ * Resolves an expansion option's named spaces against what this path's tail
+ * actually holds, splitting them into space objects ready to add and the
+ * ones that name a problem (no such space, or already part of this lease).
+ *
+ * Deliberately does not check whether some *other* lease already holds a
+ * named space — that overlap is caught by the engine's own `SPACE_DOUBLE_LET`
+ * diagnostic once occurrences are built, not duplicated here. See the module
+ * comment for the one case that check does not reach.
+ */
+function resolveExpansionSpaces(
+  option: LeaseOption,
+  tail: LeaseOccurrence,
+  ctx: RolloverContext,
+): { spaces: NormalizedSpace[]; invalid: string[] } {
+  const spaces: NormalizedSpace[] = [];
+  const invalid: string[] = [];
+  for (const spaceId of option.expansionSpaceIds) {
+    const space = ctx.spaces.get(spaceId);
+    if (!space) {
+      invalid.push(`${spaceId} (no such space)`);
+    } else if (tail.spaceIds.includes(spaceId)) {
+      invalid.push(`${spaceId} (already part of this lease)`);
+    } else {
+      spaces.push(space);
+    }
+  }
+  return { spaces, invalid };
+}
+
+/**
  * Applies one option to one path, returning the branches that replace it.
  *
  * Returns the path unchanged, as a single branch, when the option cannot be
@@ -162,6 +222,24 @@ function branchOnOption(
   // is what makes mutually exclusive options behave without special-casing.
   if (compareDates(exerciseDate, tail.expiration) > 0) return [path];
   if (probability.isZero()) return [path];
+
+  // A structurally invalid expansion never affects this path at all — not a
+  // lapsed/exercised split, since there is nothing coherent to exercise.
+  let expansionSpaces: NormalizedSpace[] = [];
+  if (option.type === 'expansion') {
+    const resolved = resolveExpansionSpaces(option, tail, ctx);
+    if (resolved.invalid.length > 0) {
+      ctx.trace.warn(
+        'EXPANSION_SPACE_INVALID',
+        `Expansion option ${option.id} on lease ${lease.id} cannot be honoured: ` +
+          `${resolved.invalid.join(', ')}. The option is treated as not modelled.`,
+        `lease:${lease.id}`,
+        'options',
+      );
+      return [path];
+    }
+    expansionSpaces = resolved.spaces;
+  }
 
   const exercisedWeight = path.weight.times(probability);
   const lapsedWeight = path.weight.times(ONE.minus(probability));
@@ -298,6 +376,49 @@ function branchOnOption(
     return branches;
   }
 
+  if (option.type === 'expansion') {
+    // Validated above: every named space is real and not already part of this
+    // lease. Priced at the tenant's existing rent schedule over the new,
+    // larger area — see the module comment for why this option does not
+    // reprice the added space separately.
+    const addedArea = expansionSpaces.reduce((sum, space) => sum.plus(space.area), ZERO);
+    const addedUnitCount = expansionSpaces.reduce((sum, space) => sum + space.unitCount, 0);
+    const newArea = tail.area.plus(addedArea);
+
+    const before = truncated(tail, addDays(exerciseDate, -1));
+    const after: LeaseOccurrence = {
+      ...tail,
+      id,
+      generation: tail.generation + 1,
+      commencement: exerciseDate,
+      rentStart: exerciseDate,
+      spaceIds: [...tail.spaceIds, ...option.expansionSpaceIds],
+      area: newArea,
+      unitCount: tail.unitCount + addedUnitCount,
+      schedule: {
+        ...tail.schedule,
+        area: newArea,
+        unitCount: tail.unitCount + addedUnitCount,
+        rentStart: exerciseDate,
+      },
+      tiCost: d(option.cost),
+      lcCost: d('0'),
+      costDate: exerciseDate,
+    };
+
+    recordOption(option, lease, exercisedWeight, ctx, {
+      outcome: 'expansion exercised',
+      effectiveFrom: formatDate(exerciseDate),
+      spacesAdded: option.expansionSpaceIds.join(', '),
+      areaBefore: tail.area,
+      areaAdded: addedArea,
+      result: newArea,
+    });
+
+    branches.push({ weight: exercisedWeight, occurrences: [...head, before, after] });
+    return branches;
+  }
+
   // -- Contraction ----------------------------------------------------------
   // The tenant gives back part of the premises and keeps the rest to the
   // original expiry on the original terms. The area handed back becomes vacant:
@@ -390,7 +511,7 @@ export function expandOptions(
   if (lease.options.length === 0) return paths;
 
   for (const option of lease.options) {
-    if (MODELLED.has(option.type)) continue;
+    if (isModelled(option)) continue;
     const reason = NOT_MODELLED[option.type];
     if (!reason) continue;
     if (d(option.probability).isZero()) continue;
@@ -403,7 +524,7 @@ export function expandOptions(
   }
 
   const modelled = lease.options
-    .filter((option) => MODELLED.has(option.type))
+    .filter((option) => isModelled(option))
     .sort((a, b) => compareDates(parseDate(a.exerciseDate), parseDate(b.exerciseDate)));
 
   for (const option of modelled) {

@@ -314,6 +314,36 @@ require assumptions the option does not carry, and leaving it vacant is the
 conservative reading. If `areaChange` is not less than the area held, the option
 is treated as a termination on that date and a warning is raised.
 
+### Expansion
+
+Modelled when the option names the real space(s) it claims,
+`expansionSpaceIds`, matching `Lease.spaceIds`' own convention of naming a
+space by its `id` (the space's `code`, at the API boundary). Refused,
+exactly as before this field existed, when the option names no space:
+`areaChange` alone states an amount but not *which* space it comes from, and
+honouring that would either double-count area against whatever already
+occupies it or invent rentable area the property does not have.
+
+Given real spaces, from `exerciseDate` their combined area and unit count are
+added to the lease's occurrence, at the tenant's **existing** rent schedule —
+the added area is not repriced, the same convention contraction already uses
+in reverse (its released area is not repriced either). A deal where the
+expansion space commands a different rate is not this option; model it as a
+separate new lease commencing on the expansion date instead. `cost` is the
+expansion TI, paid once at `exerciseDate` under the same landlord-cost
+convention as every other option type.
+
+A named space that does not exist on the property, or that the lease already
+holds, refuses the **whole** option — `EXPANSION_SPACE_INVALID` — rather than
+partially claiming the rest; a half-wrong space reference is exactly the
+invented-area risk this feature exists to prevent. A named space some *other*
+lease already holds for an overlapping period is not checked here: it is left
+to the engine's own `SPACE_DOUBLE_LET` diagnostic, which already covers every
+other way two leases could overlap — except one narrow case, an expansion
+option dated after an earlier renewal option on the *same* lease has already
+turned its tail occurrence into a `'renewal'`-scenario one, which
+`SPACE_DOUBLE_LET` does not inspect.
+
 ### Cost convention
 
 `cost` is a **landlord** cost, paid on the date the outcome takes effect. A
@@ -325,7 +355,7 @@ a per-type rule, but it does mean the sign has to be read deliberately.
 
 | Type | Why |
 | --- | --- |
-| `expansion` | The option records how much area is taken but not **which space** it comes from. Honouring it would either double-count area against whatever already occupies that space, or create rentable area the property does not have. The schema needs a space reference first. |
+| `expansion`, naming no space | See above — `areaChange` alone does not say which space to take it from. |
 | `purchase`, `rofr`, `rofo` | These bear on whether and when the asset is sold, not on operating cash flow. Model the disposition through the sale assumptions. |
 
 Each raises `LEASE_OPTION_NOT_MODELLED` at warning severity, naming the type and

@@ -140,36 +140,49 @@ documented is now scripted and exercised for real, not merely written down.
 What is still true, and is a different fact from "never built": nobody has
 stood up a real, running instance of this stack for anyone but CI to use.
 
-### 3. Close the engine's honest gaps — options partly done
+### 3. Close the engine's honest gaps — options done
 
-- ~~**Lease options.**~~ Renewal, termination and contraction are now modelled as
+- ~~**Lease options.**~~ Renewal, termination and contraction are modelled as
   probability-weighted paths, applied in exercise-date order so mutually
   exclusive options behave without special-casing. Three regression fixtures,
-  engine 2.0.0. **Expansion is deliberately not modelled**: the option records
-  how much area is taken but not which space it comes from, so honouring it
-  would either double-count area or invent rentable area the property does not
-  have. Adding a space reference to `LeaseOption` is the next step there.
-  Purchase, ROFR and ROFO bear on disposition, not operating cash flow.
+  engine 2.0.0.
   **The editor gap is closed separately**: the engine modelled renewal,
   termination and contraction from the start, but no screen ever offered a
   field for one — `RentRollTab.tsx`'s "Edit … in full" button had promised
   an options editor in its own tooltip text since it was written. The write
   route's `options` field is validated against the real `leaseOptionSchema`
   now too, in place of an unchecked `z.record(z.unknown())`.
-  ~~**Purchase, ROFR, ROFO and expansion as disclosure fields.**~~ Done. The
-  engine still refuses all four with `LEASE_OPTION_NOT_MODELLED` — that has
-  not changed, and expansion still needs the space reference described above
-  before it can be honoured for real. What was missing was narrower: a lease
-  carrying one of these four, written directly against the API or by a future
-  import path, was invisible on the lease editor — `otherOptions` merged it
-  back in unedited on save, but no screen ever showed it existed. The editor
-  now offers a second, disclosure-only section for exactly these four types,
-  asking only the fields each one actually means something by (an area for
-  expansion, a price for purchase, dates and a likelihood for all four) rather
-  than reusing the renewal-shaped form those fields do not fit. A disclosed
-  right with a nonzero likelihood still raises the existing
-  `LEASE_OPTION_NOT_MODELLED` diagnostic on the Validation tab, so recording
-  one is never mistaken for making it affect the forecast.
+  ~~**Purchase, ROFR, ROFO and expansion as disclosure fields.**~~ Done. A
+  lease carrying one of these four, written directly against the API or by a
+  future import path, was invisible on the lease editor — `otherOptions`
+  merged it back in unedited on save, but no screen ever showed it existed.
+  The editor now offers a second, disclosure-only section for exactly these
+  four types, asking only the fields each one actually means something by (a
+  space and a price for expansion, a price for purchase, dates and a
+  likelihood for all four) rather than reusing the renewal-shaped form those
+  fields do not fit.
+  ~~**Expansion via a space reference.**~~ Done. `areaChange` alone stated how
+  much area was taken but not *which* space it came from, so honouring it
+  would either have double-counted area against whatever already occupied
+  that space or invented rentable area the property does not have — the
+  reason it stayed refused (`LEASE_OPTION_NOT_MODELLED`) even after the
+  disclosure work above. `LeaseOption` now carries `expansionSpaceIds`,
+  naming real spaces exactly as `Lease.spaceIds` does; naming one is what
+  turns an expansion from disclosure-only into a real, modelled option — its
+  area and unit count are added to the lease from the exercise date, at the
+  tenant's existing rent schedule (unrepriced, the same convention
+  contraction already uses in reverse). A space that does not exist, or that
+  the lease already holds, refuses the whole option
+  (`EXPANSION_SPACE_INVALID`) rather than partially claiming the rest; a
+  space some *other* lease already holds is left to the engine's own
+  pre-existing `SPACE_DOUBLE_LET` diagnostic rather than a second check.
+  Still refused with no space named, exactly as before. Purchase, ROFR and
+  ROFO remain disclosure-only by design: they bear on disposition, not
+  operating cash flow. 4 new engine tests against hand-derived figures.
+  A disclosed right with a nonzero likelihood that is not actually modelled
+  still raises the existing `LEASE_OPTION_NOT_MODELLED` diagnostic on the
+  Validation tab, so recording one is never mistaken for making it affect the
+  forecast.
 - ~~**Multiple recovery pools per lease**, reconciliation timing and prior-year
   true-ups.~~ Done. A lease settles any number of pools, each with its own base
   year, cap history and reconciliation, and a tenant can be billed an estimate
