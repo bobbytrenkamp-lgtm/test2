@@ -63,8 +63,13 @@ last owner is refused.
   classes, which push users toward predictable substitutions.
 - A password reset revokes every session for that user.
 
-**Not implemented:** multi-factor authentication. The `mfa_enrolled` column
-exists; no second factor is enforced.
+**Multi-factor authentication.** TOTP, enrolled via `/auth/mfa/enrol` and
+confirmed with a real code before it takes effect (`/auth/mfa/confirm`, which
+also issues one-time recovery codes). Once enrolled, `/auth/login` refuses to
+issue a session without a valid code or an unused recovery code — checked
+after the password and before any session is created, so a correct password
+alone is never enough. `tests/mfa.test.ts` and `e2e/security.spec.ts` cover
+enrolment, a wrong code, and recovery-code single use.
 
 ## 4. Account enumeration
 

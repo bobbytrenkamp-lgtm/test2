@@ -94,7 +94,8 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | TOTP against the RFC's published vectors | `packages/database/src/totp.test.ts` | 31 | No |
 | Multi-factor authentication through the API | `tests/mfa.test.ts` | 13 | Yes |
 | Rate limiting: the tighter 10/min auth-route override actually refuses an 11th attempt, and does not leak onto an ordinary route | `tests/rate-limiting.test.ts` | 2 | Yes |
-| Password reset delivery, through a recording mailer | `tests/password-reset.test.ts` | 2 | Yes |
+| Password reset delivery, through a recording mailer, and delivery failure never surfacing as anything but the same response a nonexistent address gets | `tests/password-reset.test.ts` | 3 | Yes |
+| Registration: refuses a race between two concurrent registrations for the same email with a 409, not the framework's generic 500 | `tests/registration.test.ts` | 1 | Yes |
 | The mailer's driver selection and startup validation | `apps/api/src/mailer.test.ts` | 3 | No |
 | The malware scanner's driver selection and the clean/infected/unavailable translation, against a fake clamd client | `apps/api/src/malware-scanner.test.ts` | 4 | No |
 | Malware scanning at the API boundary: all three upload routes (rent-roll import, budget actuals import, document upload) scan before anything is parsed or stored, report `scanned`/`scan_status` honestly, and refuse an infected or unscannable upload with the right status code | `tests/malware-scanning.test.ts` | 8 | Yes |
@@ -147,7 +148,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 | Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1622 tests in total.**
+**1624 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -200,7 +201,7 @@ built bundle:
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 | Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**262 browser tests in total**, for 1884 across the whole repository.
+**262 browser tests in total**, for 1886 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

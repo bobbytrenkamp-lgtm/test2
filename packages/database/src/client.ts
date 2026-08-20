@@ -1,6 +1,13 @@
 import postgres from 'postgres';
 
 export type Sql = postgres.Sql<Record<string, never>>;
+/**
+ * Re-exported so a caller catching a unique-violation race (two concurrent
+ * inserts of what should be one-of-a-kind row — a duplicate registration
+ * email, say) can do so without adding `postgres` as a direct dependency of
+ * its own package.
+ */
+export const PostgresError = postgres.PostgresError;
 
 let singleton: Sql | null = null;
 

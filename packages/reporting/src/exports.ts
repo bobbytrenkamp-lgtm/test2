@@ -135,10 +135,12 @@ export function toPortableDocument(
 /**
  * Print-ready HTML for a report.
  *
- * Server-side PDF rendering needs a headless browser in the worker image; see
- * docs/reporting-specification.md. Until that is wired up, this HTML is what
- * the browser's own print-to-PDF consumes, so the printed output is real rather
- * than a placeholder.
+ * This is what the browser's own print-to-PDF consumes for a screen the
+ * reader is already looking at, so the printed output is real rather than a
+ * placeholder. Real server-side rendering — a headless browser inside the
+ * worker image, for a PDF nobody has to open the app to produce — is
+ * `apps/worker/src/pdf.ts`'s `renderHtmlToPdf`, which takes this same HTML
+ * as its input; see docs/reporting-specification.md.
  */
 export function reportToPrintableHtml(table: ReportTable): string {
   const escape = (value: unknown): string =>

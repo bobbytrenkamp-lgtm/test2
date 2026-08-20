@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { Sql } from '@cre/database';
+import { PostgresError, type Sql } from '@cre/database';
 import {
   authenticate,
   checkPasswordPolicy,
@@ -69,7 +69,6 @@ async function consumeRecoveryCode(db: Sql, userId: string, submitted: string): 
 
 const registrationSchema = credentialsSchema.extend({
   name: z.string().min(1).max(200),
-  organizationName: z.string().min(1).max(200).optional(),
 });
 
 export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promise<void> {
@@ -102,11 +101,30 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
       );
     }
 
-    const user = await createUser(request.db, {
-      email: body.email,
-      name: body.name,
-      password: body.password,
-    });
+    let user;
+    try {
+      user = await createUser(request.db, {
+        email: body.email,
+        name: body.name,
+        password: body.password,
+      });
+    } catch (error) {
+      // The check above is a read followed by a write, not one atomic step:
+      // two requests for the same address arriving close together can both
+      // pass it and both reach this insert, and `users.email`'s own UNIQUE
+      // constraint is what actually decides between them. The loser gets the
+      // same 409 the check above already gives a simultaneous registration —
+      // not the framework's generic 500 a raw constraint violation would
+      // otherwise surface as.
+      if (error instanceof PostgresError && error.code === '23505') {
+        throw new HttpError(
+          409,
+          'REGISTRATION_FAILED',
+          'That account could not be created. If you already have an account, sign in instead.',
+        );
+      }
+      throw error;
+    }
     const { token } = await createSession(request.db, {
       userId: user.id,
       userAgent: request.headers['user-agent'] ?? null,
@@ -240,7 +258,13 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
 
   /**
    * Password reset request. The response is identical whether or not the
-   * address exists, so the endpoint cannot be used to enumerate accounts.
+   * address exists, so the endpoint cannot be used to enumerate accounts —
+   * which means a failure delivering the mail must never surface as anything
+   * different from success. `request.mailer.send` is only reached at all for
+   * a real address, so letting its own rejection propagate (an unreachable
+   * relay, a bounce) would 500 for a real account while a nonexistent one
+   * always returns instantly — one deterministic way to tell the two apart,
+   * and exactly the property the paragraph above promises does not exist.
    *
    * Delivery goes through `request.mailer` — `ConsoleMailer` by default,
    * which logs the message instead of sending it, so this is exercisable
@@ -257,14 +281,23 @@ export async function registerAuthRoutes(app: FastifyInstance, env: Env): Promis
     if (user) {
       const token = await createPasswordResetToken(request.db, user.id);
       const resetUrl = `${env.WEB_ORIGIN}/reset-password?token=${token}`;
-      await request.mailer.send({
-        to: user.email,
-        subject: 'Reset your password',
-        text:
-          `A password reset was requested for your account. If this was you, ` +
-          `open the link below within the next hour to choose a new password:\n\n${resetUrl}\n\n` +
-          `If you did not request this, no action is needed — the link expires on its own.`,
-      });
+      try {
+        await request.mailer.send({
+          to: user.email,
+          subject: 'Reset your password',
+          text:
+            `A password reset was requested for your account. If this was you, ` +
+            `open the link below within the next hour to choose a new password:\n\n${resetUrl}\n\n` +
+            `If you did not request this, no action is needed — the link expires on its own.`,
+        });
+      } catch (error) {
+        // Logged for an operator to notice — the reset token itself is still
+        // valid and waiting, so this is a real delivery problem worth
+        // knowing about — but never rethrown: this route's response is a
+        // security property, not an incidental side effect of the mailer
+        // having worked.
+        request.log.error({ err: error }, 'Password reset mail delivery failed');
+      }
       if (env.NODE_ENV !== 'production') devToken = token;
     }
     return {
