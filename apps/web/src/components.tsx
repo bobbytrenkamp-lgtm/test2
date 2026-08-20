@@ -385,6 +385,7 @@ export function BarChart({
 interface LabellableProps {
   id?: string;
   'aria-describedby'?: string;
+  'aria-invalid'?: 'true' | 'false';
 }
 
 /**
@@ -422,6 +423,13 @@ export function Field({
     ? cloneElement(element, {
         id: controlId,
         'aria-describedby': element.props['aria-describedby'] ?? description,
+        // Screen-reader users need this on the control itself, not just the
+        // error text's own `role="alert"` — `aria-describedby` alone is not
+        // reliably announced on focus across screen readers. A caller that
+        // already sets its own `aria-invalid` (SignIn.tsx marks it only on a
+        // genuine credentials rejection, not on every error) is respected;
+        // every other `Field` with an `error` gets it for free.
+        'aria-invalid': element.props['aria-invalid'] ?? (error ? 'true' : undefined),
       })
     : children;
 
