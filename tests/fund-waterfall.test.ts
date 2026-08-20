@@ -312,6 +312,94 @@ describe.skipIf(!hasDatabase)('fund waterfall', () => {
     expect(response.body).toContain('not before the proposed distribution date');
   });
 
+  it('never pays the same distribution twice when two requests race', async () => {
+    // A fresh fund, isolated from the shared one above, so this race can't be
+    // confused by the distributions the earlier tests already recorded.
+    const fund = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/funds',
+      headers: authed(owner.cookie),
+      payload: { name: 'Race Fund', vintageYear: 2025, currency: 'USD' },
+    });
+    expect(fund.statusCode).toBe(201);
+    const raceFundId = (fund.json() as { fund: { id: string } }).fund.id;
+
+    const investor = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/funds/${raceFundId}/investors/LP`,
+      headers: authed(owner.cookie),
+      payload: { name: 'Racing LP', commitment: '100000', investorClass: 'lp' },
+    });
+    expect(investor.statusCode).toBe(200);
+    const raceLpId = (investor.json() as { investor: { id: string } }).investor.id;
+
+    const savedTiers = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/v1/funds/${raceFundId}/waterfall-tiers`,
+      headers: authed(owner.cookie),
+      payload: {
+        tiers: [
+          {
+            id: 'roc',
+            name: 'Return of capital',
+            type: 'return_of_capital',
+            compounding: true,
+            splits: [],
+          },
+          {
+            id: 'residual',
+            name: 'Residual split',
+            type: 'residual_split',
+            compounding: true,
+            splits: [{ partnerId: raceLpId, share: '1' }],
+          },
+        ],
+      },
+    });
+    expect(savedTiers.statusCode).toBe(200);
+
+    const contribution = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/v1/funds/${raceFundId}/transactions`,
+      headers: authed(owner.cookie),
+      payload: { investorCode: 'LP', date: '2025-01-01', type: 'contribution', amount: '100000' },
+    });
+    expect(contribution.statusCode).toBe(201);
+
+    const payload = { distributionDate: '2026-01-01', distributableAmount: '100000' };
+    const [first, second] = await Promise.all([
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/funds/${raceFundId}/waterfall/apply`,
+        headers: authed(owner.cookie),
+        payload,
+      }),
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/v1/funds/${raceFundId}/waterfall/apply`,
+        headers: authed(owner.cookie),
+        payload,
+      }),
+    ]);
+
+    // Exactly one of the two racing requests gets to record the distribution.
+    // The other, serialized behind it by the row lock, now sees that same
+    // distribution already on the books for this date and is refused by the
+    // engine's own double-counting guard -- never both succeeding and paying
+    // the LP twice.
+    const statuses = [first.statusCode, second.statusCode].sort();
+    expect(statuses).toEqual([201, 400]);
+
+    const summary = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/v1/funds/${raceFundId}/summary?valuationDate=2026-01-01`,
+      headers: authed(owner.cookie),
+    });
+    expect(
+      (summary.json() as { summary: { totalDistributed: string } }).summary.totalDistributed,
+    ).toBe('100000');
+  });
+
   it('keeps one organization’s waterfall tiers out of another’s', async () => {
     const stranger = await registerActor(ctx.app, 'stranger-wf@example.invalid', 'Stranger');
     await ctx.app.inject({

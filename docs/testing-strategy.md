@@ -65,11 +65,11 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Authorization and isolation | `tests/authorization.test.ts` | 29 | Yes |
 | Every route, exhaustively | `tests/route-inventory.test.ts` | 5 | Yes |
 | Budgets, actuals and variance | `tests/budgets.test.ts` | 14 | Yes |
-| Portfolio aggregation | `tests/portfolios.test.ts` | 7 | Yes |
+| Portfolio aggregation, including a dynamic filter shaped wrong rejected with a 400 rather than reaching Postgres as an unhandled array-cast error | `tests/portfolios.test.ts` | 8 | Yes |
 | Optimistic locking, leases, models and collections | `tests/lease-concurrency.test.ts` | 17 | Yes |
 | Recovery pools through the API | `tests/recovery-pools.test.ts` | 5 | Yes |
 | Funds through the API | `tests/funds.test.ts` | 12 | Yes |
-| Fund waterfall through the API: tier configuration with optimistic locking, distribution preview and apply | `tests/fund-waterfall.test.ts` | 10 | Yes |
+| Fund waterfall through the API: tier configuration with optimistic locking, distribution preview and apply, and two concurrent `apply` requests never both paying the same distribution | `tests/fund-waterfall.test.ts` | 11 | Yes |
 | Audit keyset pagination | `tests/audit-pagination.test.ts` | 7 | Yes |
 | Job reaper attempt cap, and `failJob` itself: requeues with backoff under the attempt limit, moves to failed once it is reached | `tests/jobs.test.ts` | 5 | Yes |
 | The `aggregate_portfolio` job handler, across organizations | `tests/worker-handlers.test.ts` | 2 | Yes |
@@ -148,7 +148,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 | Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1632 tests in total.**
+**1634 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -201,7 +201,7 @@ built bundle:
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 | Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**262 browser tests in total**, for 1894 across the whole repository.
+**262 browser tests in total**, for 1896 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.

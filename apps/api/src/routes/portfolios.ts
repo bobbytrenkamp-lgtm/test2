@@ -13,6 +13,19 @@ import type { LeaseCashFlowRow, ModelResult } from '@cre/domain-models';
 import { PORTFOLIO_REPORTS } from '@cre/reporting';
 import { badRequest, notFound, requireCapability } from '../context.js';
 
+/**
+ * A dynamic portfolio's saved filter. `resolvePortfolioMembership` splices
+ * each field straight into a `::text[]`/`&&` cast below, so a shape that
+ * doesn't match — `propertyTypes: "office"` instead of `["office"]`, say —
+ * would otherwise reach Postgres unchecked and come back as "malformed array
+ * literal", an unhandled 500 that names no field, instead of a 400 that does.
+ */
+const portfolioFilterSchema = z.object({
+  propertyTypes: z.array(z.string().max(60)).optional(),
+  markets: z.array(z.string().max(120)).optional(),
+  tags: z.array(z.string().max(60)).optional(),
+});
+
 export async function registerPortfolioRoutes(app: FastifyInstance): Promise<void> {
   app.get('/portfolios', async (request) => {
     const context = requireCapability(request, 'portfolio:read');
@@ -35,7 +48,7 @@ export async function registerPortfolioRoutes(app: FastifyInstance): Promise<voi
         description: z.string().max(2000).nullish(),
         strategy: z.string().max(120).nullish(),
         isDynamic: z.boolean().default(false),
-        filterDefinition: z.record(z.unknown()).default({}),
+        filterDefinition: portfolioFilterSchema.default({}),
         propertyIds: z.array(z.string().uuid()).default([]),
       })
       .parse(request.body);
