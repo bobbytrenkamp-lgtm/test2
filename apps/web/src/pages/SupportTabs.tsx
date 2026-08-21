@@ -198,12 +198,26 @@ export function ReportsTab(): JSX.Element {
     report: {
       title: string;
       description: string;
-      columns: Array<{ key: string; label: string; align: string }>;
+      columns: Array<{ key: string; label: string; align: string; format: string }>;
       rows: Array<Record<string, string | number | null>>;
       totals?: Record<string, string | number | null>;
       footnotes: string[];
     };
   }>(selected ? `/models/${model.id}/reports/${selected}` : null);
+
+  /**
+   * A `percent`-format cell holds the raw decimal fraction the engine always
+   * uses (0.055, not 5.5), the same convention the XLSX export reads and
+   * turns into "5.50%" with Excel's own display format. This preview has no
+   * such layer to lean on, so without this it showed the bare fraction --
+   * two decimal orders of magnitude off from every DSCR, occupancy and cap
+   * rate figure on every report, while the same cell read correctly in the
+   * downloaded spreadsheet.
+   */
+  function renderCell(value: string | number | null, format: string, fallback = '—'): string {
+    if (format === 'percent') return value === null ? fallback : formatPercent(value);
+    return String(value ?? fallback);
+  }
 
   if (cashFlowError) {
     return <EmptyState title="Not calculated yet">{cashFlowError}</EmptyState>;
@@ -333,14 +347,14 @@ export function ReportsTab(): JSX.Element {
                         {preview.data?.report.columns.map((column, columnIndex) =>
                           columnIndex === 0 ? (
                             <th key={column.key} scope="row">
-                              {String(row[column.key] ?? '—')}
+                              {renderCell(row[column.key] ?? null, column.format)}
                             </th>
                           ) : (
                             <td
                               key={column.key}
                               className={column.align === 'right' ? 'numeric' : ''}
                             >
-                              {String(row[column.key] ?? '—')}
+                              {renderCell(row[column.key] ?? null, column.format)}
                             </td>
                           ),
                         )}
@@ -356,7 +370,11 @@ export function ReportsTab(): JSX.Element {
                             scope="row"
                             className={column.align === 'right' ? 'numeric' : ''}
                           >
-                            {String(preview.data?.report.totals?.[column.key] ?? '')}
+                            {renderCell(
+                              preview.data?.report.totals?.[column.key] ?? null,
+                              column.format,
+                              '',
+                            )}
                           </th>
                         ))}
                       </tr>
