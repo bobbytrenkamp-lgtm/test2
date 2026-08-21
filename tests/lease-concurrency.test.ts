@@ -266,6 +266,44 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
   });
 
   /* ---------------------------------------------------------------------- */
+  /* Frozen model versions (snapshots, not the model's own optimistic lock)  */
+  /* ---------------------------------------------------------------------- */
+
+  describe('creating a frozen model version', () => {
+    it('lets two simultaneous "create version" requests both succeed, numbered in sequence', async () => {
+      // Distinct from the model's own `version` column above: this is
+      // `model_versions.version_number`, which carries its own
+      // UNIQUE (model_id, version_number) constraint. Before the model row
+      // was locked inside `createModelVersion`, two callers -- a doubled
+      // click on "Create version", or two reviewers approving at the same
+      // instant -- could both read the same MAX(version_number) before
+      // either committed, and the loser would fail the INSERT with a raw
+      // Postgres unique-violation: an uncaught 500, even though neither
+      // request did anything wrong.
+      const results = await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          ctx.app.inject({
+            method: 'POST',
+            url: `/api/v1/models/${modelId}/versions`,
+            headers: authed(owner.cookie),
+            payload: { label: `Concurrent ${i}` },
+          }),
+        ),
+      );
+
+      for (const result of results) expect(result.statusCode).toBe(201);
+      const numbers = results
+        .map((r) => (r.json() as { version: { version_number: number } }).version.version_number)
+        .sort((a, b) => a - b);
+      // Sequential and distinct: no number written twice, none skipped, and
+      // no request's snapshot silently lost.
+      for (let i = 1; i < numbers.length; i += 1) {
+        expect(numbers[i]).toBe((numbers[i - 1] as number) + 1);
+      }
+    });
+  });
+
+  /* ---------------------------------------------------------------------- */
   /* Assumption collections                                                  */
   /* ---------------------------------------------------------------------- */
 
