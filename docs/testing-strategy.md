@@ -112,6 +112,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Lease options through the API: a well-formed option of any of the seven schema-named types is accepted and reads back exactly (including expansion/purchase/ROFR/ROFO, which the engine still declines to simulate but the schema has always allowed), a malformed one is refused, and an expansion option naming a real space by its code actually calculates the expanded revenue, not just a round-trip | `tests/lease-options.test.ts` | 6 | Yes |
 | Batched assumption-collection writes | `tests/assumption-batch.test.ts` | 9 | Yes |
 | Record-editor specs and field rules, including a thousands separator in a decimal field stripped to match the API's own decimal schema | `apps/web/src/pages/record-editors/record-editors.test.ts` | 30 | No |
+| The debt schedule's covenant-breach banner formatting a DSCR breach as a ratio and an LTV/LTC/debt-yield breach as a percentage, not the same raw fraction for every covenant type | `apps/web/src/pages/ReturnsTab.test.ts` | 3 | No |
 | Underwriting health and driver ranking | `packages/calculation-engine/src/analysis.test.ts` | 23 | No |
 | The assumption input contract, including enum-membership checking | `packages/domain-models/src/assumption-proposals.test.ts` | 33 | No |
 | Assumption proposals and decisions through the API | `tests/assumption-proposals.test.ts` | 15 | Yes |
@@ -149,7 +150,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 | Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1643 tests in total.**
+**1646 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -202,7 +203,7 @@ built bundle:
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 | Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**262 browser tests in total**, for 1905 across the whole repository.
+**262 browser tests in total**, for 1908 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
