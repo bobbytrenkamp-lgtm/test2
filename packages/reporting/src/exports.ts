@@ -12,11 +12,36 @@ import type { ReportTable } from './reports.js';
  * can keep working in the spreadsheet.
  */
 
+/**
+ * Renders one cell as the text a reader should see, for every format that
+ * isn't a spreadsheet.
+ *
+ * A `percent`-format cell holds the same raw decimal fraction every other
+ * format does (`0.055`, not `5.5` or `"5.50%"`) — the engine's own
+ * convention, checked by `mustBeRate` at the write boundary and matched by
+ * the XLSX export below, which stores that same `0.055` as a number and
+ * applies Excel's own `0.00%` display format so the cell still recalculates
+ * as a fraction. CSV, print HTML and the on-screen preview have no such
+ * display-format layer to lean on: writing the raw fraction into them
+ * literally shows "0.055" where a reader expects "5.50%" — not a rounding
+ * difference but two decimal orders of magnitude apart, in every DSCR,
+ * occupancy, cap rate and covenant figure on every report. This is the one
+ * place that conversion happens for all three.
+ */
+export function formatCellText(value: string | number | null | undefined, format: string): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (format !== 'percent') return String(value);
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(2)}%` : String(value);
+}
+
 export function reportToCsv(table: ReportTable): string {
   const header = table.columns.map((column) => column.label);
-  const body = table.rows.map((row) => table.columns.map((column) => row[column.key] ?? ''));
+  const body = table.rows.map((row) =>
+    table.columns.map((column) => formatCellText(row[column.key], column.format)),
+  );
   const totals = table.totals
-    ? [table.columns.map((column) => table.totals?.[column.key] ?? '')]
+    ? [table.columns.map((column) => formatCellText(table.totals?.[column.key], column.format))]
     : [];
   return toCsv([header, ...body, ...totals]);
 }
@@ -157,7 +182,10 @@ export function reportToPrintableHtml(table: ReportTable): string {
     .map(
       (row) =>
         `<tr>${table.columns
-          .map((column) => `<td style="text-align:${column.align}">${escape(row[column.key])}</td>`)
+          .map(
+            (column) =>
+              `<td style="text-align:${column.align}">${escape(formatCellText(row[column.key], column.format))}</td>`,
+          )
           .join('')}</tr>`,
     )
     .join('');
@@ -165,7 +193,7 @@ export function reportToPrintableHtml(table: ReportTable): string {
     ? `<tfoot><tr>${table.columns
         .map(
           (column) =>
-            `<th style="text-align:${column.align}">${escape(table.totals?.[column.key])}</th>`,
+            `<th style="text-align:${column.align}">${escape(formatCellText(table.totals?.[column.key], column.format))}</th>`,
         )
         .join('')}</tr></tfoot>`
     : '';

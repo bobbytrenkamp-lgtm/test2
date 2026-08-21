@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1637 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1643 passed (251 engine regression, 31 engine unit, 20 fund,
                          19 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 8 portfolios,
                          12 funds via the API, 11 fund waterfall via the API,
@@ -76,7 +76,7 @@ Tests       1637 passed (251 engine regression, 31 engine unit, 20 fund,
                          6 reforecast, 11 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 3 password reset, 1 registration, 3 mailer driver selection,
                          5 route inventory, 9 property-based,
-                         12 workbook reading, 5 workbook import,
+                         12 workbook reading, 6 export cell formatting, 5 workbook import,
                          11 portfolio reports, 13 vertical slice,
                          18 Excel Live Model framework,
                          5 the workbook evaluator's own IFERROR fallback and unary-minus precedence,
