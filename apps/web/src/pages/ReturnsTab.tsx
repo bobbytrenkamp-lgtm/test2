@@ -182,8 +182,16 @@ export function ReturnsTab(): JSX.Element {
                   <div className="message warning">
                     First breach: {titleCase(schedule.covenantBreaches[0]?.covenant ?? '')} in month{' '}
                     {schedule.covenantBreaches[0]?.periodIndex} — value{' '}
-                    {Number(schedule.covenantBreaches[0]?.value).toFixed(4)} against a limit of{' '}
-                    {Number(schedule.covenantBreaches[0]?.limit).toFixed(4)}.
+                    {formatCovenantValue(
+                      schedule.covenantBreaches[0]?.covenant,
+                      schedule.covenantBreaches[0]?.value,
+                    )}{' '}
+                    against a limit of{' '}
+                    {formatCovenantValue(
+                      schedule.covenantBreaches[0]?.covenant,
+                      schedule.covenantBreaches[0]?.limit,
+                    )}
+                    .
                   </div>
                 )}
                 <div className="table-scroll" tabIndex={0} style={{ maxHeight: 380 }}>
@@ -392,4 +400,24 @@ function formatFixed(value: string | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || value === '') return '—';
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric.toFixed(decimals) : '—';
+}
+
+/**
+ * A covenant breach's `value`/`limit` means different things depending on
+ * which covenant sprang it: `minimum_dscr` is a ratio (1.20, shown as
+ * "1.20"), same as `formatFixed` above already renders it in the summary
+ * metrics. `maximum_ltv`, `maximum_ltc` and `minimum_debt_yield` are the
+ * engine's usual raw decimal fraction (0.65 for 65%), the same convention
+ * `formatPercent` already applies to `returns.loanToValue` a few lines up
+ * in this file. Formatting every covenant type the same way -- as this
+ * banner did before -- showed "0.6800 against a limit of 0.6500" for an
+ * LTV breach: the real 68% against a 65% cap, printed as if they were
+ * fractions of a fraction.
+ */
+export function formatCovenantValue(
+  covenant: string | undefined,
+  value: string | undefined,
+): string {
+  if (covenant === undefined || value === undefined) return '—';
+  return covenant === 'minimum_dscr' ? formatFixed(value) : formatPercent(value);
 }
