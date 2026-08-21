@@ -481,6 +481,19 @@ export async function createModelVersion(
   },
 ): Promise<ModelVersionRow> {
   return (await sql.begin(async (tx) => {
+    // `model_versions` carries UNIQUE (model_id, version_number), and two
+    // callers creating a version for the same model at once — a doubled
+    // click on "Create version", or two reviewers approving within the same
+    // instant — would otherwise both read the same MAX() before either
+    // commits, and the loser would fail the INSERT below with a raw
+    // Postgres unique-violation instead of either succeeding or refusing
+    // cleanly. Locking the model's own row first (it always exists; a
+    // fresh model has no version rows yet for `model_versions` itself to
+    // lock) forces the second caller to wait and then see the first
+    // caller's write, so it computes the next number for real rather than
+    // colliding with it.
+    await tx`SELECT id FROM models WHERE id = ${input.modelId} FOR UPDATE`;
+
     const [next] = (await tx`
       SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
       FROM model_versions WHERE model_id = ${input.modelId}
