@@ -252,6 +252,17 @@ export async function registerCollaborationRoutes(app: FastifyInstance): Promise
       RETURNING *
     `) as unknown as Array<Record<string, unknown>>;
 
+    // The precondition check above reads the row before this write, so two
+    // requests racing each other both pass it and both reach this UPDATE;
+    // only the one `resolved_at IS NULL` still matches actually resolves
+    // anything. Without this guard, the loser fell through to an audit
+    // entry crediting *them* with resolving a comment someone else had
+    // already closed a moment earlier -- a false record in a log this
+    // codebase otherwise treats as authoritative.
+    if (updated.length === 0) {
+      throw badRequest('That comment has already been resolved.');
+    }
+
     await writeAudit(request.db, {
       organizationId: context.organizationId,
       userId: context.userId,
@@ -262,6 +273,6 @@ export async function registerCollaborationRoutes(app: FastifyInstance): Promise
       ipAddress: request.ip,
     });
 
-    return { comment: updated[0] ?? null };
+    return { comment: updated[0] };
   });
 }

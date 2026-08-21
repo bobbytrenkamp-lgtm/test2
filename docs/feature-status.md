@@ -66,14 +66,14 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1636 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1637 passed (251 engine regression, 31 engine unit, 20 fund,
                          19 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 8 portfolios,
                          12 funds via the API, 11 fund waterfall via the API,
                          18 optimistic locking,
                          5 recovery pools, 7 audit pagination,
                          7 version comparison via the API, 20 error monitoring,
-                         6 reforecast, 10 comments, 12 tasks, 31 TOTP,
+                         6 reforecast, 11 comments, 12 tasks, 31 TOTP,
                          13 multi-factor, 3 password reset, 1 registration, 3 mailer driver selection,
                          5 route inventory, 9 property-based,
                          12 workbook reading, 5 workbook import,

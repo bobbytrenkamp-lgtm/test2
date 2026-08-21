@@ -219,6 +219,40 @@ describe.skipIf(!hasDatabase)('comments', () => {
     expect(again.statusCode).toBe(400);
   });
 
+  it('lets exactly one of two simultaneous resolves win, and only one audit entry records it', async () => {
+    // The sequential test above never reaches the race: by the time the
+    // second call runs, the precondition check that reads `resolved_at`
+    // already sees it set, so it is refused before ever touching the
+    // UPDATE. Firing both at once is what actually exercises the guard on
+    // the write itself -- and what the loser gets back if that guard is
+    // missing: a 200 with a null comment, plus an audit entry falsely
+    // crediting them with resolving something someone else already had.
+    const created = await comment(owner.cookie, { body: 'Racing to close this one.' });
+    const id = (JSON.parse(created.body) as { comment: { id: string } }).comment.id;
+    const url = `/api/v1/comments/${id}/resolve`;
+
+    const [first, second] = await Promise.all([
+      ctx.app.inject({ method: 'POST', url, headers: authed(owner.cookie), payload: {} }),
+      ctx.app.inject({ method: 'POST', url, headers: authed(owner.cookie), payload: {} }),
+    ]);
+    expect([first.statusCode, second.statusCode].sort()).toEqual([200, 400]);
+
+    const winner = first.statusCode === 200 ? first : second;
+    expect((winner.json() as { comment: { id: string } }).comment.id).toBe(id);
+
+    const audit = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/v1/audit?limit=500&entityType=comment',
+      headers: authed(owner.cookie),
+    });
+    const entries = (audit.json() as { entries: Array<{ action: string; entity_id: string }> })
+      .entries;
+    const resolutions = entries.filter(
+      (entry) => entry.action === 'comment.resolved' && entry.entity_id === id,
+    );
+    expect(resolutions.length).toBe(1);
+  });
+
   it('refuses to anchor a comment to a record in another organization', async () => {
     const stranger = await registerActor(ctx.app, 'comment-outsider@example.invalid', 'Outsider');
     await ctx.app.inject({
