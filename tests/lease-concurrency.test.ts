@@ -263,6 +263,51 @@ describe.skipIf(!hasDatabase)('lease optimistic locking', () => {
       expect(forced.statusCode).toBe(200);
       expect(await version()).toBe(before + 1);
     });
+
+    /*
+     * Most of this route's optional fields (notes, discountRate,
+     * terminalCapRate, saleMonth, grossSalePriceOverride, directCapRate,
+     * acquisitionPrice, acquisitionDate) are nullish specifically so a
+     * client can clear them. `COALESCE(new, old)` cannot tell "the key was
+     * not sent" apart from "the key was sent as null" -- both fall back to
+     * the existing value -- so clearing a gross sale price override back to
+     * "let the engine compute it" returned 200 with the override still in
+     * place, unchanged.
+     */
+    it('clears a nullish field with an explicit null, and leaves it alone when the key is omitted', async () => {
+      const withOverride = await ctx.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+        payload: { grossSalePriceOverride: '9000000', notes: 'original notes' },
+      });
+      expect(withOverride.statusCode).toBe(200);
+
+      // Omitting the override while changing something else must not touch it.
+      const partial = await ctx.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+        payload: { notes: 'updated notes' },
+      });
+      expect(partial.statusCode).toBe(200);
+      const afterPartial = (partial.json() as { model: Record<string, unknown> }).model;
+      expect(afterPartial.gross_sale_price_override).toBe('9000000.00');
+      expect(afterPartial.notes).toBe('updated notes');
+
+      // An explicit null must actually clear it, not silently keep '9000000.00'.
+      const cleared = await ctx.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/models/${modelId}`,
+        headers: authed(owner.cookie),
+        payload: { grossSalePriceOverride: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+      const afterClear = (cleared.json() as { model: Record<string, unknown> }).model;
+      expect(afterClear.gross_sale_price_override).toBeNull();
+      // A field not named in this patch is untouched, same as any other patch.
+      expect(afterClear.notes).toBe('updated notes');
+    });
   });
 
   /* ---------------------------------------------------------------------- */

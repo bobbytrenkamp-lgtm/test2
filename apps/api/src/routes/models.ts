@@ -353,33 +353,49 @@ export async function registerModelRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      /*
+       * Every optional field follows the same rule the task PATCH route
+       * does: an absent key leaves the column alone, an explicit `null`
+       * clears it. `COALESCE(new, old)` cannot tell those two apart -- it
+       * treats an explicit `null` exactly like "not sent" and silently
+       * keeps the old value -- which is exactly the bug this route had for
+       * every nullish field here (`notes`, `discountRate`,
+       * `terminalCapRate`, `saleMonth`, `grossSalePriceOverride`,
+       * `directCapRate`, `acquisitionPrice`, `acquisitionDate`): clearing a
+       * gross sale price override back to "let the engine compute it", or
+       * clearing a rate override back to the model default, returned 200
+       * with the old value still sitting there, unchanged. `keep(column)`
+       * is a bare column reference built from a hardcoded, developer-written
+       * name -- never from `body` -- so it carries no injection surface.
+       */
+      const keep = (column: string) => tx.unsafe(column);
       return (await tx`
       UPDATE models SET
-        name = COALESCE(${body.name ?? null}, name),
-        classification = COALESCE(${body.classification ?? null}, classification),
-        valuation_date = COALESCE(${body.valuationDate ?? null}::date, valuation_date),
-        forecast_start_date = COALESCE(${body.forecastStartDate ?? null}::date, forecast_start_date),
-        forecast_months = COALESCE(${body.forecastMonths ?? null}, forecast_months),
-        fiscal_year_start_month = COALESCE(${body.fiscalYearStartMonth ?? null}, fiscal_year_start_month),
-        proration_convention = COALESCE(${body.prorationConvention ?? null}, proration_convention),
-        notes = COALESCE(${body.notes ?? null}, notes),
-        discount_rate = COALESCE(${body.discountRate ?? null}::numeric, discount_rate),
-        discounting_convention = COALESCE(${body.discountingConvention ?? null}, discounting_convention),
-        terminal_cap_rate = COALESCE(${body.terminalCapRate ?? null}::numeric, terminal_cap_rate),
-        terminal_noi_basis = COALESCE(${body.terminalNoiBasis ?? null}, terminal_noi_basis),
-        sale_cost_percent = COALESCE(${body.saleCostPercent ?? null}::numeric, sale_cost_percent),
-        sale_month = COALESCE(${body.saleMonth ?? null}, sale_month),
-        gross_sale_price_override = COALESCE(${body.grossSalePriceOverride ?? null}::numeric, gross_sale_price_override),
-        direct_cap_rate = COALESCE(${body.directCapRate ?? null}::numeric, direct_cap_rate),
-        direct_cap_noi_basis = COALESCE(${body.directCapNoiBasis ?? null}, direct_cap_noi_basis),
-        direct_cap_adjustments = COALESCE(${body.directCapAdjustments ?? null}::numeric, direct_cap_adjustments),
-        acquisition_price = COALESCE(${body.acquisitionPrice ?? null}::numeric, acquisition_price),
-        acquisition_costs = COALESCE(${body.acquisitionCosts ?? null}::numeric, acquisition_costs),
-        acquisition_date = COALESCE(${body.acquisitionDate ?? null}::date, acquisition_date),
-        general_vacancy_rate = COALESCE(${body.generalVacancyRate ?? null}::numeric, general_vacancy_rate),
-        net_against_modelled_vacancy = COALESCE(${body.netAgainstModelledVacancy ?? null}, net_against_modelled_vacancy),
-        credit_loss_rate = COALESCE(${body.creditLossRate ?? null}::numeric, credit_loss_rate),
-        equity_structure = COALESCE(${body.equityStructure ? request.db.json(body.equityStructure as never) : null}, equity_structure),
+        name = ${body.name === undefined ? keep('name') : body.name},
+        classification = ${body.classification === undefined ? keep('classification') : body.classification},
+        valuation_date = ${body.valuationDate === undefined ? keep('valuation_date') : body.valuationDate}::date,
+        forecast_start_date = ${body.forecastStartDate === undefined ? keep('forecast_start_date') : body.forecastStartDate}::date,
+        forecast_months = ${body.forecastMonths === undefined ? keep('forecast_months') : body.forecastMonths},
+        fiscal_year_start_month = ${body.fiscalYearStartMonth === undefined ? keep('fiscal_year_start_month') : body.fiscalYearStartMonth},
+        proration_convention = ${body.prorationConvention === undefined ? keep('proration_convention') : body.prorationConvention},
+        notes = ${body.notes === undefined ? keep('notes') : body.notes},
+        discount_rate = ${body.discountRate === undefined ? keep('discount_rate') : body.discountRate}::numeric,
+        discounting_convention = ${body.discountingConvention === undefined ? keep('discounting_convention') : body.discountingConvention},
+        terminal_cap_rate = ${body.terminalCapRate === undefined ? keep('terminal_cap_rate') : body.terminalCapRate}::numeric,
+        terminal_noi_basis = ${body.terminalNoiBasis === undefined ? keep('terminal_noi_basis') : body.terminalNoiBasis},
+        sale_cost_percent = ${body.saleCostPercent === undefined ? keep('sale_cost_percent') : body.saleCostPercent}::numeric,
+        sale_month = ${body.saleMonth === undefined ? keep('sale_month') : body.saleMonth},
+        gross_sale_price_override = ${body.grossSalePriceOverride === undefined ? keep('gross_sale_price_override') : body.grossSalePriceOverride}::numeric,
+        direct_cap_rate = ${body.directCapRate === undefined ? keep('direct_cap_rate') : body.directCapRate}::numeric,
+        direct_cap_noi_basis = ${body.directCapNoiBasis === undefined ? keep('direct_cap_noi_basis') : body.directCapNoiBasis},
+        direct_cap_adjustments = ${body.directCapAdjustments === undefined ? keep('direct_cap_adjustments') : body.directCapAdjustments}::numeric,
+        acquisition_price = ${body.acquisitionPrice === undefined ? keep('acquisition_price') : body.acquisitionPrice}::numeric,
+        acquisition_costs = ${body.acquisitionCosts === undefined ? keep('acquisition_costs') : body.acquisitionCosts}::numeric,
+        acquisition_date = ${body.acquisitionDate === undefined ? keep('acquisition_date') : body.acquisitionDate}::date,
+        general_vacancy_rate = ${body.generalVacancyRate === undefined ? keep('general_vacancy_rate') : body.generalVacancyRate}::numeric,
+        net_against_modelled_vacancy = ${body.netAgainstModelledVacancy === undefined ? keep('net_against_modelled_vacancy') : body.netAgainstModelledVacancy},
+        credit_loss_rate = ${body.creditLossRate === undefined ? keep('credit_loss_rate') : body.creditLossRate}::numeric,
+        equity_structure = ${body.equityStructure === undefined ? keep('equity_structure') : tx.json(body.equityStructure as never)},
         version = version + 1,
         updated_at = now()
       WHERE id = ${id} AND organization_id = ${context.organizationId}
