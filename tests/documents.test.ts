@@ -141,6 +141,20 @@ describe.skipIf(!hasDatabase)('documents', () => {
     expect(downloaded.headers['content-disposition']).toContain('rent-roll-notes.txt');
   });
 
+  /*
+   * The download route writes `document.filename` straight into a
+   * `content-disposition` header. Node refuses to set a header value
+   * carrying a CR or LF -- confirmed directly against `http.ServerResponse`,
+   * not assumed -- so a filename that got past this check at upload would
+   * upload cleanly and then make every future download of it throw. The
+   * refusal has to happen here, at the one point the bad character can
+   * still be traced back to the upload that introduced it.
+   */
+  it('refuses a filename carrying a newline, rather than corrupting every future download of it', async () => {
+    const response = await upload(owner, { filename: 'evil\r\nX-Injected: 1.txt' });
+    expect(response.statusCode).toBe(400);
+  });
+
   it('scopes a document to a model, without hiding it from the property-wide list', async () => {
     await upload(owner, { filename: 'general.txt' });
     await upload(owner, { filename: 'model-specific.txt', modelId });

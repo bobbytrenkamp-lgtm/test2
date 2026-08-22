@@ -59,7 +59,21 @@ export async function registerDocumentRoutes(app: FastifyInstance): Promise<void
       .object({
         propertyId: z.string().uuid(),
         modelId: z.string().uuid().optional(),
-        filename: z.string().min(1).max(300),
+        /**
+         * No control characters, CR and LF included. The download route
+         * writes this straight into a `content-disposition` header, and
+         * Node refuses to set a header value carrying one -- so a filename
+         * that got past this check would upload cleanly and then make
+         * every future download of it throw, an unhandled error the
+         * uploader would have no way to connect back to a stray newline in
+         * a name they typed once and never saw again.
+         */
+        filename: z
+          .string()
+          .min(1)
+          .max(300)
+          // eslint-disable-next-line no-control-regex -- the control characters are the point: this rejects them.
+          .regex(/^[^\r\n\x00-\x1f\x7f]+$/, 'A filename cannot contain control characters.'),
         contentType: z.string().min(1).max(200),
         /**
          * Base64. Capped well under `bodyLimit` (5MB) so the JSON envelope
