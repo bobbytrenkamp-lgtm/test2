@@ -166,15 +166,47 @@ export function canRedo(state: EditState): boolean {
 }
 
 /**
- * Clears the pending layer after a successful save.
+ * Clears only the fields a save actually wrote, leaving anything the analyst
+ * typed after the save started.
  *
- * History goes with it. Once the values are in the model, an undo stack whose
- * `before` values describe a state the server no longer holds would restore
- * figures that are no longer anybody's, so it is discarded rather than left to
- * look usable.
+ * The grid stays editable while a save is in flight — there is no reason to
+ * freeze it for a request that might take a second — so a cell can gain a
+ * newer, still-unsaved edit before the in-flight request's response comes
+ * back. Clearing the *whole* pending layer on that response, the way a plain
+ * "the save succeeded, so nothing is pending" reset would, discards that
+ * newer edit along with the one that was actually saved: the analyst typed a
+ * value, watched the change count drop to confirm it saved, and it would
+ * simply be gone, with no error and nothing sent to the server for it.
+ *
+ * A field is cleared only if its pending value still equals what this save
+ * actually sent. If it was edited again in the meantime, the newer value is
+ * left in place — still pending, still counted, still there for the next
+ * save — rather than being swept away as though it were the one just
+ * written.
+ *
+ * History is discarded entirely, the same as a full commit: some of it
+ * describes a state the server no longer holds now that this save has
+ * written part of the pending layer, and there is no reliable way to tell
+ * which entries still describe the surviving edits without risking an undo
+ * that lands on a value save() never actually produced.
  */
-export function committed(): EditState {
-  return emptyEditState();
+export function settled(
+  state: EditState,
+  saved: Array<{ rowId: string; fields: Record<string, string> }>,
+): EditState {
+  const pending: PendingEdits = {};
+  for (const [rowId, fields] of Object.entries(state.pending)) pending[rowId] = { ...fields };
+
+  for (const { rowId, fields } of saved) {
+    const row = pending[rowId];
+    if (!row) continue;
+    for (const [field, sentValue] of Object.entries(fields)) {
+      if (row[field] === sentValue) delete row[field];
+    }
+    if (Object.keys(row).length === 0) delete pending[rowId];
+  }
+
+  return { pending, past: [], future: [] };
 }
 
 /** Builds the batch a set of writes implies, given what each cell holds now. */
