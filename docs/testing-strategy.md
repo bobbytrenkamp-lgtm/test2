@@ -85,6 +85,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | Mention notifications: a mentioned colleague is notified and nobody else, marking one read is idempotent and scoped to its recipient, marking all read, a self-mention creates nothing, never crosses an organization boundary | `tests/notifications.test.ts` | 5 | Yes |
 | Local object storage: real bytes round-trip with the size and checksum actually written, two uploads of identical content get two different keys, delete removes what was written, a storage key that tries to escape the storage root is refused, `STORAGE_DRIVER=s3` is refused at startup as an unimplemented interface | `apps/api/src/storage.test.ts` | 6 | No |
 | Documents: upload and list with who uploaded it, download returns exactly the uploaded bytes, a filename carrying a CR/LF refused at upload rather than making every future download of it throw, a document scoped to a model still appears in the property-wide list, refuses to scope a document to a model from a different property, a read-only member may list and download but not upload or delete, delete removes both the row and its bytes, never crosses an organization boundary | `tests/documents.test.ts` | 8 | Yes |
+| Updating a property: an omitted field is left alone, and an explicit `null` on a nullish field actually clears it rather than `COALESCE` silently keeping the old value | `tests/properties.test.ts` | 3 | Yes |
 | Configurable dashboards: the upsert really replaces rather than duplicating, personal to each member, never crosses an organization boundary even for the same person, resetting returns to nothing saved rather than an empty layout, a malformed layout is refused | `tests/dashboards.test.ts` | 8 | Yes |
 | Tasks, their links and their completion date | `tests/tasks.test.ts` | 12 | Yes |
 | Portfolio and fund reports | `tests/portfolio-reports.test.ts` | 11 | Yes |
@@ -150,7 +151,7 @@ it did not check the totals, rather than failing for a reason that is not drift.
 | `numericFieldProblem`: the shared form-field validator behind the New property, New underwriting and invite-a-teammate forms — accepts a well-formed number, reports a blank required field but leaves a blank optional one alone, rejects text that does not parse as a number at all, and enforces `min`/`max` only once a value already parses | `apps/web/src/format.test.ts` | 4 | No |
 | Property spaces: a batch saves, and a later row's failure (a negative area past `decimalString`'s own format check, refused only by the database's own CHECK constraint) rolls back the whole batch rather than leaving the earlier rows committed | `tests/spaces.test.ts` | 2 | Yes |
 
-**1649 tests in total.**
+**1652 tests in total.**
 
 Database suites skip cleanly when no `DATABASE_URL` is set, so the engine tests
 run anywhere.
@@ -203,7 +204,7 @@ built bundle:
 | New property form: creation, naming the missing or non-numeric field instead of a browser popup or a silently discarded value, and a debounced search that still narrows to a matching name | `e2e/properties.spec.ts` | 4 |
 | Sign-in's own field-invalid marking: a genuine credentials rejection marks both fields, a rate limit or an unreachable server marks neither | `e2e/sign-in.spec.ts` | 2 |
 
-**262 browser tests in total**, for 1911 across the whole repository.
+**262 browser tests in total**, for 1914 across the whole repository.
 
 The browser table counts the three sign-in setups, which is what `pnpm test:e2e`
 reports.
