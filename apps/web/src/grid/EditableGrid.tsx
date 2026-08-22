@@ -10,12 +10,12 @@ import {
   canRedo,
   canUndo,
   changeCount,
-  committed,
   dirtyRowIds,
   emptyEditState,
   isDirty,
   pendingValue,
   redo as redoEdits,
+  settled,
   undo as undoEdits,
   type EditState,
 } from './edits.js';
@@ -123,7 +123,10 @@ export function EditableGrid<Row>({
     setError(null);
     try {
       await save(changes);
-      setEdits(committed());
+      // The grid stayed editable through the request, so an edit typed while
+      // it was in flight must survive, not be wiped along with the one that
+      // actually saved. See `settled`'s own comment.
+      setEdits((current) => settled(current, changes));
       onSaved?.();
     } catch (cause) {
       setError(

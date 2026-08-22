@@ -19,13 +19,13 @@ import {
   canRedo,
   canUndo,
   changeCount,
-  committed,
   dirtyRowIds,
   emptyEditState,
   HISTORY_LIMIT,
   isDirty,
   pendingValue,
   redo,
+  settled,
   undo,
 } from './edits.js';
 import {
@@ -317,15 +317,52 @@ describe('the pending edit layer', () => {
     expect(state.past[0]?.label).toBe('e25');
   });
 
-  it('clears the layer and the history once saved', () => {
+  it('clears the layer and the history once every pending field is saved', () => {
     let state = emptyEditState();
     state = apply(
       state,
       batchFrom('a', [write('L1', 'area', '1')], () => undefined),
     );
-    state = committed();
+    state = settled(state, [{ rowId: 'L1', fields: { area: '1' } }]);
     expect(isDirty(state)).toBe(false);
     expect(canUndo(state)).toBe(false);
+  });
+
+  it('keeps an edit typed while the save was in flight, instead of discarding it', () => {
+    // The grid stays editable during a save. If the analyst edits L1's rent
+    // after the save request went out but before its response came back,
+    // that edit must survive the response -- it was never part of what was
+    // sent, so it was never written anywhere.
+    let state = emptyEditState();
+    const current = (rowId: string, field: string) => pendingValue(state, rowId, field);
+    state = apply(state, batchFrom('a', [write('L1', 'baseRent', '1000')], current));
+    // What actually went out over the wire, snapshotted at the moment save()
+    // was called -- exactly what EditableGrid's commit() does.
+    const sent = [{ rowId: 'L1', fields: { baseRent: '1000' } }];
+    // ...and then, before the response lands, a second, unrelated edit.
+    state = apply(state, batchFrom('b', [write('L1', 'area', '5000')], current));
+
+    state = settled(state, sent);
+    expect(pendingValue(state, 'L1', 'baseRent')).toBeUndefined();
+    expect(pendingValue(state, 'L1', 'area')).toBe('5000');
+    expect(isDirty(state)).toBe(true);
+    expect(changeCount(state)).toBe(1);
+  });
+
+  it('keeps the newer value when the same cell is edited again mid-save, rather than the one just sent', () => {
+    let state = emptyEditState();
+    const current = (rowId: string, field: string) => pendingValue(state, rowId, field);
+    state = apply(state, batchFrom('a', [write('L1', 'area', '5000')], current));
+    const sent = [{ rowId: 'L1', fields: { area: '5000' } }];
+    // The analyst changes their mind again before the first save returns.
+    state = apply(state, batchFrom('b', [write('L1', 'area', '6000')], current));
+
+    state = settled(state, sent);
+    // '5000' was what was sent, but '6000' is what the cell holds now and was
+    // never saved -- clearing it here would silently revert the analyst's
+    // most recent value to whatever the reload brings back.
+    expect(pendingValue(state, 'L1', 'area')).toBe('6000');
+    expect(isDirty(state)).toBe(true);
   });
 });
 
