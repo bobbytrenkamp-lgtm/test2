@@ -160,29 +160,43 @@ export async function updateProperty(
   propertyId: string,
   patch: Partial<CreatePropertyInput>,
 ): Promise<PropertyRow | null> {
+  /*
+   * Every optional field follows the same rule `models.ts`'s task PATCH
+   * does: an absent key leaves the column alone, an explicit `null` clears
+   * it. `COALESCE(new, old)` cannot tell those apart -- it treats an
+   * explicit `null` exactly like "not sent" and silently keeps the old
+   * value -- which is exactly the bug this route had: a client clearing
+   * `submarket` (or any other nullish field here) by sending `null` got a
+   * 200 back and the field never actually changed. `field === undefined`
+   * is checked against the *patch*, not against SQL, so it survives being
+   * sent through as a bound parameter either way; the branch not taken is a
+   * bare column reference, not a value, so it is never coerced through the
+   * parameter path at all.
+   */
+  const keep = (column: string) => sql.unsafe(column);
   const rows = (await sql`
     UPDATE properties SET
-      name = COALESCE(${patch.name ?? null}, name),
-      property_type = COALESCE(${patch.propertyType ?? null}, property_type),
-      property_subtype = COALESCE(${patch.propertySubtype ?? null}, property_subtype),
-      address_line1 = COALESCE(${patch.addressLine1 ?? null}, address_line1),
-      city = COALESCE(${patch.city ?? null}, city),
-      state_region = COALESCE(${patch.stateRegion ?? null}, state_region),
-      postal_code = COALESCE(${patch.postalCode ?? null}, postal_code),
-      market = COALESCE(${patch.market ?? null}, market),
-      submarket = COALESCE(${patch.submarket ?? null}, submarket),
-      year_built = COALESCE(${patch.yearBuilt ?? null}, year_built),
-      year_renovated = COALESCE(${patch.yearRenovated ?? null}, year_renovated),
-      rentable_area = COALESCE(${patch.rentableArea ?? null}, rentable_area),
-      gross_building_area = COALESCE(${patch.grossBuildingArea ?? null}, gross_building_area),
-      land_area = COALESCE(${patch.landArea ?? null}, land_area),
-      unit_count = COALESCE(${patch.unitCount ?? null}, unit_count),
-      parking_count = COALESCE(${patch.parkingCount ?? null}, parking_count),
-      building_count = COALESCE(${patch.buildingCount ?? null}, building_count),
-      ownership_percent = COALESCE(${patch.ownershipPercent ?? null}, ownership_percent),
-      acquisition_date = COALESCE(${patch.acquisitionDate ?? null}, acquisition_date),
-      acquisition_price = COALESCE(${patch.acquisitionPrice ?? null}, acquisition_price),
-      tags = COALESCE(${patch.tags ?? null}::text[], tags),
+      name = ${patch.name === undefined ? keep('name') : patch.name},
+      property_type = ${patch.propertyType === undefined ? keep('property_type') : patch.propertyType},
+      property_subtype = ${patch.propertySubtype === undefined ? keep('property_subtype') : patch.propertySubtype},
+      address_line1 = ${patch.addressLine1 === undefined ? keep('address_line1') : patch.addressLine1},
+      city = ${patch.city === undefined ? keep('city') : patch.city},
+      state_region = ${patch.stateRegion === undefined ? keep('state_region') : patch.stateRegion},
+      postal_code = ${patch.postalCode === undefined ? keep('postal_code') : patch.postalCode},
+      market = ${patch.market === undefined ? keep('market') : patch.market},
+      submarket = ${patch.submarket === undefined ? keep('submarket') : patch.submarket},
+      year_built = ${patch.yearBuilt === undefined ? keep('year_built') : patch.yearBuilt},
+      year_renovated = ${patch.yearRenovated === undefined ? keep('year_renovated') : patch.yearRenovated},
+      rentable_area = ${patch.rentableArea === undefined ? keep('rentable_area') : patch.rentableArea},
+      gross_building_area = ${patch.grossBuildingArea === undefined ? keep('gross_building_area') : patch.grossBuildingArea},
+      land_area = ${patch.landArea === undefined ? keep('land_area') : patch.landArea},
+      unit_count = ${patch.unitCount === undefined ? keep('unit_count') : patch.unitCount},
+      parking_count = ${patch.parkingCount === undefined ? keep('parking_count') : patch.parkingCount},
+      building_count = ${patch.buildingCount === undefined ? keep('building_count') : patch.buildingCount},
+      ownership_percent = ${patch.ownershipPercent === undefined ? keep('ownership_percent') : patch.ownershipPercent},
+      acquisition_date = ${patch.acquisitionDate === undefined ? keep('acquisition_date') : patch.acquisitionDate},
+      acquisition_price = ${patch.acquisitionPrice === undefined ? keep('acquisition_price') : patch.acquisitionPrice},
+      tags = ${patch.tags === undefined ? keep('tags') : patch.tags},
       updated_at = now()
     WHERE id = ${propertyId} AND organization_id = ${organizationId} AND deleted_at IS NULL
     RETURNING *
