@@ -92,6 +92,41 @@ describe.skipIf(!hasDatabase)('entitlements', () => {
     await applyPlanDefaults(ctx.sql, orgId, 'starter');
   });
 
+  /*
+   * updateEntitlements's own docstring calls it "the one write path" a
+   * billing-provider webhook would need. Before this, that was only true
+   * for `status` -- changing `plan` alone left `features` exactly as it
+   * was, so an organization moved from starter to enterprise through this
+   * function and nothing else would still be refused every enterprise
+   * feature, silently, because the stored `features` array never moved off
+   * starter's empty one. A caller of the one function the docstring points
+   * to had no way to know a second call was required.
+   */
+  it('changing plan through updateEntitlements alone grants that plan’s own features', async () => {
+    const updated = await updateEntitlements(ctx.sql, orgId, { plan: 'enterprise' });
+    expect(updated?.plan).toBe('enterprise');
+    expect(updated?.features).toEqual(
+      expect.arrayContaining(['sso', 'api_access', 'advanced_audit_history']),
+    );
+
+    // Restore the trial fixture other tests in this file rely on.
+    await updateEntitlements(ctx.sql, orgId, { plan: 'starter' });
+    await applyPlanDefaults(ctx.sql, orgId, 'starter');
+  });
+
+  it('changing only status through updateEntitlements leaves features untouched', async () => {
+    await applyPlanDefaults(ctx.sql, orgId, 'professional');
+    const before = await getEntitlements(ctx.sql, orgId);
+
+    const updated = await updateEntitlements(ctx.sql, orgId, { status: 'active' });
+    expect(updated?.plan).toBe('professional');
+    expect(updated?.features).toEqual(before?.features);
+
+    // Restore the trial fixture other tests in this file rely on.
+    await updateEntitlements(ctx.sql, orgId, { plan: 'starter', status: 'trial' });
+    await applyPlanDefaults(ctx.sql, orgId, 'starter');
+  });
+
   describe('assumption_import gate on the apply route', () => {
     let modelId: string;
 
