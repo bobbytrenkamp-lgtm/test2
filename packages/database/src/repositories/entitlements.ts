@@ -74,6 +74,15 @@ export async function ensureEntitlements(
  * Changes plan and/or status. Deliberately narrow — this is the one write
  * path, so an eventual billing-provider webhook has exactly one function to
  * call rather than a choice of several ways to update the same row.
+ *
+ * A plan change also resets `features` to that plan's documented default
+ * (`PLAN_FEATURES`). Without this, a caller that changed only `plan` would
+ * leave the stored `features` array exactly as it was — the row would claim
+ * `enterprise` while `canUseFeature` kept reading whatever the previous
+ * plan had granted, silently locking out every feature the new plan is
+ * supposed to include. `applyPlanDefaults` re-applies the same defaults on
+ * their own, for a caller that only wants that; this is what keeps a plain
+ * plan change from needing to know that second call exists at all.
  */
 export async function updateEntitlements(
   sql: Sql,
@@ -87,6 +96,11 @@ export async function updateEntitlements(
     UPDATE organization_entitlements
     SET plan = COALESCE(${changes.plan ?? null}, plan),
         status = COALESCE(${changes.status ?? null}, status),
+        features = ${
+          changes.plan === undefined
+            ? sql`features`
+            : sql.json(PLAN_FEATURES[changes.plan] as never)
+        },
         updated_at = now()
     WHERE organization_id = ${organizationId}
     RETURNING organization_id, plan, status, max_users, max_properties, features,
