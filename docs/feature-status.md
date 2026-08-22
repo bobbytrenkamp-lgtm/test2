@@ -66,7 +66,7 @@ Everything else on the hardening list is done and gated.
 ## Verification at the last check
 
 ```
-Tests       1648 passed (251 engine regression, 31 engine unit, 20 fund,
+Tests       1649 passed (251 engine regression, 31 engine unit, 20 fund,
                          19 fund waterfall, 13 version comparison, 25 variance, 56 import,
                          29 authorization, 14 budgets, 8 portfolios,
                          12 funds via the API, 11 fund waterfall via the API,
@@ -140,7 +140,7 @@ Tests       1648 passed (251 engine regression, 31 engine unit, 20 fund,
                          4 server-side PDF rendering end to end,
                          7 import atomicity and rollback,
                          5 mention notifications,
-                         6 local object storage, 7 documents, 8 dashboards,
+                         6 local object storage, 8 documents, 8 dashboards,
                          6 lease options through the API,
                          4 the shared numeric form-field validator,
                          2 property spaces batch atomicity)
